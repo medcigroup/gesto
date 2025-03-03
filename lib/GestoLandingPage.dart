@@ -129,8 +129,8 @@ class GestoLandingPage extends StatelessWidget {
           child: Text('Essai gratuit 30 jours'),
         ),
         OutlinedButton(
-          onPressed: () {},
-          child: Text('Voir la démo'),
+          onPressed: () => Navigator.pushNamed(context, AppRoutes.login),
+          child: Text('Se connecter'),
         ),
       ],
     );

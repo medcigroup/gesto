@@ -40,7 +40,7 @@ dependencies:
   firebase_storage: ^12.4.4
   firebase_messaging: ^15.2.4
   url_launcher: ^6.1.11
-
+  table_calendar: ^3.0.8
 
   provider: ^6.1.1 # Gestion d'état
   riverpod: ^2.4.9 # State management avancé
@@ -77,6 +77,7 @@ dependencies:
   parallax_cards: ^1.0.1
   fl_chart: ^0.70.2
   flutter_launcher_icons: ^0.14.3
+  lucide_icons_flutter: ^1.2.8
 
 
 

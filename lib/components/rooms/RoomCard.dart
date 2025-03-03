@@ -17,15 +17,70 @@ class RoomCard extends StatelessWidget {
     switch (status) {
       case 'Disponible':
         return Colors.green;
-      case 'occupée':
+      case 'Occupée':
         return Colors.red;
-      case 'réservée':
+      case 'Réservée':
         return Colors.blue;
       case 'En maintenance':
         return Colors.orange;
       default:
         return Colors.grey;
     }
+  }
+
+  // Map amenities to their corresponding icons
+  IconData _getAmenityIcon(String amenity) {
+    switch (amenity.toLowerCase()) {
+      case 'wifi':
+        return LucideIcons.wifi;
+      case 'tv':
+        return LucideIcons.tv;
+      case 'piscine':
+        return Icons.pool_outlined;
+      case 'jaccuzy':
+        return Icons.bathtub;
+      case 'climatisation':
+        return LucideIcons.thermometer;
+      case 'minibar':
+        return Icons.wine_bar;
+      case 'coffre-fort':
+        return LucideIcons.lock;
+      case 'vue sur mer':
+        return LucideIcons.mountain;
+      case 'petit-dejeuner':
+        return Icons.free_breakfast;
+      case 'salle de bain privée':
+        return Icons.shower;
+      case 'service en chambre':
+        return LucideIcons.bellRing;
+      case 'parking':
+        return LucideIcons.car;
+      default:
+        return LucideIcons.check;
+    }
+  }
+
+  // Build a list of amenity chips with icons
+  List<Widget> _buildAmenityChips(List<String> amenities) {
+    return amenities.map((amenity) {
+      return Chip(
+        avatar: Icon(
+          _getAmenityIcon(amenity),
+          size: 16,
+          color: Colors.blue[700],
+        ),
+        label: Text(
+          amenity,
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.blue[800],
+          ),
+        ),
+        padding: EdgeInsets.symmetric(horizontal: 4),
+        visualDensity: VisualDensity.compact,
+        backgroundColor: Colors.blue.withOpacity(0.1),
+      );
+    }).toList();
   }
 
   @override
@@ -41,12 +96,9 @@ class RoomCard extends StatelessWidget {
           Stack(
             children: [
               SizedBox(
-                height: 180, // Updated to a larger image size
+                height: 180,
                 width: double.infinity,
-                child: Image.network(
-                  room.image,
-                  fit: BoxFit.cover,
-                ),
+                child: _buildRoomImage(context),
               ),
               Positioned(
                 top: 8,
@@ -107,7 +159,7 @@ class RoomCard extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      '\$${room.price}/nuit',
+                      '\FCFA ${room.price}/nuit',
                       style: TextStyle(
                         fontSize: 16,
                         color: Colors.grey[600],
@@ -123,7 +175,7 @@ class RoomCard extends StatelessWidget {
                     Icon(LucideIcons.hotel, size: 18, color: Colors.grey[700]),
                     SizedBox(width: 6),
                     Text(
-                      '${room.type} Room',
+                      '${room.type} chambre',
                       style: TextStyle(
                         fontSize: 16,
                         color: Colors.grey[700],
@@ -141,26 +193,26 @@ class RoomCard extends StatelessWidget {
                     ),
                   ],
                 ),
+                SizedBox(height: 12),
+
+                // Section title for amenities
+                Text(
+                  'Commodités',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
                 SizedBox(height: 8),
 
-                // Amenities
+                // Amenities with icons
                 SizedBox(
-                  width: MediaQuery.of(context).size.width * 0.8,
+                  width: MediaQuery.of(context).size.width * 0.9,
                   child: Wrap(
                     spacing: 8,
                     runSpacing: 8,
-                    children: room.amenities.map((amenity) {
-                      return Chip(
-                        label: Text(
-                          amenity,
-                          style: TextStyle(fontSize: 12),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        padding: EdgeInsets.all(6),
-                        visualDensity: VisualDensity.compact,
-                        backgroundColor: Colors.blueAccent.withOpacity(0.1),
-                      );
-                    }).toList(),
+                    children: _buildAmenityChips(room.amenities),
                   ),
                 ),
                 SizedBox(height: 16),
@@ -170,6 +222,48 @@ class RoomCard extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  // Improved method to handle image loading with robust error handling
+  Widget _buildRoomImage(BuildContext context) {
+    // Check if image URL is empty, null, or invalid
+    if (room.image == null || room.image.isEmpty) {
+      return _buildDefaultImage();
+    }
+
+    // Use network image with complete error handling
+    return FadeInImage.assetNetwork(
+      placeholder: 'assets/images/placeholder.png', // Light placeholder while loading
+      image: room.image,
+      fit: BoxFit.cover,
+      imageErrorBuilder: (context, error, stackTrace) {
+        // Handle all network image errors by showing default image
+        return _buildDefaultImage();
+      },
+    );
+  }
+
+  // Extract default image to a separate method
+  Widget _buildDefaultImage() {
+    try {
+      // Primary option: use asset image
+      return Image.asset(
+        'assets/images/default_room.jpg',
+        fit: BoxFit.cover,
+      );
+    } catch (e) {
+      // Fallback option if asset loading fails: use a colored container with an icon
+      return Container(
+        color: Colors.grey[200],
+        child: Center(
+          child: Icon(
+            LucideIcons.hotel,
+            size: 60,
+            color: Colors.grey[600],
+          ),
+        ),
+      );
+    }
   }
 }
 

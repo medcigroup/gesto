@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../components/rooms/RoomCalendar.dart';
 import '../components/rooms/RoomCard.dart';
 import '../components/rooms/room_data.dart';
 import '../config/room_models.dart';
+import 'AddRoomBottomSheet.dart';
+import 'EditRoomBottomSheet.dart'; // Importer le nouveau fichier
 
 class RoomsPage extends StatefulWidget {
   @override
@@ -12,18 +15,131 @@ class RoomsPage extends StatefulWidget {
 }
 
 class _RoomsPageState extends State<RoomsPage> {
-  List<Room> rooms = roomsData;
+  List<Room> rooms = [];
   String view = 'grid';
   String searchTerm = '';
   String filterStatus = 'tout';
   String filterType = 'tout';
+  bool isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    fetchRooms(); // Charger les chambres depuis Firebase au démarrage
+  }
+
+  // Fonction pour ouvrir le bottom sheet d'ajout
+  void _showAddRoomBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true, // Important pour que le sheet puisse s'étendre
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => AddRoomBottomSheet(
+        onRoomAdded: fetchRooms, // Rafraîchir la liste après l'ajout
+      ),
+    );
+  }
+
+  // Fonction pour ouvrir le bottom sheet d'édition
+  void _showEditRoomBottomSheet(Room room) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => EditRoomBottomSheet(
+        room: room,
+        onRoomEdited: fetchRooms, // Rafraîchir la liste après la modification
+      ),
+    );
+  }
+
+  // Récupérer les chambres depuis Firebase
+  Future<void> fetchRooms() async {
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      final snapshot = await FirebaseFirestore.instance.collection('rooms').get();
+
+      final fetchedRooms = snapshot.docs.map((doc) {
+        final data = doc.data();
+        return Room(
+          id: doc.id, // Utiliser l'ID du document comme ID de chambre
+          number: data['number'],
+          type: data['type'],
+          status: data['status'],
+          price: data['price'].toDouble(),
+          capacity: data['capacity'],
+          amenities: List<String>.from(data['amenities']),
+          floor: data['floor'],
+          image: data['image'],
+          imageUrl: '', // Requis par le constructeur mais non utilisé selon votre modèle
+          description: '', // Requis par le constructeur mais non utilisé selon votre modèle
+        );
+      }).toList();
+
+      setState(() {
+        rooms = fetchedRooms;
+        isLoading = false;
+      });
+    } catch (e) {
+      print('Erreur lors de la récupération des chambres: $e');
+      setState(() {
+        isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur lors du chargement des chambres')),
+      );
+    }
+  }
 
   void handleEditRoom(String id) {
     print('Modifier la chambre $id');
+    // Trouver la chambre à modifier dans la liste des chambres
+    final roomToEdit = rooms.firstWhere((room) => room.id == id);
+    _showEditRoomBottomSheet(roomToEdit);
   }
 
-  void handleDeleteRoom(String id) {
-    print('Supprimer la chambre $id');
+  Future<void> handleDeleteRoom(String id) async {
+    bool confirmDelete = await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Confirmation'),
+        content: Text('Êtes-vous sûr de vouloir supprimer cette chambre ?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text('Supprimer', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    ) ?? false;
+
+    if (confirmDelete) {
+      try {
+        await FirebaseFirestore.instance.collection('rooms').doc(id).delete();
+        fetchRooms(); // Rafraîchir la liste
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Chambre supprimée avec succès')),
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur lors de la suppression: $e')),
+        );
+      }
+    }
   }
 
   List<Room> get filteredRooms {
@@ -45,11 +161,13 @@ class _RoomsPageState extends State<RoomsPage> {
         title: Row(
           children: [
             IconButton(
-              icon: Icon(LucideIcons.layoutGrid, color: Colors.black87),
+              icon: Icon(LucideIcons.layoutGrid,
+                  color: view == 'grid' ? Colors.black87 : Colors.grey),
               onPressed: () => setState(() => view = 'grid'),
             ),
             IconButton(
-              icon: Icon(LucideIcons.calendar, color: Colors.grey),
+              icon: Icon(LucideIcons.calendar,
+                  color: view == 'calendar' ? Colors.black87 : Colors.grey),
               onPressed: () => setState(() => view = 'calendar'),
             ),
             SizedBox(width: 12),
@@ -76,6 +194,7 @@ class _RoomsPageState extends State<RoomsPage> {
                 DropdownMenuItem(value: 'disponible', child: Text("Disponible")),
                 DropdownMenuItem(value: 'occupée', child: Text("Occupée")),
                 DropdownMenuItem(value: 'réservée', child: Text("Réservée")),
+                DropdownMenuItem(value: 'maintenance', child: Text("En maintenance")),
               ],
               onChanged: (value) => setState(() => filterStatus = value!),
             ),
@@ -93,18 +212,18 @@ class _RoomsPageState extends State<RoomsPage> {
             SizedBox(width: 12),
             LayoutBuilder(
               builder: (BuildContext context, BoxConstraints constraints) {
-                if (constraints.maxWidth < 600) {
-                  return IconButton( // Affiche uniquement l'icône sur les petits écrans
-                    onPressed: () {},
+                if (constraints.maxWidth < 900) {
+                  return IconButton(
+                    onPressed: _showAddRoomBottomSheet,
                     icon: Icon(LucideIcons.plus, color: Colors.green),
                   );
                 } else {
-                  return ElevatedButton.icon( // Affiche le bouton complet sur les grands écrans
+                  return ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
                       padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     ),
-                    onPressed: () {},
+                    onPressed: _showAddRoomBottomSheet,
                     icon: Icon(LucideIcons.plus, size: 20, color: Colors.white),
                     label: Text("Ajouter une chambre", style: TextStyle(color: Colors.white)),
                   );
@@ -114,55 +233,76 @@ class _RoomsPageState extends State<RoomsPage> {
           ],
         ),
       ),
-      body: LayoutBuilder(
-        builder: (BuildContext context, BoxConstraints constraints) {
-          final screenWidth = constraints.maxWidth;
-          int crossAxisCount = 4;
+      body: RefreshIndicator(
+        onRefresh: fetchRooms,
+        child: isLoading
+            ? Center(child: CircularProgressIndicator())
+            : LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            final screenWidth = constraints.maxWidth;
+            int crossAxisCount = 4;
 
-          if (screenWidth < 600) {
-            crossAxisCount = 1;
-          } else if (screenWidth < 900) {
-            crossAxisCount = 2;
-          } else {
-            crossAxisCount = 4;
-          }
+            if (screenWidth < 600) {
+              crossAxisCount = 1;
+            } else if (screenWidth < 900) {
+              crossAxisCount = 2;
+            } else if (screenWidth < 1300) {
+              crossAxisCount = 3;
+            } else {
+              crossAxisCount = 4;
+            }
 
-          return Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SizedBox(height: 16),
-                Expanded(
-                  child: view == 'grid'
-                      ? GridView.builder(
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: crossAxisCount,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                      childAspectRatio: 0.8,
+            return Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(height: 16),
+                  Expanded(
+                    child: view == 'grid'
+                        ? filteredRooms.isEmpty
+                        ? Center(
+                      child: Text(
+                        "Aucune chambre trouvée avec ces critères",
+                        style: TextStyle(fontSize: 16, color: Colors.grey),
+                      ),
+                    )
+                        : GridView.builder(
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: crossAxisCount,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
+                        childAspectRatio: 0.8,
+                      ),
+                      itemCount: filteredRooms.length,
+                      itemBuilder: (context, index) {
+                        final room = filteredRooms[index];
+                        return RoomCard(
+                          room: room,
+                          onEdit: handleEditRoom,
+                          onDelete: handleDeleteRoom,
+                        );
+                      },
+                    )
+                        : RoomCalendar(
+                      rooms: rooms,
+                      bookings: bookingsData,
                     ),
-                    itemCount: filteredRooms.length,
-                    itemBuilder: (context, index) {
-                      final room = filteredRooms[index];
-                      return RoomCard(
-                        room: room,
-                        onEdit: handleEditRoom,
-                        onDelete: handleDeleteRoom,
-                      );
-                    },
-                  )
-                      : RoomCalendar(
-                    rooms: rooms,
-                    bookings: bookingsData,
                   ),
-                ),
-              ],
-            ),
-          );
-        },
+                ],
+              ),
+            );
+          },
+        ),
       ),
+      floatingActionButton: MediaQuery.of(context).size.width < 600
+          ? FloatingActionButton(
+        onPressed: _showAddRoomBottomSheet,
+        backgroundColor: Colors.green,
+        tooltip: "Ajouter une chambre",
+        child: Icon(LucideIcons.plus, color: Colors.white),
+      )
+          : null,
     );
   }
 }
-

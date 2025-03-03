@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../ChoosePlanScreen.dart';
+import '../DashboardScreen.dart';
 import '../GestoLandingPage.dart';
 import '../modules/auth/screens/ThankYouScreen.dart';
 import '../modules/auth/screens/login_screen.dart';
@@ -25,6 +26,8 @@ class AppRoutes {
     switch (settings.name) {
       case home:
         return MaterialPageRoute(builder: (_) => GestoLandingPage());
+      case dashboard:
+        return MaterialPageRoute(builder: (_) => Dashboard());
       case thankYou:
         return MaterialPageRoute(builder: (_) => ThankYouScreen());
       case choosePlan:

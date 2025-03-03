@@ -15,15 +15,15 @@ class _RoomsPageState extends State<RoomsPage> {
   List<Room> rooms = roomsData;
   String view = 'grid';
   String searchTerm = '';
-  String filterStatus = 'tout'; // 'all' traduit en 'tout'
-  String filterType = 'tout'; // 'all' traduit en 'tout'
+  String filterStatus = 'tout';
+  String filterType = 'tout';
 
   void handleEditRoom(String id) {
-    print('Modifier la chambre $id'); // 'Edit room' traduit en 'Modifier la chambre'
+    print('Modifier la chambre $id');
   }
 
   void handleDeleteRoom(String id) {
-    print('Supprimer la chambre $id'); // 'Delete room' traduit en 'Supprimer la chambre'
+    print('Supprimer la chambre $id');
   }
 
   List<Room> get filteredRooms {
@@ -56,7 +56,7 @@ class _RoomsPageState extends State<RoomsPage> {
             Expanded(
               child: TextField(
                 decoration: InputDecoration(
-                  hintText: "Rechercher des chambres...", // "Search rooms..." traduit en "Rechercher des chambres..."
+                  hintText: "Rechercher des chambres...",
                   prefixIcon: Icon(LucideIcons.search, color: Colors.grey),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -72,10 +72,10 @@ class _RoomsPageState extends State<RoomsPage> {
             DropdownButton<String>(
               value: filterStatus,
               items: [
-                DropdownMenuItem(value: 'tout', child: Text("Tous les statuts")), // "All Status" traduit en "Tous les statuts"
-                DropdownMenuItem(value: 'disponible', child: Text("Disponible")), // "Available" traduit en "Disponible"
-                DropdownMenuItem(value: 'occupée', child: Text("Occupée")), // "Occupied" traduit en "Occupée"
-                DropdownMenuItem(value: 'réservée', child: Text("Réservée")), // "Reserved" traduit en "Réservée"
+                DropdownMenuItem(value: 'tout', child: Text("Tous les statuts")),
+                DropdownMenuItem(value: 'disponible', child: Text("Disponible")),
+                DropdownMenuItem(value: 'occupée', child: Text("Occupée")),
+                DropdownMenuItem(value: 'réservée', child: Text("Réservée")),
               ],
               onChanged: (value) => setState(() => filterStatus = value!),
             ),
@@ -83,22 +83,33 @@ class _RoomsPageState extends State<RoomsPage> {
             DropdownButton<String>(
               value: filterType,
               items: [
-                DropdownMenuItem(value: 'tout', child: Text("Tous les types")), // "All Types" traduit en "Tous les types"
-                DropdownMenuItem(value: 'simple', child: Text("Simple")), // "Single" traduit en "Simple"
+                DropdownMenuItem(value: 'tout', child: Text("Tous les types")),
+                DropdownMenuItem(value: 'simple', child: Text("Simple")),
                 DropdownMenuItem(value: 'double', child: Text("Double")),
                 DropdownMenuItem(value: 'suite', child: Text("Suite")),
               ],
               onChanged: (value) => setState(() => filterType = value!),
             ),
             SizedBox(width: 12),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              ),
-              onPressed: () {},
-              icon: Icon(LucideIcons.plus, size: 20, color: Colors.white),
-              label: Text("Ajouter une chambre", style: TextStyle(color: Colors.white)), // "Add Room" traduit en "Ajouter une chambre"
+            LayoutBuilder(
+              builder: (BuildContext context, BoxConstraints constraints) {
+                if (constraints.maxWidth < 600) {
+                  return IconButton( // Affiche uniquement l'icône sur les petits écrans
+                    onPressed: () {},
+                    icon: Icon(LucideIcons.plus, color: Colors.green),
+                  );
+                } else {
+                  return ElevatedButton.icon( // Affiche le bouton complet sur les grands écrans
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    ),
+                    onPressed: () {},
+                    icon: Icon(LucideIcons.plus, size: 20, color: Colors.white),
+                    label: Text("Ajouter une chambre", style: TextStyle(color: Colors.white)),
+                  );
+                }
+              },
             ),
           ],
         ),

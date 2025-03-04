@@ -61,6 +61,7 @@ class _SideMenuState extends State<SideMenu> {
             ),
           ),
           _buildMenuItem(Icons.home, 'Tableau de bord', AppRoutes.dashboard),
+          _buildMenuItem(Icons.book_online, 'Réservation', AppRoutes.reservationPage),
           _buildMenuItem(Icons.checkroom_outlined, 'Chambres', AppRoutes.roomsPage),
           _buildMenuItem(Icons.restaurant, 'Restaurant', AppRoutes.restaurant),
           _buildMenuItem(Icons.person, 'Clients', AppRoutes.clients),
@@ -68,14 +69,41 @@ class _SideMenuState extends State<SideMenu> {
           _buildMenuItem(Icons.monetization_on_sharp, 'Finances', AppRoutes.finance),
           _buildMenuItem(Icons.analytics_outlined, 'Statistiques', AppRoutes.statistiques),
           _buildMenuItem(Icons.settings, 'Paramètres', AppRoutes.settings),
+
           ListTile(
             leading: const Icon(Icons.logout, color: Colors.red),
             title: const Text('Déconnexion', style: TextStyle(color: Colors.red)),
             onTap: () async {
-              await FirebaseAuth.instance.signOut();
-              Navigator.pushNamedAndRemoveUntil(context, AppRoutes.home, (route) => false);
+              // Afficher une boîte de dialogue de confirmation
+              bool confirmLogout = await showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Confirmation'),
+                  content: const Text('Êtes-vous sûr de vouloir vous déconnecter ?'),
+                  actions: <Widget>[
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(context).pop(false);  // Annuler la déconnexion
+                      },
+                      child: const Text('Annuler'),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(context).pop(true);  // Confirmer la déconnexion
+                      },
+                      child: const Text('Déconnecter', style: TextStyle(color: Colors.red)),
+                    ),
+                  ],
+                ),
+              );
+
+              // Si l'utilisateur confirme la déconnexion
+              if (confirmLogout == true) {
+                await FirebaseAuth.instance.signOut();
+                Navigator.pushNamedAndRemoveUntil(context, AppRoutes.home, (route) => false);
+              }
             },
-          ),
+          )
         ],
       ),
     );

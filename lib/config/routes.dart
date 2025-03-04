@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../ChoosePlanScreen.dart';
 import '../DashboardScreen.dart';
 import '../GestoLandingPage.dart';
+import '../Screens/ReservationPage.dart';
 import '../Screens/RoomsPage.dart';
 import '../modules/auth/screens/ThankYouScreen.dart';
 import '../modules/auth/screens/login_screen.dart';
@@ -21,7 +22,8 @@ class AppRoutes {
   static const String settings = '/settings';
   static const String choosePlan = '/choose-plan';
   static const String thankYou = '/thank-you';
-  static const String roomsPage = '/roomsPage';  // Changement de nom ici
+  static const String roomsPage = '/roomsPage';
+  static const String reservationPage = '/reservation';// Changement de nom ici
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
     switch (settings.name) {
@@ -40,6 +42,8 @@ class AppRoutes {
         return MaterialPageRoute(builder: (_) => const RegisterScreen());
       case roomsPage: // Correspond à la nouvelle route roomsPage
         return MaterialPageRoute(builder: (_) => RoomsPage());
+      case reservationPage: // Correspond à la nouvelle route roomsPage
+        return MaterialPageRoute(builder: (_) => ReservationPage());
 
       default:
         return MaterialPageRoute(

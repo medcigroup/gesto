@@ -19,7 +19,7 @@ class RoomCard extends StatelessWidget {
         return Colors.green;
       case 'occupée':
         return Colors.red;
-      case 'Réservée':
+      case 'réservée':
         return Colors.blue;
       case 'maintenance':
         return Colors.orange;

@@ -75,7 +75,7 @@ class _RoomsPageState extends State<RoomsPage> {
     try {
       final snapshot = await FirebaseFirestore.instance
           .collection('rooms')
-          .where('userId', isEqualTo: userId)  // Filtrer les chambres par userId
+          .where('userId', isEqualTo: userId)
           .get();
 
       final fetchedRooms = snapshot.docs.map((doc) {
@@ -196,77 +196,122 @@ class _RoomsPageState extends State<RoomsPage> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 2,
-        title: Row(
-          children: [
-            IconButton(
-              icon: Icon(LucideIcons.layoutGrid,
-                  color: view == 'grid' ? Colors.black87 : Colors.grey),
-              onPressed: () => setState(() => view = 'grid'),
-            ),
-            IconButton(
-              icon: Icon(LucideIcons.calendar,
-                  color: view == 'calendar' ? Colors.black87 : Colors.grey),
-              onPressed: () => setState(() => view = 'calendar'),
-            ),
-            SizedBox(width: 12),
-            Expanded(
-              child: TextField(
-                decoration: InputDecoration(
-                  hintText: "Rechercher des chambres...",
-                  prefixIcon: Icon(LucideIcons.search, color: Colors.grey),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide.none,
+        title: LayoutBuilder(
+          builder: (context, constraints) {
+            // Si l'écran est plus petit (ex : téléphones)
+            if (constraints.maxWidth < 600) {
+              return Row(
+                children: [
+                  IconButton(
+                    icon: Icon(LucideIcons.layoutGrid,
+                        color: view == 'grid' ? Colors.black87 : Colors.grey),
+                    onPressed: () => setState(() => view = 'grid'),
                   ),
-                  fillColor: Colors.grey[200],
-                  filled: true,
+                  IconButton(
+                    icon: Icon(LucideIcons.calendar,
+                        color: view == 'calendar' ? Colors.black87 : Colors.grey),
+                    onPressed: () => setState(() => view = 'calendar'),
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                      child: TextField(
+                        decoration: InputDecoration(
+                          hintText: "Rechercher des chambres...",
+                          prefixIcon: Icon(LucideIcons.search, color: Colors.grey),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide.none,
+                          ),
+                          fillColor: Colors.grey[200],
+                          filled: true,
+                        ),
+                        onChanged: (value) => setState(() => searchTerm = value),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: _showAddRoomBottomSheet,
+                    icon: Icon(LucideIcons.plus, color: Colors.green),
+                  ),
+                ],
+              );
+            }
+
+            // Si l'écran est plus grand (ex : tablettes et desktop)
+            return Row(
+              children: [
+                IconButton(
+                  icon: Icon(LucideIcons.layoutGrid,
+                      color: view == 'grid' ? Colors.black87 : Colors.grey),
+                  onPressed: () => setState(() => view = 'grid'),
                 ),
-                onChanged: (value) => setState(() => searchTerm = value),
-              ),
-            ),
-            SizedBox(width: 12),
-            DropdownButton<String>(
-              value: filterStatus,
-              items: [
-                DropdownMenuItem(value: 'tout', child: Text("Tous les statuts")),
-                DropdownMenuItem(value: 'disponible', child: Text("Disponible")),
-                DropdownMenuItem(value: 'occupée', child: Text("Occupée")),
-                DropdownMenuItem(value: 'réservée', child: Text("Réservée")),
-                DropdownMenuItem(value: 'maintenance', child: Text("En maintenance")),
+                IconButton(
+                  icon: Icon(LucideIcons.calendar,
+                      color: view == 'calendar' ? Colors.black87 : Colors.grey),
+                  onPressed: () => setState(() => view = 'calendar'),
+                ),
+                SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    decoration: InputDecoration(
+                      hintText: "Rechercher des chambres...",
+                      prefixIcon: Icon(LucideIcons.search, color: Colors.grey),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
+                      fillColor: Colors.grey[200],
+                      filled: true,
+                    ),
+                    onChanged: (value) => setState(() => searchTerm = value),
+                  ),
+                ),
+                SizedBox(width: 12),
+                DropdownButton<String>(
+                  value: filterStatus,
+                  items: [
+                    DropdownMenuItem(value: 'tout', child: Text("Tous les statuts")),
+                    DropdownMenuItem(value: 'disponible', child: Text("Disponible")),
+                    DropdownMenuItem(value: 'occupée', child: Text("Occupée")),
+                    DropdownMenuItem(value: 'réservée', child: Text("Réservée")),
+                    DropdownMenuItem(value: 'maintenance', child: Text("En maintenance")),
+                  ],
+                  onChanged: (value) => setState(() => filterStatus = value!),
+                ),
+                SizedBox(width: 12),
+                DropdownButton<String>(
+                  value: filterType,
+                  items: [
+                    DropdownMenuItem(value: 'tout', child: Text("Tous les types")),
+                    DropdownMenuItem(value: 'simple', child: Text("Simple")),
+                    DropdownMenuItem(value: 'double', child: Text("Double")),
+                    DropdownMenuItem(value: 'suite', child: Text("Suite")),
+                  ],
+                  onChanged: (value) => setState(() => filterType = value!),
+                ),
+                SizedBox(width: 12),
+                DropdownButton<String>(
+                  value: sortOrder,
+                  items: [
+                    DropdownMenuItem(value: 'asc', child: Text("Numéro croissant")),
+                    DropdownMenuItem(value: 'desc', child: Text("Numéro décroissant")),
+                  ],
+                  onChanged: (value) {
+                    setState(() {
+                      sortOrder = value!;
+                      fetchRooms(); // Recharger les chambres avec le nouveau tri
+                    });
+                  },
+                ),
+                SizedBox(width: 12),
+                IconButton(
+                  onPressed: _showAddRoomBottomSheet,
+                  icon: Icon(LucideIcons.plus, color: Colors.green),
+                ),
               ],
-              onChanged: (value) => setState(() => filterStatus = value!),
-            ),
-            SizedBox(width: 12),
-            DropdownButton<String>(
-              value: filterType,
-              items: [
-                DropdownMenuItem(value: 'tout', child: Text("Tous les types")),
-                DropdownMenuItem(value: 'simple', child: Text("Simple")),
-                DropdownMenuItem(value: 'double', child: Text("Double")),
-                DropdownMenuItem(value: 'suite', child: Text("Suite")),
-              ],
-              onChanged: (value) => setState(() => filterType = value!),
-            ),
-            SizedBox(width: 12),
-            DropdownButton<String>(
-              value: sortOrder,
-              items: [
-                DropdownMenuItem(value: 'asc', child: Text("Numéro croissant")),
-                DropdownMenuItem(value: 'desc', child: Text("Numéro décroissant")),
-              ],
-              onChanged: (value) {
-                setState(() {
-                  sortOrder = value!;
-                  fetchRooms(); // Recharger les chambres avec le nouveau tri
-                });
-              },
-            ),
-            SizedBox(width: 12),
-            IconButton(
-              onPressed: _showAddRoomBottomSheet,
-              icon: Icon(LucideIcons.plus, color: Colors.green),
-            ),
-          ],
+            );
+          },
         ),
       ),
       drawer: const SideMenu(),

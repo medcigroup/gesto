@@ -20,7 +20,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Hotel Management App',
-      initialRoute: AppRoutes.RoomsPages, // Assure-toi que la route initiale existe
+      initialRoute: AppRoutes.home, // Assure-toi que la route initiale existe
       onGenerateRoute: AppRoutes.onGenerateRoute,
     );
   }

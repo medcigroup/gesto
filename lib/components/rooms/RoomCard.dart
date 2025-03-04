@@ -126,13 +126,13 @@ class RoomCard extends StatelessWidget {
                 child: Row(
                   children: [
                     IconButton(
-                      icon: Icon(LucideIcons.pencil, size: 20, color: Colors.white),
+                      icon: Icon(LucideIcons.pencil, size: 20, color: Colors.grey),
                       onPressed: () => onEdit(room.id),
                       tooltip: 'Modifier',
                     ),
                     SizedBox(width: 8),
                     IconButton(
-                      icon: Icon(LucideIcons.trash, size: 20, color: Colors.white),
+                      icon: Icon(LucideIcons.trash, size: 20, color: Colors.grey),
                       onPressed: () => onDelete(room.id),
                       tooltip: 'Supprimer',
                     ),

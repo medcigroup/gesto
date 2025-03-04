@@ -1,10 +1,20 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:path/path.dart';
 
 import 'config/routes.dart';
 
-class GestoLandingPage extends StatelessWidget {
+class GestoLandingPage extends StatefulWidget {
+  @override
+  _GestoLandingPageState createState() => _GestoLandingPageState();
+}
+
+class _GestoLandingPageState extends State<GestoLandingPage> {
+
+
+
   @override
   Widget build(BuildContext context) {
     final primaryColor = Color(0xFF6366F1);

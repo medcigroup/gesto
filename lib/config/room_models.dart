@@ -12,6 +12,7 @@ class Room {
   final String image;
   final String imageUrl;
   final String description;
+  final String userId;  // Ajout du champ userId
 
   Room({
     required this.id,
@@ -25,6 +26,7 @@ class Room {
     required this.image,
     this.imageUrl = '',
     this.description = '',
+    required this.userId,  // Assurez-vous d'inclure userId dans le constructeur
   });
 
   // Méthode factory pour créer une Room depuis Firestore
@@ -41,6 +43,7 @@ class Room {
       image: data['image'],
       imageUrl: data['imageUrl'] ?? '',
       description: data['description'] ?? '',
+      userId: data['userId'] ?? '',  // Assurez-vous que userId est récupéré depuis Firestore
     );
   }
 
@@ -58,6 +61,7 @@ class Room {
       'image': image,
       'imageUrl': imageUrl,
       'description': description,
+      'userId': userId,  // Assurez-vous que userId est inclus dans les données Firestore
     };
   }
 }

@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../components/rooms/RoomCalendar.dart';
 import '../components/rooms/RoomCard.dart';
-import '../components/rooms/room_data.dart';
+
 import '../config/room_models.dart';
+import '../widgets/side_menu.dart';
 import 'AddRoomBottomSheet.dart';
-import 'EditRoomBottomSheet.dart'; // Importer le nouveau fichier
+import 'EditRoomBottomSheet.dart';
 
 class RoomsPage extends StatefulWidget {
   @override
@@ -21,10 +23,13 @@ class _RoomsPageState extends State<RoomsPage> {
   String filterStatus = 'tout';
   String filterType = 'tout';
   bool isLoading = false;
+  String? userId;
+  String sortOrder = 'asc';  // Pour le tri dynamique
 
   @override
   void initState() {
     super.initState();
+    userId = FirebaseAuth.instance.currentUser?.uid; // Récupérer l'ID de l'utilisateur
     fetchRooms(); // Charger les chambres depuis Firebase au démarrage
   }
 
@@ -32,7 +37,7 @@ class _RoomsPageState extends State<RoomsPage> {
   void _showAddRoomBottomSheet() {
     showModalBottomSheet(
       context: context,
-      isScrollControlled: true, // Important pour que le sheet puisse s'étendre
+      isScrollControlled: true,
       backgroundColor: Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -61,18 +66,23 @@ class _RoomsPageState extends State<RoomsPage> {
 
   // Récupérer les chambres depuis Firebase
   Future<void> fetchRooms() async {
+    if (userId == null) return;
+
     setState(() {
       isLoading = true;
     });
 
     try {
-      final snapshot = await FirebaseFirestore.instance.collection('rooms').get();
+      final snapshot = await FirebaseFirestore.instance
+          .collection('rooms')
+          .where('userId', isEqualTo: userId)  // Filtrer les chambres par userId
+          .get();
 
       final fetchedRooms = snapshot.docs.map((doc) {
         final data = doc.data();
         return Room(
-          id: doc.id, // Utiliser l'ID du document comme ID de chambre
-          number: data['number'],
+          id: doc.id,
+          number: data['number'], // On garde 'number' comme String pour l'affichage
           type: data['type'],
           status: data['status'],
           price: data['price'].toDouble(),
@@ -80,10 +90,26 @@ class _RoomsPageState extends State<RoomsPage> {
           amenities: List<String>.from(data['amenities']),
           floor: data['floor'],
           image: data['image'],
-          imageUrl: '', // Requis par le constructeur mais non utilisé selon votre modèle
-          description: '', // Requis par le constructeur mais non utilisé selon votre modèle
+          imageUrl: '',
+          description: '',
+          userId: '',
         );
       }).toList();
+
+      // Tri en convertissant 'number' en entier (int) de manière sécurisée
+      if (sortOrder == 'asc') {
+        fetchedRooms.sort((a, b) {
+          int aNumber = int.tryParse(a.number) ?? 0;  // Si non converti, mettre 0
+          int bNumber = int.tryParse(b.number) ?? 0;  // Si non converti, mettre 0
+          return aNumber.compareTo(bNumber);  // Tri croissant
+        });
+      } else {
+        fetchedRooms.sort((a, b) {
+          int aNumber = int.tryParse(a.number) ?? 0;  // Si non converti, mettre 0
+          int bNumber = int.tryParse(b.number) ?? 0;  // Si non converti, mettre 0
+          return bNumber.compareTo(aNumber);  // Tri décroissant
+        });
+      }
 
       setState(() {
         rooms = fetchedRooms;
@@ -101,9 +127,9 @@ class _RoomsPageState extends State<RoomsPage> {
     }
   }
 
+
+
   void handleEditRoom(String id) {
-    print('Modifier la chambre $id');
-    // Trouver la chambre à modifier dans la liste des chambres
     final roomToEdit = rooms.firstWhere((room) => room.id == id);
     _showEditRoomBottomSheet(roomToEdit);
   }
@@ -143,14 +169,26 @@ class _RoomsPageState extends State<RoomsPage> {
   }
 
   List<Room> get filteredRooms {
-    return rooms.where((room) {
+    List<Room> filtered = rooms.where((room) {
       final matchesSearch =
       room.number.toLowerCase().contains(searchTerm.toLowerCase());
       final matchesStatus = filterStatus == 'tout' || room.status == filterStatus;
       final matchesType = filterType == 'tout' || room.type == filterType;
       return matchesSearch && matchesStatus && matchesType;
     }).toList();
+
+    // Tri local par numéro, avec conversion en entier pour un tri correct
+    filtered.sort((a, b) {
+      // Vérifier si 'number' peut être converti en entier
+      int aNumber = int.tryParse(a.number) ?? 0;  // Si non, attribuer la valeur 0
+      int bNumber = int.tryParse(b.number) ?? 0;  // Si non, attribuer la valeur 0
+
+      return aNumber.compareTo(bNumber);  // Tri par 'number' en tant qu'entiers
+    });
+
+    return filtered;
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -210,29 +248,28 @@ class _RoomsPageState extends State<RoomsPage> {
               onChanged: (value) => setState(() => filterType = value!),
             ),
             SizedBox(width: 12),
-            LayoutBuilder(
-              builder: (BuildContext context, BoxConstraints constraints) {
-                if (constraints.maxWidth < 900) {
-                  return IconButton(
-                    onPressed: _showAddRoomBottomSheet,
-                    icon: Icon(LucideIcons.plus, color: Colors.green),
-                  );
-                } else {
-                  return ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    ),
-                    onPressed: _showAddRoomBottomSheet,
-                    icon: Icon(LucideIcons.plus, size: 20, color: Colors.white),
-                    label: Text("Ajouter une chambre", style: TextStyle(color: Colors.white)),
-                  );
-                }
+            DropdownButton<String>(
+              value: sortOrder,
+              items: [
+                DropdownMenuItem(value: 'asc', child: Text("Numéro croissant")),
+                DropdownMenuItem(value: 'desc', child: Text("Numéro décroissant")),
+              ],
+              onChanged: (value) {
+                setState(() {
+                  sortOrder = value!;
+                  fetchRooms(); // Recharger les chambres avec le nouveau tri
+                });
               },
+            ),
+            SizedBox(width: 12),
+            IconButton(
+              onPressed: _showAddRoomBottomSheet,
+              icon: Icon(LucideIcons.plus, color: Colors.green),
             ),
           ],
         ),
       ),
+      drawer: const SideMenu(),
       body: RefreshIndicator(
         onRefresh: fetchRooms,
         child: isLoading
@@ -286,7 +323,7 @@ class _RoomsPageState extends State<RoomsPage> {
                     )
                         : RoomCalendar(
                       rooms: rooms,
-                      bookings: bookingsData,
+                      bookings: [],  // Ajoutez vos données de réservations ici
                     ),
                   ),
                 ],
@@ -295,14 +332,8 @@ class _RoomsPageState extends State<RoomsPage> {
           },
         ),
       ),
-      floatingActionButton: MediaQuery.of(context).size.width < 600
-          ? FloatingActionButton(
-        onPressed: _showAddRoomBottomSheet,
-        backgroundColor: Colors.green,
-        tooltip: "Ajouter une chambre",
-        child: Icon(LucideIcons.plus, color: Colors.white),
-      )
-          : null,
     );
   }
 }
+
+

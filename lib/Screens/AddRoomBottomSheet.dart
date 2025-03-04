@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -131,6 +132,16 @@ class _AddRoomBottomSheetState extends State<AddRoomBottomSheet> {
       });
 
       try {
+        // Récupérer l'ID de l'utilisateur actuel
+        String? userId = FirebaseAuth.instance.currentUser?.uid;
+
+        if (userId == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Utilisateur non authentifié.')),
+          );
+          return;
+        }
+
         // Générer un nouvel ID pour la chambre
         final roomId = Uuid().v4();
 
@@ -158,6 +169,7 @@ class _AddRoomBottomSheetState extends State<AddRoomBottomSheet> {
           image: imageName,
           imageUrl: imageUrl ?? '',
           description: '',
+          userId: userId, // Ajoutez l'ID de l'utilisateur
         );
 
         // Enregistrer dans Firestore
@@ -173,6 +185,7 @@ class _AddRoomBottomSheetState extends State<AddRoomBottomSheet> {
           'image': room.image,
           'imageUrl': room.imageUrl,
           'description': room.description,
+          'userId': room.userId, // Ajoutez l'ID de l'utilisateur ici aussi
           'createdAt': FieldValue.serverTimestamp(),
         });
 

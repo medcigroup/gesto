@@ -15,13 +15,13 @@ class RoomCard extends StatelessWidget {
 
   Color _getStatusColor(String status) {
     switch (status) {
-      case 'Disponible':
+      case 'disponible':
         return Colors.green;
-      case 'Occupée':
+      case 'occupée':
         return Colors.red;
       case 'Réservée':
         return Colors.blue;
-      case 'En maintenance':
+      case 'maintenance':
         return Colors.orange;
       default:
         return Colors.grey;

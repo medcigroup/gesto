@@ -228,24 +228,32 @@ class _DashboardState extends State<Dashboard> {
                         icon: Icons.bed,
                         label: "Nouvelle réservation",
                         color: const Color(0xFF000080),
+                        onTap: () {
+                          Navigator.pushNamed(context, AppRoutes.reservationPage);}
                       ),
                       _buildActionButton(
                         context: context,
                         icon: Icons.restaurant,
                         label: "Nouvelle commande",
                         color: const Color(0xFF000080),
+                          onTap: () {
+                            Navigator.pushNamed(context, AppRoutes.reservationPage);}
                       ),
                       _buildActionButton(
                         context: context,
                         icon: Icons.event_available,
                         label: "Enregistrement",
                         color: const Color(0xFF000080),
+                          onTap: () {
+                            Navigator.pushNamed(context, AppRoutes.reservationPage);}
                       ),
                       _buildActionButton(
                         context: context,
                         icon: Icons.assignment_turned_in,
                         label: "Nouvelle tâche",
                         color: const Color(0xFF000080),
+                          onTap: () {
+                            Navigator.pushNamed(context, AppRoutes.reservationPage);}
                       ),
                     ],
                   ),
@@ -263,6 +271,7 @@ class _DashboardState extends State<Dashboard> {
     required IconData icon,
     required String label,
     required Color color,
+    required VoidCallback onTap, // Add onTap callback
   }) {
     return Material(
       color: Theme.of(context).brightness == Brightness.dark
@@ -270,7 +279,7 @@ class _DashboardState extends State<Dashboard> {
           : Colors.grey[50],
       borderRadius: BorderRadius.circular(8),
       child: InkWell(
-        onTap: () {},
+        onTap: onTap, // Use the onTap callback
         borderRadius: BorderRadius.circular(8),
         child: Container(
           padding: const EdgeInsets.all(16),

@@ -54,7 +54,7 @@ class RevenueChart extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            "Revenue Overview",
+            "Aperçu des revenus",
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
@@ -64,7 +64,7 @@ class RevenueChart extends StatelessWidget {
             ),
           ),
           Text(
-            "Last 7 days",
+            "Les 7 derniers jours",
             style: TextStyle(
               fontSize: 14,
               color: Theme.of(context).brightness == Brightness.dark
@@ -83,7 +83,7 @@ class RevenueChart extends StatelessWidget {
 
                     getTooltipItem: (group, groupIndex, rod, rodIndex) {
                       return BarTooltipItem(
-                        '\$${rod.toY.round()}',
+                        '${rod.toY.round()} FCFA',
                         const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
@@ -99,7 +99,7 @@ class RevenueChart extends StatelessWidget {
                       showTitles: true,
                       reservedSize: 30,
                       getTitlesWidget: (value, meta) {
-                        List<String> days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                        List<String> days = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
                         return Padding(
                           padding: const EdgeInsets.only(top: 8),
                           child: Text(
@@ -118,12 +118,12 @@ class RevenueChart extends StatelessWidget {
                   leftTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
-                      reservedSize: 50,
+                      reservedSize: 70,
                       getTitlesWidget: (value, meta) {
                         return Padding(
                           padding: const EdgeInsets.only(right: 8),
                           child: Text(
-                            '\$${value.toInt()}',
+                            '${value.toInt()} Fcfa',
                             style: const TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,

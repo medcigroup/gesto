@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../../../../config/routes.dart';
 import '../../../../../config/theme.dart';
+import '../../../config/CodeEntrepriseGenerator.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({Key? key}) : super(key: key);
@@ -63,13 +64,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       try {
         // Supprimez le délai artificiel en production
-        await Future.delayed(const Duration(seconds: 2));
+        // await Future.delayed(const Duration(seconds: 2));
 
         // Création du compte
         final email = _emailController.text.trim();
         final password = _passwordController.text.trim();
         final userCredential = await FirebaseAuth.instance
             .createUserWithEmailAndPassword(email: email, password: password);
+
+        // Générer un code entreprise unique
+        final entrepriseData = await CodeEntrepriseGenerator.generateUniqueCode(
+          _establishmentNameController.text.trim(), // Nom de l'entreprise
+          email, // Email
+          _phoneController.text.trim(), // Numéro de téléphone
+        );
 
         // Sauvegarde des données
         await FirebaseFirestore.instance
@@ -85,6 +93,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           'userRole': _userRole,
           'employeeCount': _employeeCountController.text.trim(),
           'createdAt': FieldValue.serverTimestamp(),
+          'entrepriseCode': entrepriseData['code'],
         });
 
         // Mise à jour du nom d'affichage

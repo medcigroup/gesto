@@ -41,7 +41,7 @@ class OccupancyChart extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            "Room Occupancy",
+            "Occupation des chambres",
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
@@ -51,7 +51,7 @@ class OccupancyChart extends StatelessWidget {
             ),
           ),
           Text(
-            "Last 7 days",
+            "Les 7 derniers jours",
             style: TextStyle(
               fontSize: 14,
               color: Theme.of(context).brightness == Brightness.dark
@@ -88,7 +88,7 @@ class OccupancyChart extends StatelessWidget {
                       showTitles: true,
                       reservedSize: 30,
                       getTitlesWidget: (value, meta) {
-                        List<String> days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                        List<String> days = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
                         return Padding(
                           padding: const EdgeInsets.only(top: 8),
                           child: Text(

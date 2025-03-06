@@ -1,7 +1,7 @@
-import 'package:cloud_firestore/cloud_firestore.dart'; // Importez cloud_firestore
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class UserModel {
-  final String createdAt;
+  final Timestamp? createdAt;
   final String email;
   final String employeeCount;
   final String establishmentAddress;
@@ -10,12 +10,14 @@ class UserModel {
   final String fullName;
   final String phone;
   final String plan;
-  final String planExpiryDate;
-  final String planStartDate;
+  final Timestamp? planExpiryDate;
+  final Timestamp? licenceGenerationDate; // Remplacement de planStartDate
   final String userRole;
+  final Timestamp? licenceExpiryDate;
+  String licence;
 
   UserModel({
-    required this.createdAt,
+    this.createdAt,
     required this.email,
     required this.employeeCount,
     required this.establishmentAddress,
@@ -24,14 +26,17 @@ class UserModel {
     required this.fullName,
     required this.phone,
     required this.plan,
-    required this.planExpiryDate,
-    required this.planStartDate,
+    this.planExpiryDate,
+    this.licenceGenerationDate, // Remplacement de planStartDate
     required this.userRole,
+    this.licenceExpiryDate,
+    this.licence = '',
+
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
-      createdAt: (json['createdAt'] as Timestamp).toDate().toIso8601String(), // Conversion de Timestamp
+      createdAt: json['createdAt'] as Timestamp?,
       email: json['email'] as String,
       employeeCount: json['employeeCount'] as String,
       establishmentAddress: json['establishmentAddress'] as String,
@@ -39,10 +44,12 @@ class UserModel {
       establishmentType: json['establishmentType'] as String,
       fullName: json['fullName'] as String,
       phone: json['phone'] as String,
-      plan: json['plan'] as String,
-      planExpiryDate: (json['planExpiryDate'] as Timestamp).toDate().toIso8601String(), // Conversion de Timestamp
-      planStartDate: (json['planStartDate'] as Timestamp).toDate().toIso8601String(), // Conversion de Timestamp
+      plan: json['licenceType'] as String,
+      planExpiryDate: json['planExpiryDate'] as Timestamp?,
+      licenceGenerationDate: json['licenceGenerationDate'] as Timestamp?, // Remplacement de planStartDate
       userRole: json['userRole'] as String,
+      licence: json['licence'] as String,
+      licenceExpiryDate: json['licenceExpiryDate'] as Timestamp?,
     );
   }
 }

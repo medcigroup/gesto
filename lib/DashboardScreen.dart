@@ -3,15 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:gesto/widgets/side_menu.dart';
 
 // Composants importés
-import '../components/dashboard/occupancy_chart.dart';
-import '../components/dashboard/revenue_chart.dart';
-import '../components/dashboard/recent_bookings.dart';
-import '../components/dashboard/tasks_list.dart';
-import 'Screens/RoomsPage.dart';
-import 'components/dashboard/StatCard.dart';
-import 'config/AuthService.dart';
-import 'config/UserModel.dart';
-import 'config/routes.dart';
+import '../components/dashboard/occupancy_chart.dart'; // Graphique d'occupation
+import '../components/dashboard/revenue_chart.dart'; // Graphique des revenus
+import '../components/dashboard/recent_bookings.dart'; // Réservations récentes
+import '../components/dashboard/tasks_list.dart'; // Liste des tâches
+import 'Screens/RoomsPage.dart'; // Page des chambres
+import 'components/dashboard/StatCard.dart'; // Carte de statistiques
+import 'config/AuthService.dart'; // Service d'authentification
+import 'config/UserModel.dart'; // Modèle d'utilisateur
+import 'config/routes.dart'; // Routes de navigation
 
 class Dashboard extends StatefulWidget {
   const Dashboard({Key? key}) : super(key: key);
@@ -21,25 +21,25 @@ class Dashboard extends StatefulWidget {
 }
 
 class _DashboardState extends State<Dashboard> {
-  bool _isDarkMode = false;
-  UserModel? _userModel;
-  final AuthService _authService = AuthService();
-  bool _isLoading = true; // Ajout de l'état de chargement
+  bool _isDarkMode = false; // Indique si le mode sombre est activé
+  UserModel? _userModel; // Modèle de l'utilisateur connecté
+  final AuthService _authService = AuthService(); // Instance du service d'authentification
+  bool _isLoading = true; // Indique si les données sont en cours de chargement
 
   @override
   void initState() {
     super.initState();
-    _loadUserData();
+    _loadUserData(); // Charge les données de l'utilisateur au démarrage
   }
 
   Future<void> _loadUserData() async {
     setState(() {
       _isLoading = true; // Début du chargement
     });
-    UserModel? userModel = await _authService.getCurrentUser();
+    UserModel? userModel = await _authService.getCurrentUser(); // Récupère l'utilisateur actuel
     if (mounted) {
       setState(() {
-        _userModel = userModel;
+        _userModel = userModel; // Met à jour le modèle de l'utilisateur
         _isLoading = false; // Fin du chargement
       });
     }
@@ -67,7 +67,7 @@ class _DashboardState extends State<Dashboard> {
             icon: Icon(_isDarkMode ? Icons.light_mode : Icons.dark_mode),
             onPressed: () {
               setState(() {
-                _isDarkMode = !_isDarkMode;
+                _isDarkMode = !_isDarkMode; // Bascule le mode sombre
               });
             },
           ),
@@ -77,7 +77,7 @@ class _DashboardState extends State<Dashboard> {
                 try {
                   await FirebaseAuth.instance.signOut(); // Déconnexion de Firebase
                   Navigator.pushNamedAndRemoveUntil(
-                      context, AppRoutes.home, (route) => false);
+                      context, AppRoutes.home, (route) => false); // Retour à l'écran d'accueil
                 } catch (e) {
                   // Gérer les erreurs de déconnexion
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -95,7 +95,7 @@ class _DashboardState extends State<Dashboard> {
           ),
         ],
       ),
-      drawer: const SideMenu(),
+      drawer: const SideMenu(), // Menu latéral
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -148,9 +148,9 @@ class _DashboardState extends State<Dashboard> {
                     ? Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(child: OccupancyChart()),
+                    Expanded(child: OccupancyChart()), // Graphique d'occupation
                     const SizedBox(width: 16),
-                    Expanded(child: RevenueChart()),
+                    Expanded(child: RevenueChart()), // Graphique des revenus
                   ],
                 )
                     : Column(
@@ -169,9 +169,9 @@ class _DashboardState extends State<Dashboard> {
                     ? Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(child: RecentBookings()),
+                    Expanded(child: RecentBookings()), // Réservations récentes
                     const SizedBox(width: 16),
-                    Expanded(child: TasksList()),
+                    Expanded(child: TasksList()), // Liste des tâches
                   ],
                 )
                     : Column(
@@ -224,34 +224,35 @@ class _DashboardState extends State<Dashboard> {
                     childAspectRatio: 1,
                     children: [
                       _buildActionButton(
-                        context: context,
-                        icon: Icons.bed,
-                        label: "Nouvelle réservation",
-                        color: const Color(0xFF000080),
-                        onTap: () {
-                          Navigator.pushNamed(context, AppRoutes.reservationPage);}
-                      ),
-                      _buildActionButton(
-                        context: context,
-                        icon: Icons.restaurant,
-                        label: "Nouvelle commande",
-                        color: const Color(0xFF000080),
+                          context: context,
+                          icon: Icons.bed,
+                          label: "Nouvelle réservation",
+                          color: const Color(0xFF000080),
                           onTap: () {
                             Navigator.pushNamed(context, AppRoutes.reservationPage);}
                       ),
+
                       _buildActionButton(
-                        context: context,
-                        icon: Icons.event_available,
-                        label: "Enregistrement",
-                        color: const Color(0xFF000080),
+                          context: context,
+                          icon: Icons.event_available,
+                          label: "Enregistrement",
+                          color: Colors.green,
                           onTap: () {
-                            Navigator.pushNamed(context, AppRoutes.reservationPage);}
+                            Navigator.pushNamed(context, AppRoutes.enregistrement);}
                       ),
                       _buildActionButton(
-                        context: context,
-                        icon: Icons.assignment_turned_in,
-                        label: "Nouvelle tâche",
-                        color: const Color(0xFF000080),
+                          context: context,
+                          icon: Icons.library_add_check_outlined,
+                          label: "Départ",
+                          color: Colors.red,
+                          onTap: () {
+                            Navigator.pushNamed(context, AppRoutes.checkoutPage);}
+                      ),
+                      _buildActionButton(
+                          context: context,
+                          icon: Icons.assignment_turned_in,
+                          label: "Nouvelle tâche",
+                          color: const Color(0xFF000080),
                           onTap: () {
                             Navigator.pushNamed(context, AppRoutes.reservationPage);}
                       ),
@@ -306,4 +307,5 @@ class _DashboardState extends State<Dashboard> {
     );
   }
 }
+
 

@@ -29,38 +29,38 @@ class _TasksListState extends State<TasksList> {
   // Sample data - replace with your actual data
   final List<Task> tasks = [
     Task(
-      title: "Clean room 302",
-      assignee: "Housekeeping",
+      title: "Nettoyer la chambre 302",
+      assignee: "Service d'entretien ménager",
       dueDate: DateTime.now().add(const Duration(hours: 2)),
-      priority: "High",
+      priority: "Élevée",
       priorityColor: Colors.red,
     ),
     Task(
-      title: "Restock mini bar in room 205",
-      assignee: "Room Service",
+      title: "Réapprovisionner le mini-bar de la chambre 205",
+      assignee: "Service de chambre",
       dueDate: DateTime.now().add(const Duration(hours: 4)),
-      priority: "Medium",
+      priority: "Moyenne",
       priorityColor: Colors.orange,
     ),
     Task(
-      title: "Prepare welcome package for VIP guest",
-      assignee: "Front Desk",
+      title: "Préparer le paquet de bienvenue pour le client VIP",
+      assignee: "Réception",
       dueDate: DateTime.now().add(const Duration(hours: 1)),
-      priority: "High",
+      priority: "Élevée",
       priorityColor: Colors.red,
     ),
     Task(
-      title: "Fix AC in room 118",
+      title: "Réparer la climatisation de la chambre 118",
       assignee: "Maintenance",
       dueDate: DateTime.now().add(const Duration(hours: 3)),
-      priority: "Medium",
+      priority: "Moyenne",
       priorityColor: Colors.orange,
     ),
     Task(
-      title: "Weekly pool maintenance",
+      title: "Maintenance hebdomadaire de la piscine",
       assignee: "Maintenance",
       dueDate: DateTime.now().add(const Duration(hours: 6)),
-      priority: "Low",
+      priority: "Faible",
       priorityColor: Colors.green,
       isCompleted: true,
     ),
@@ -77,9 +77,9 @@ class _TasksListState extends State<TasksList> {
 
         // For uncompleted tasks, sort by priority
         final priorityRank = {
-          "High": 0,
-          "Medium": 1,
-          "Low": 2,
+          "Élevée": 0,
+          "Moyenne": 1,
+          "Faible": 2,
         };
 
         return priorityRank[a.priority]!.compareTo(priorityRank[b.priority]!);
@@ -107,7 +107,7 @@ class _TasksListState extends State<TasksList> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                "Tasks",
+                "Taches",
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
@@ -116,9 +116,19 @@ class _TasksListState extends State<TasksList> {
                       : Colors.grey[800],
                 ),
               ),
-              TextButton(
-                onPressed: () {},
-                child: const Text("View All"),
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.refresh),
+                    onPressed:() {}
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.list),
+                    onPressed: () {
+
+                    },
+                  ),
+                ],
               ),
             ],
           ),
@@ -224,7 +234,7 @@ class _TasksListState extends State<TasksList> {
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
-              child: const Text("Add New Task"),
+              child: const Text("Ajouter une tâche"),
             ),
           ),
         ],
@@ -238,13 +248,13 @@ class _TasksListState extends State<TasksList> {
     final difference = dueDate.difference(now);
 
     if (difference.isNegative) {
-      return "Overdue";
+      return "en retard";
     } else if (difference.inHours < 1) {
-      return "Due in ${difference.inMinutes} mins";
+      return "prévu pour ${difference.inMinutes} mins";
     } else if (difference.inHours < 24) {
-      return "Due in ${difference.inHours} hrs";
+      return "prévu pour ${difference.inHours} hrs";
     } else {
-      return "Due in ${difference.inDays} days";
+      return "prévu pour ${difference.inDays} Jours";
     }
   }
 

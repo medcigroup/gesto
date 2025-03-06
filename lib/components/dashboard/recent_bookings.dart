@@ -1,4 +1,7 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 
 class RecentBooking {
   final String guestName;
@@ -7,6 +10,8 @@ class RecentBooking {
   final String checkOut;
   final String status;
   final Color statusColor;
+  final String bookingId;
+  final String phoneNumber;
 
   RecentBooking({
     required this.guestName,
@@ -15,63 +20,78 @@ class RecentBooking {
     required this.checkOut,
     required this.status,
     required this.statusColor,
+    required this.bookingId,
+    required this.phoneNumber,
   });
 }
 
-class RecentBookings extends StatelessWidget {
+class RecentBookings extends StatefulWidget {
   RecentBookings({Key? key}) : super(key: key);
 
-  // Sample data - replace with your actual data
-  final List<RecentBooking> bookings = [
-    RecentBooking(
-      guestName: "James Wilson",
-      roomNumber: "301",
-      checkIn: "March 3, 2025",
-      checkOut: "March 5, 2025",
-      status: "Checked In",
-      statusColor: Colors.green,
-    ),
-    RecentBooking(
-      guestName: "Sarah Johnson",
-      roomNumber: "205",
-      checkIn: "March 4, 2025",
-      checkOut: "March 7, 2025",
-      status: "Reserved",
-      statusColor: Colors.blue,
-    ),
-    RecentBooking(
-      guestName: "Robert Brown",
-      roomNumber: "418",
-      checkIn: "March 5, 2025",
-      checkOut: "March 8, 2025",
-      status: "Reserved",
-      statusColor: Colors.blue,
-    ),
-    RecentBooking(
-      guestName: "Emily Davis",
-      roomNumber: "112",
-      checkIn: "March 3, 2025",
-      checkOut: "March 4, 2025",
-      status: "Checked Out",
-      statusColor: Colors.grey,
-    ),
-    RecentBooking(
-      guestName: "Michael Lee",
-      roomNumber: "506",
-      checkIn: "March 2, 2025",
-      checkOut: "March 6, 2025",
-      status: "Checked In",
-      statusColor: Colors.green,
-    ),
-  ];
+  @override
+  _RecentBookingsState createState() => _RecentBookingsState();
+}
+
+class _RecentBookingsState extends State<RecentBookings> {
+  List<RecentBooking> bookings = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchRecentBookings();
+  }
+  final String _userId = FirebaseAuth.instance.currentUser?.uid ?? "";
+  Future<void> _fetchRecentBookings() async {
+    try {
+      QuerySnapshot snapshot = await FirebaseFirestore.instance
+          .collection('bookings')
+          .where('userId', isEqualTo: _userId)
+
+          .limit(4)
+          .get();
+
+      List<RecentBooking> fetchedBookings = snapshot.docs.map((doc) {
+        Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+        return RecentBooking(
+          guestName: data['customerName'] ?? 'Unknown',
+          roomNumber: data['roomNumber'] ?? 'N/A',
+          checkIn: DateFormat('yyyy-MM-dd').format((data['checkInDate'] as Timestamp).toDate()),
+          checkOut: DateFormat('yyyy-MM-dd').format((data['checkOutDate'] as Timestamp).toDate()),
+          status: data['status'] ?? 'Unknown',
+          statusColor: _getStatusColor(data['status']),
+          bookingId: data['EnregistrementCode'] ?? 'N/A',
+          phoneNumber: data['customerPhone'] ?? 'N/A',
+        );
+      }).toList();
+
+      setState(() {
+        bookings = fetchedBookings;
+      });
+    } catch (e) {
+      print('Erreur lors du chargement des réservations: $e');
+    }
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'enregistré':
+        return Colors.green;
+      case 'réservée':
+        return Colors.blue;
+      case 'terminé':
+        return Colors.red;
+      default:
+        return Colors.orange;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Theme.of(context).brightness == Brightness.dark 
-            ? Colors.grey[800] 
+        color: Theme.of(context).brightness == Brightness.dark
+            ? Colors.grey[800]
             : Colors.white,
         borderRadius: BorderRadius.circular(8),
         boxShadow: [
@@ -89,18 +109,29 @@ class RecentBookings extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                "Recent Bookings",
+                "Arrivés / Départs récents",
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
-                  color: Theme.of(context).brightness == Brightness.dark 
-                      ? Colors.white 
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.white
                       : Colors.grey[800],
                 ),
               ),
-              TextButton(
-                onPressed: () {},
-                child: const Text("View All"),
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.refresh),
+                    onPressed: _fetchRecentBookings,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.list),
+                    onPressed: () {
+                      // Action pour voir tous les arrivées/départs
+                      print("Voir tous les arrivées/départs");
+                    },
+                  ),
+                ],
               ),
             ],
           ),
@@ -117,7 +148,7 @@ class RecentBookings extends StatelessWidget {
                 child: Row(
                   children: [
                     Container(
-                      width: 40,
+                      width: 100,
                       height: 40,
                       decoration: BoxDecoration(
                         color: Colors.grey[200],
@@ -125,7 +156,7 @@ class RecentBookings extends StatelessWidget {
                       ),
                       child: Center(
                         child: Text(
-                          booking.roomNumber,
+                          "CHAMBRE ${booking.roomNumber}",
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
                           ),
@@ -145,10 +176,24 @@ class RecentBookings extends StatelessWidget {
                             ),
                           ),
                           Text(
+                            "Booking ID: ${booking.bookingId}",
+                            style: TextStyle(
+                              color: Colors.grey[500],
+                              fontSize: 14,
+                            ),
+                          ),
+                          Text(
+                            "Phone: ${booking.phoneNumber}",
+                            style: TextStyle(
+                              color: Colors.grey[500],
+                              fontSize: 14,
+                            ),
+                          ),
+                          Text(
                             "${booking.checkIn} - ${booking.checkOut}",
                             style: TextStyle(
-                              color: Theme.of(context).brightness == Brightness.dark 
-                                  ? Colors.grey[400] 
+                              color: Theme.of(context).brightness == Brightness.dark
+                                  ? Colors.grey[400]
                                   : Colors.grey[600],
                               fontSize: 14,
                             ),

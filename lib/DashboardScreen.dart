@@ -231,21 +231,22 @@ class _DashboardState extends State<Dashboard> {
                         onTap: () {
                           Navigator.pushNamed(context, AppRoutes.reservationPage);}
                       ),
-                      _buildActionButton(
-                        context: context,
-                        icon: Icons.restaurant,
-                        label: "Nouvelle commande",
-                        color: const Color(0xFF000080),
-                          onTap: () {
-                            Navigator.pushNamed(context, AppRoutes.reservationPage);}
-                      ),
+
                       _buildActionButton(
                         context: context,
                         icon: Icons.event_available,
                         label: "Enregistrement",
-                        color: const Color(0xFF000080),
+                        color: Colors.green,
                           onTap: () {
-                            Navigator.pushNamed(context, AppRoutes.reservationPage);}
+                            Navigator.pushNamed(context, AppRoutes.enregistrement);}
+                      ),
+                      _buildActionButton(
+                          context: context,
+                          icon: Icons.library_add_check_outlined,
+                          label: "Départ",
+                          color: Colors.red,
+                          onTap: () {
+                            Navigator.pushNamed(context, AppRoutes.checkoutPage);}
                       ),
                       _buildActionButton(
                         context: context,

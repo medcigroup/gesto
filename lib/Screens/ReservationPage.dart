@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 
 import '../config/generationcode.dart';
+import '../widgets/side_menu.dart';
 
 class ReservationPage extends StatefulWidget {
   @override
@@ -38,12 +39,17 @@ class _ModernReservationPageState extends State<ReservationPage> {
     fetchReservations();
   }
 
+  final userId = FirebaseAuth.instance.currentUser!.uid;
+
   Future<void> fetchAvailableRooms() async {
     try {
-      // Fetch available rooms, sorted by room number in ascending order
+       // Obtenez l'ID de l'utilisateur
+
+      // Récupérez les chambres disponibles qui appartiennent à l'utilisateur, triées par numéro de chambre
       final snapshot = await FirebaseFirestore.instance
           .collection('rooms')
           .where('status', isEqualTo: 'disponible')
+          .where('userId', isEqualTo: userId) // Filtrez par l'ID de l'utilisateur
           .get();
 
       setState(() {
@@ -62,7 +68,7 @@ class _ModernReservationPageState extends State<ReservationPage> {
           );
         }).toList();
 
-        // Additional sorting to ensure correct order for string-based room numbers
+        // Tri supplémentaire pour assurer l'ordre correct pour les numéros de chambre basés sur des chaînes
         availableRooms.sort((a, b) => _compareRoomNumbers(a.number, b.number));
 
         isLoading = false;
@@ -217,7 +223,7 @@ class _ModernReservationPageState extends State<ReservationPage> {
     try {
       final snapshot = await FirebaseFirestore.instance
           .collection('reservations')
-          .orderBy('createdAt', descending: true)
+          .where('userId', isEqualTo: userId)
           .get();
 
       setState(() {
@@ -614,6 +620,7 @@ class _ModernReservationPageState extends State<ReservationPage> {
       // Recherche par le champ reservationCode
       final querySnapshot = await FirebaseFirestore.instance
           .collection('reservations')
+          .where('userId', isEqualTo: userId)
           .where('reservationCode', isEqualTo: 'RES'+searchCode) // Recherche par champ
           .get();
 
@@ -1165,6 +1172,7 @@ class _ModernReservationPageState extends State<ReservationPage> {
         title: Text('Gestion des Réservations'),
         centerTitle: true,
       ),
+      drawer: const SideMenu(),
       body: Row(
         children: [
           Expanded(

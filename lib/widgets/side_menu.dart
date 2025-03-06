@@ -62,6 +62,8 @@ class _SideMenuState extends State<SideMenu> {
           ),
           _buildMenuItem(Icons.home, 'Tableau de bord', AppRoutes.dashboard),
           _buildMenuItem(Icons.book_online, 'Réservation', AppRoutes.reservationPage),
+          _buildMenuItem(Icons.book_rounded, 'Enregistrement', AppRoutes.enregistrement),
+          _buildMenuItem(Icons.library_add_check_outlined, 'Départ', AppRoutes.checkoutPage),
           _buildMenuItem(Icons.checkroom_outlined, 'Chambres', AppRoutes.roomsPage),
           _buildMenuItem(Icons.restaurant, 'Restaurant', AppRoutes.restaurant),
           _buildMenuItem(Icons.person, 'Clients', AppRoutes.clients),

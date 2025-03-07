@@ -4,7 +4,6 @@ import '../DashboardScreen.dart';
 import '../GestoLandingPage.dart';
 import '../Screens/CheckInPage.dart';
 import '../Screens/CheckoutPage.dart';
-import '../Screens/ChoosePlanUpgrade.dart';
 import '../Screens/ReservationPage.dart';
 import '../Screens/RoomsPage.dart';
 import '../Screens/renew_licence_page.dart';
@@ -41,7 +40,7 @@ class AppRoutes {
       case dashboard:
         return MaterialPageRoute(builder: (_) => Dashboard());
       case chooseplanUpgrade:
-        return MaterialPageRoute(builder: (_) => ChoosePlanUpgrade());
+        return MaterialPageRoute(builder: (_) => Dashboard());
       case renewlicencePage:
         return MaterialPageRoute(builder: (_) => RenewLicencePage());
       case checkoutPage:

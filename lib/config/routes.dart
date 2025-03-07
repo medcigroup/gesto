@@ -4,10 +4,8 @@ import '../DashboardScreen.dart';
 import '../GestoLandingPage.dart';
 import '../Screens/CheckInPage.dart';
 import '../Screens/CheckoutPage.dart';
-import '../Screens/ChoosePlanUpgrade.dart';
 import '../Screens/ReservationPage.dart';
 import '../Screens/RoomsPage.dart';
-import '../Screens/renew_licence_page.dart';
 import '../modules/auth/screens/ThankYouScreen.dart';
 import '../modules/auth/screens/login_screen.dart';
 import '../modules/auth/screens/register_screen.dart';
@@ -30,9 +28,6 @@ class AppRoutes {
   static const String reservationPage = '/reservation';// Changement de nom ici
   static const String enregistrement = '/enregistrement';
   static const String checkoutPage = '/checkoutPage';
-  static const String renewlicencePage = '/checkoutPage';
-  static const String chooseplanUpgrade = '/chooseplanUpgrade';
-
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
     switch (settings.name) {
@@ -40,10 +35,6 @@ class AppRoutes {
         return MaterialPageRoute(builder: (_) => GestoLandingPage());
       case dashboard:
         return MaterialPageRoute(builder: (_) => Dashboard());
-      case chooseplanUpgrade:
-        return MaterialPageRoute(builder: (_) => ChoosePlanUpgrade());
-      case renewlicencePage:
-        return MaterialPageRoute(builder: (_) => RenewLicencePage());
       case checkoutPage:
         return MaterialPageRoute(builder: (_) => CheckoutPage());
       case thankYou:

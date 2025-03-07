@@ -109,7 +109,7 @@ class _SideMenuState extends State<SideMenu> {
           _buildMenuItem(Icons.perm_contact_calendar_outlined, 'Personnel', AppRoutes.employees, enabled: !_licenseExpired),
           _buildMenuItem(Icons.monetization_on_sharp, 'Finances', AppRoutes.finance, enabled: !_licenseExpired),
           _buildMenuItem(Icons.analytics_outlined, 'Statistiques', AppRoutes.statistiques, enabled: !_licenseExpired),
-          _buildMenuItem(Icons.upgrade, 'Gestion de la licence', AppRoutes.renewlicencePage, enabled: !_licenseExpired),
+          _buildMenuItem(Icons.data_saver_on, 'Gestion de la licence', AppRoutes.renewlicencePage, enabled: !_licenseExpired),
           _buildMenuItem(Icons.settings, 'Paramètres', AppRoutes.settings, enabled: !_licenseExpired),
 
           ListTile(

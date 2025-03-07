@@ -6,7 +6,7 @@ import '../../../../../config/routes.dart';
 import '../../../../../config/theme.dart';
 import 'config/LicenceGenerator.dart';
 
-enum PlanId { free, starter, pro, enterprise }
+enum PlanId { gratuit, starter, pro, entreprise }
 
 class Plan {
   final String title;
@@ -54,7 +54,7 @@ class _ChoosePlanScreenState extends State<ChoosePlanScreen> {
       // Définir la durée de validité en jours et le type de licence en fonction du plan
       int durationDays = 30; // Durée par défaut
       String licenceType = planId.name; // Type de licence par défaut
-      if (planId == PlanId.enterprise) {
+      if (planId == PlanId.entreprise) {
         durationDays = 365;
       }
 
@@ -80,7 +80,7 @@ class _ChoosePlanScreenState extends State<ChoosePlanScreen> {
         const SnackBar(content: Text('Plan mis à jour avec succès!')),
       );
 
-      if (planId == PlanId.enterprise) {
+      if (planId == PlanId.entreprise) {
         Navigator.pushReplacementNamed(context, AppRoutes.thankYou);
       } else {
         Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
@@ -96,10 +96,10 @@ class _ChoosePlanScreenState extends State<ChoosePlanScreen> {
 
   Timestamp _getExpiryDate(PlanId planId) {
     final durations = {
-      PlanId.free: 30,
+      PlanId.gratuit: 30,
       PlanId.starter: 30,
       PlanId.pro: 30,
-      PlanId.enterprise: 365,
+      PlanId.entreprise: 365,
     };
     final now = DateTime.now();
     return Timestamp.fromDate(now.add(Duration(days: durations[planId]!)));
@@ -153,10 +153,10 @@ class _ChoosePlanScreenState extends State<ChoosePlanScreen> {
   @override
   Widget build(BuildContext context) {
     final plans = [
-      Plan(title: 'Essai Gratuit', price: '0 FCFA', duration: '30 jours', features: ['Module de réservation', '14 chambres max', 'Support de base', 'Rapports hebdo'], planId: PlanId.free, isRecommended: false),
+      Plan(title: 'Essai Gratuit', price: '0 FCFA', duration: '30 jours', features: ['Module de réservation', '14 chambres max', 'Support de base', 'Rapports hebdo'], planId: PlanId.gratuit, isRecommended: false),
       Plan(title: 'Starter', price: '20000 FCFA', duration: '/mois', features: ['Module de réservation', '20 chambres max', 'Gestion resto', '10 tables resto', 'Support prioritaire', 'Rapports quotidiens'], planId: PlanId.starter, isRecommended: true),
       Plan(title: 'Starter Pro', price: '50000 FCFA', duration: '/mois', features: ['Module de réservation', 'Chambres illimitées', 'Gestion resto', 'Tables resto illimitées', 'Support 24/7', 'Analyses temps réel', 'Marketing tools', 'Formation incluse'], planId: PlanId.pro, isRecommended: false),
-      Plan(title: 'Grand Hôtel', price: 'Sur mesure', duration: '', features: ['Solution personnalisée', 'Intégrations API', 'Account manager dédié', 'Formation avancée', 'Maintenance incluse'], planId: PlanId.enterprise, isRecommended: false),
+      Plan(title: 'Grand Hôtel', price: 'Sur mesure', duration: '', features: ['Solution personnalisée', 'Intégrations API', 'Account manager dédié', 'Formation avancée', 'Maintenance incluse'], planId: PlanId.entreprise, isRecommended: false),
     ];
 
     return Scaffold(

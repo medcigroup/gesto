@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import '../ChoosePlanScreen.dart';
 import '../DashboardScreen.dart';
 import '../GestoLandingPage.dart';
+import '../Screens/ActivateLicencePage.dart';
 import '../Screens/CheckInPage.dart';
 import '../Screens/CheckoutPage.dart';
 import '../Screens/ChoosePlanUpgrade.dart';
+import '../Screens/GestionPersonnelPage.dart';
 import '../Screens/ReservationPage.dart';
 import '../Screens/RoomsPage.dart';
 import '../Screens/renew_licence_page.dart';
@@ -32,6 +34,7 @@ class AppRoutes {
   static const String checkoutPage = '/checkoutPage';
   static const String renewlicencePage = '/renewlicencePage';
   static const String chooseplanUpgrade = '/chooseplanUpgrade';
+  static const String activatelicence = '/ActivateLicencePage';
 
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
@@ -40,6 +43,10 @@ class AppRoutes {
         return MaterialPageRoute(builder: (_) => GestoLandingPage());
       case dashboard:
         return MaterialPageRoute(builder: (_) => Dashboard());
+      case activatelicence:
+        return MaterialPageRoute(builder: (_) => ActivateLicencePage());
+      case employees:
+        return MaterialPageRoute(builder: (_) => GestionPersonnelPage());
       case chooseplanUpgrade:
         return MaterialPageRoute(builder: (_) => ChoosePlanUpgrade());
       case renewlicencePage:

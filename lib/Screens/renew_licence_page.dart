@@ -7,6 +7,8 @@ import '../config/LicenceGenerator.dart';
 import '../config/UserModel.dart';
 import '../config/routes.dart';
 import '../config/theme.dart';
+import '../widgets/side_menu.dart';
+import 'ActivateLicencePage.dart';
 
 class RenewLicencePage extends StatefulWidget {
   const RenewLicencePage({Key? key}) : super(key: key);
@@ -241,6 +243,7 @@ class _RenewLicencePageState extends State<RenewLicencePage> {
         backgroundColor: theme.primaryColor,
         foregroundColor: Colors.white,
       ),
+      drawer: const SideMenu(),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : Container(
@@ -374,57 +377,95 @@ class _RenewLicencePageState extends State<RenewLicencePage> {
                     children: [
                       // Bouton "Renouveler ma licence" - visible seulement si non gratuite
                       if (_canRenewLicence)
-                        ElevatedButton(
-                          onPressed: () {
-                            // Afficher une boîte de dialogue de confirmation
-                            showDialog(
-                              context: context,
-                              builder: (context) => AlertDialog(
-                                title: Text('Renouveler la licence'),
-                                content: Text('Êtes-vous sûr de vouloir renouveler votre licence ${_userModel?.plan} pour une année supplémentaire ?'),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(context),
-                                    child: Text('Annuler'),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: () {
+                                  Navigator.pushNamed(context, AppRoutes.activatelicence);
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  foregroundColor: Colors.white,
+                                  backgroundColor: Colors.green,
+                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
                                   ),
-                                  TextButton(
-                                    onPressed: () {
-                                      Navigator.pop(context);
-                                      _renewLicence(); // Appeler la méthode de renouvellement
-                                    },
-                                    child: Text('Renouveler'),
-                                    style: TextButton.styleFrom(
-                                      foregroundColor: theme.primaryColor,
+                                  elevation: 0,
+                                  minimumSize: const Size(double.infinity, 56),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: const [
+                                    Icon(Icons.key,color: Colors.white,),
+                                    SizedBox(width: 12),
+                                    Text(
+                                      'Activer une licence',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                          style: ElevatedButton.styleFrom(
-                            foregroundColor: Colors.white,
-                            backgroundColor: theme.primaryColor,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            elevation: 0,
-                            minimumSize: const Size(double.infinity, 56),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: const [
-                              Icon(Icons.refresh),
-                              SizedBox(width: 12),
-                              Text(
-                                'Renouveler ma licence',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
+                                  ],
                                 ),
                               ),
-                            ],
-                          ),
+                            ),
+                            const SizedBox(width: 16), // Espace entre les boutons
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: () {
+                                  // Afficher une boîte de dialogue de confirmation
+                                  showDialog(
+                                    context: context,
+                                    builder: (context) => AlertDialog(
+                                      title: Text('Renouveler la licence'),
+                                      content: Text('Êtes-vous sûr de vouloir renouveler votre licence ${_userModel?.plan} pour un mois supplémentaire ?'),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(context),
+                                          child: Text('Annuler'),
+                                        ),
+                                        TextButton(
+                                          onPressed: () {
+                                            Navigator.pop(context);
+                                            _renewLicence(); // Appeler la méthode de renouvellement
+                                          },
+                                          child: Text('Renouveler ma licence'),
+                                          style: TextButton.styleFrom(
+                                            foregroundColor: theme.primaryColor,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  foregroundColor: Colors.white,
+                                  backgroundColor: theme.primaryColor,
+                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  elevation: 0,
+                                  minimumSize: const Size(double.infinity, 56),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: const [
+                                    Icon(Icons.refresh,color: Colors.white),
+                                    SizedBox(width: 12),
+                                    Text(
+                                      'Renouveler ma licence',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
 
                       // Espace entre les boutons si les deux sont visibles

@@ -35,6 +35,7 @@ class AppRoutes {
   static const String renewlicencePage = '/renewlicencePage';
   static const String chooseplanUpgrade = '/chooseplanUpgrade';
   static const String activatelicence = '/ActivateLicencePage';
+  static const String administration = '/Administration';
 
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {

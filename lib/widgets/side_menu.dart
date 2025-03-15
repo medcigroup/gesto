@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import '../config/AuthService.dart';
 import '../config/UserModel.dart';
+import '../config/localStorage.dart';
 import '../config/routes.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // Importez Cloud Firestore
 
 class SideMenu extends StatefulWidget {
   const SideMenu({Key? key}) : super(key: key);
@@ -16,7 +16,7 @@ class _SideMenuState extends State<SideMenu> {
   UserModel? _userModel;
   final AuthService _authService = AuthService();
   bool _isLoading = true;
-  bool _licenseExpired = false; // Ajout d'un booléen pour l'expiration de la licence
+  bool _licenseExpired = false;
 
   @override
   void initState() {
@@ -30,7 +30,7 @@ class _SideMenuState extends State<SideMenu> {
       setState(() {
         _userModel = userModel;
         _isLoading = false;
-        _checkLicenseExpiration(); // Vérifier l'expiration de la licence après le chargement des données
+        _checkLicenseExpiration();
       });
     }
   }
@@ -42,7 +42,7 @@ class _SideMenuState extends State<SideMenu> {
         setState(() {
           _licenseExpired = true;
         });
-        _showLicenseExpiredDialog(); // Afficher le dialogue d'expiration de la licence
+        _showLicenseExpiredDialog();
       }
     }
   }
@@ -51,7 +51,7 @@ class _SideMenuState extends State<SideMenu> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       showDialog(
         context: context,
-        barrierDismissible: false, // Empêche la fermeture en touchant à l'extérieur
+        barrierDismissible: false,
         builder: (BuildContext context) {
           return AlertDialog(
             title: const Text('Licence expirée'),
@@ -71,8 +71,32 @@ class _SideMenuState extends State<SideMenu> {
     });
   }
 
+  // Fonction pour vérifier si l'utilisateur est un administrateur
+  bool _isAdmin() {
+    return _userModel?.userRole == 'Admin';
+  }
+
+  // Fonction pour vérifier si l'élément doit être affiché en fonction du type de licence
+  bool _shouldDisplayMenuItem(String routeName) {
+    // Si la licence est payante, afficher tous les éléments
+    if (_userModel?.plan != 'gratuit') {
+      return true;
+    }
+    // Si la licence est gratuite, masquer uniquement les éléments payants
+    else {
+      if (routeName == AppRoutes.restaurant ||
+          routeName == AppRoutes.clients ||
+          routeName == AppRoutes.statistiques) {
+        return false; // Masquer les éléments payants
+      }
+      return true; // Afficher les éléments gratuits
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final bool isPremium = _userModel?.plan != 'gratuit';
+
     return Drawer(
       child: ListView(
         padding: EdgeInsets.zero,
@@ -96,38 +120,214 @@ class _SideMenuState extends State<SideMenu> {
                   _userModel?.email ?? 'email@example.com',
                   style: const TextStyle(color: Colors.white, fontSize: 14),
                 ),
+                Row(
+                  children: [
+                    if (isPremium)
+                      Expanded( // Utiliser Expanded pour qu'ils prennent la même largeur
+                        child: Container(
+                          margin: const EdgeInsets.only(top: 8, right: 4), // Ajouter une marge à droite
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.green.shade700,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Text(
+                            'Licence Premium',
+                            style: TextStyle(color: Colors.white, fontSize: 12),
+                          ),
+                        ),
+                      ),
+                    if (_isAdmin())
+                      Expanded( // Utiliser Expanded pour qu'ils prennent la même largeur
+                        child: Container(
+                          margin: const EdgeInsets.only(top: 8, left: 4), // Ajouter une marge à gauche
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade700,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Text(
+                            'Administrateur',
+                            style: TextStyle(color: Colors.white, fontSize: 12),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ],
             ),
           ),
+          // Tableau de bord
           _buildMenuItem(Icons.home, 'Tableau de bord', AppRoutes.dashboard, enabled: !_licenseExpired),
+
+          // Réservation
           _buildMenuItem(Icons.book_online, 'Réservation', AppRoutes.reservationPage, enabled: !_licenseExpired),
+
+          // Enregistrement
           _buildMenuItem(Icons.book_rounded, 'Enregistrement', AppRoutes.enregistrement, enabled: !_licenseExpired),
+
+          // Départ
           _buildMenuItem(Icons.library_add_check_outlined, 'Départ', AppRoutes.checkoutPage, enabled: !_licenseExpired),
+
+          // Chambres
           _buildMenuItem(Icons.checkroom_outlined, 'Chambres', AppRoutes.roomsPage, enabled: !_licenseExpired),
-          _buildMenuItem(Icons.restaurant, 'Restaurant', AppRoutes.restaurant, enabled: !_licenseExpired),
-          _buildMenuItem(Icons.person, 'Clients', AppRoutes.clients, enabled: !_licenseExpired),
+
+          // Restaurant (affiché uniquement si payant)
+          if (_shouldDisplayMenuItem(AppRoutes.restaurant))
+            _buildMenuItem(
+              Icons.restaurant,
+              'Restaurant',
+              AppRoutes.restaurant,
+              enabled: !_licenseExpired,
+              isPremium: isPremium,
+            ),
+
+          // Clients (affiché uniquement si payant)
+          if (_shouldDisplayMenuItem(AppRoutes.clients))
+            _buildMenuItem(
+              Icons.person,
+              'Clients',
+              AppRoutes.clients,
+              enabled: !_licenseExpired,
+              isPremium: isPremium,
+            ),
+
+          // Personnel
           _buildMenuItem(Icons.perm_contact_calendar_outlined, 'Personnel', AppRoutes.employees, enabled: !_licenseExpired),
+
+          // Finances
           _buildMenuItem(Icons.monetization_on_sharp, 'Finances', AppRoutes.finance, enabled: !_licenseExpired),
-          _buildMenuItem(Icons.analytics_outlined, 'Statistiques', AppRoutes.statistiques, enabled: !_licenseExpired),
+
+          // Statistiques (affiché uniquement si payant)
+          if (_shouldDisplayMenuItem(AppRoutes.statistiques))
+            _buildMenuItem(
+              Icons.analytics_outlined,
+              'Statistiques',
+              AppRoutes.statistiques,
+              enabled: !_licenseExpired,
+              isPremium: isPremium,
+            ),
+
+          // Gestion de la licence
           _buildMenuItem(Icons.data_saver_on, 'Gestion de la licence', AppRoutes.renewlicencePage, enabled: !_licenseExpired),
+
+          // Paramètres
           _buildMenuItem(Icons.settings, 'Paramètres', AppRoutes.settings, enabled: !_licenseExpired),
 
-          ListTile(
-            leading: const Icon(Icons.logout, color: Colors.red),
-            title: const Text('Déconnexion', style: TextStyle(color: Colors.red)),
-            onTap: () async {
-              // ... (votre code de déconnexion)
-            },
+          // Administration (affiché uniquement si Admin)
+          if (_isAdmin())
+            _buildMenuItem(
+              Icons.admin_panel_settings,
+              'Administration',
+              AppRoutes.administration,
+              enabled: !_licenseExpired,
+            ),
+
+          // Déconnexion
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFFF5252), Color(0xFFFF1744)],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+              ),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.red.withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+              leading: const Icon(
+                Icons.logout_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
+              title: const Text(
+                'Déconnexion',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+              trailing: const Icon(
+                Icons.arrow_forward_ios,
+                color: Colors.white70,
+                size: 14,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              onTap: () async {
+                final bool? confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Confirmation'),
+                    content: const Text('Êtes-vous sûr de vouloir vous déconnecter?'),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('Annuler'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: const Text('Déconnecter'),
+                      ),
+                    ],
+                  ),
+                );
+
+                if (confirm == true) {
+                  await FirebaseAuth.instance.signOut();
+                  LocalStorage.remove('userData');
+                  LocalStorage.remove('userDataTimestamp');
+                  Navigator.pushNamedAndRemoveUntil(context, AppRoutes.home, (route) => false);
+                }
+              },
+            ),
           )
         ],
       ),
     );
   }
 
-  Widget _buildMenuItem(IconData icon, String title, String routeName, {bool enabled = true}) {
+  Widget _buildMenuItem(IconData icon, String title, String routeName, {bool enabled = true, bool isPremium = false}) {
     return ListTile(
       leading: Icon(icon, color: enabled ? null : Colors.grey),
-      title: Text(title, style: TextStyle(color: enabled ? null : Colors.grey)),
+      title: Row(
+        children: [
+          Text(title, style: TextStyle(color: enabled ? null : Colors.grey)),
+          if (isPremium && _shouldDisplayMenuItem(routeName))
+            Container(
+              margin: const EdgeInsets.only(left: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.green.shade700,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Text(
+                'Premium',
+                style: TextStyle(color: Colors.white, fontSize: 10),
+              ),
+            ),
+        ],
+      ),
       onTap: enabled ? () {
         Navigator.pop(context);
         Navigator.pushNamed(context, routeName);

@@ -71,28 +71,6 @@ class _DashboardState extends State<Dashboard> {
               });
             },
           ),
-          PopupMenuButton<String>(
-            onSelected: (value) async {
-              if (value == 'logout') {
-                try {
-                  await FirebaseAuth.instance.signOut(); // Déconnexion de Firebase
-                  Navigator.pushNamedAndRemoveUntil(
-                      context, AppRoutes.home, (route) => false); // Retour à l'écran d'accueil
-                } catch (e) {
-                  // Gérer les erreurs de déconnexion
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Erreur lors de la déconnexion : $e')),
-                  );
-                }
-              }
-            },
-            itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-              const PopupMenuItem<String>(
-                value: 'logout',
-                child: Text('Déconnexion'),
-              ),
-            ],
-          ),
         ],
       ),
       drawer: const SideMenu(), // Menu latéral

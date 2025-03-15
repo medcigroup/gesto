@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../ChoosePlanScreen.dart';
 import '../DashboardScreen.dart';
 import '../GestoLandingPage.dart';
+import '../GestoPricingPage.dart';
 import '../Screens/ActivateLicencePage.dart';
 import '../Screens/CheckInPage.dart';
 import '../Screens/CheckoutPage.dart';
@@ -13,6 +14,7 @@ import '../Screens/renew_licence_page.dart';
 import '../modules/auth/screens/ThankYouScreen.dart';
 import '../modules/auth/screens/login_screen.dart';
 import '../modules/auth/screens/register_screen.dart';
+import 'ContactPage.dart';
 
 class AppRoutes {
   static const String home = '/home';
@@ -36,12 +38,18 @@ class AppRoutes {
   static const String chooseplanUpgrade = '/chooseplanUpgrade';
   static const String activatelicence = '/ActivateLicencePage';
   static const String administration = '/Administration';
+  static const String tarifpage = '/tarifpage';
+  static const String contactpage = '/contactpage';
 
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
     switch (settings.name) {
       case home:
         return MaterialPageRoute(builder: (_) => GestoLandingPage());
+      case tarifpage:
+        return MaterialPageRoute(builder: (_) => GestoPricingPage());
+      case contactpage:
+        return MaterialPageRoute(builder: (_) => ContactPage());
       case dashboard:
         return MaterialPageRoute(builder: (_) => Dashboard());
       case activatelicence:

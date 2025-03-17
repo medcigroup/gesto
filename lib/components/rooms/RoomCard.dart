@@ -172,17 +172,17 @@ class RoomCard extends StatelessWidget {
                 // Room Type and Capacity with Icons
                 Row(
                   children: [
-                    Icon(LucideIcons.hotel, size: 18, color: Colors.grey[700]),
+                    Icon(LucideIcons.hotel, size: 16, color: Colors.grey[700]),
                     SizedBox(width: 6),
                     Text(
                       '${room.type} chambre',
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 14,
                         color: Colors.grey[700],
                       ),
                     ),
                     SizedBox(width: 20),
-                    Icon(LucideIcons.users, size: 18, color: Colors.grey[700]),
+                    Icon(LucideIcons.users, size: 16, color: Colors.grey[700]),
                     SizedBox(width: 6),
                     Text(
                       'Capacité : ${room.capacity} personne${room.capacity > 1 ? 's' : ''}',
@@ -196,11 +196,11 @@ class RoomCard extends StatelessWidget {
                 SizedBox(height: 12),
 
                 // Section title for amenities
+                SizedBox(width: 6),
                 Text(
-                  'Commodités',
+                  'Commodités ',
                   style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
                     color: Colors.black87,
                   ),
                 ),

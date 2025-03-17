@@ -86,6 +86,7 @@ class _SideMenuState extends State<SideMenu> {
     else {
       if (routeName == AppRoutes.restaurant ||
           routeName == AppRoutes.clients ||
+          routeName == AppRoutes.employees||
           routeName == AppRoutes.statistiques) {
         return false; // Masquer les éléments payants
       }
@@ -171,13 +172,15 @@ class _SideMenuState extends State<SideMenu> {
 
           // Chambres
           _buildMenuItem(Icons.checkroom_outlined, 'Chambres', AppRoutes.roomsPage, enabled: !_licenseExpired),
+          // Chambres
+          _buildMenuItem(Icons.add_card_sharp, 'Paiement', AppRoutes.paiement, enabled: !_licenseExpired),
 
           // Restaurant (affiché uniquement si payant)
           if (_shouldDisplayMenuItem(AppRoutes.restaurant))
             _buildMenuItem(
               Icons.restaurant,
               'Restaurant',
-              AppRoutes.restaurant,
+              AppRoutes.comingSoonPage,
               enabled: !_licenseExpired,
               isPremium: isPremium,
             ),
@@ -187,13 +190,14 @@ class _SideMenuState extends State<SideMenu> {
             _buildMenuItem(
               Icons.person,
               'Clients',
-              AppRoutes.clients,
+              AppRoutes.comingSoonPage,
               enabled: !_licenseExpired,
               isPremium: isPremium,
             ),
 
           // Personnel
-          _buildMenuItem(Icons.perm_contact_calendar_outlined, 'Personnel', AppRoutes.employees, enabled: !_licenseExpired),
+          if (_shouldDisplayMenuItem(AppRoutes.employees))
+          _buildMenuItem(Icons.perm_contact_calendar_outlined, 'Personnel', AppRoutes.employees, enabled: !_licenseExpired,isPremium: isPremium,),
 
           // Finances
           _buildMenuItem(Icons.monetization_on_sharp, 'Finances', AppRoutes.finance, enabled: !_licenseExpired),
@@ -203,7 +207,7 @@ class _SideMenuState extends State<SideMenu> {
             _buildMenuItem(
               Icons.analytics_outlined,
               'Statistiques',
-              AppRoutes.statistiques,
+              AppRoutes.comingSoonPage,
               enabled: !_licenseExpired,
               isPremium: isPremium,
             ),
@@ -212,7 +216,7 @@ class _SideMenuState extends State<SideMenu> {
           _buildMenuItem(Icons.data_saver_on, 'Gestion de la licence', AppRoutes.renewlicencePage, enabled: !_licenseExpired),
 
           // Paramètres
-          _buildMenuItem(Icons.settings, 'Paramètres', AppRoutes.settings, enabled: !_licenseExpired),
+          _buildMenuItem(Icons.settings, 'Paramètres', AppRoutes.settingspage, enabled: !_licenseExpired),
 
           // Administration (affiché uniquement si Admin)
           if (_isAdmin())

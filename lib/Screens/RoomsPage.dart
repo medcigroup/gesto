@@ -2,10 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-
 import '../components/rooms/RoomCalendar.dart';
 import '../components/rooms/RoomCard.dart';
-
+import '../config/HotelSettingsService.dart';
 import '../config/room_models.dart';
 import '../widgets/side_menu.dart';
 import 'AddRoomBottomSheet.dart';
@@ -280,15 +279,36 @@ class _RoomsPageState extends State<RoomsPage> {
                   onChanged: (value) => setState(() => filterStatus = value!),
                 ),
                 SizedBox(width: 12),
-                DropdownButton<String>(
-                  value: filterType,
-                  items: [
-                    DropdownMenuItem(value: 'tout', child: Text("Tous les types")),
-                    DropdownMenuItem(value: 'simple', child: Text("Simple")),
-                    DropdownMenuItem(value: 'double', child: Text("Double")),
-                    DropdownMenuItem(value: 'suite', child: Text("Suite")),
-                  ],
-                  onChanged: (value) => setState(() => filterType = value!),
+                FutureBuilder<Map<String, dynamic>>(
+                  future: HotelSettingsService().getHotelSettings(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return CircularProgressIndicator();
+                    } else if (snapshot.hasError) {
+                      return Text('Erreur: ${snapshot.error}');
+                    } else {
+                      final roomTypes = List<String>.from(snapshot.data?['roomTypes'] ?? []);
+
+                      // Ajouter l'option "Tous les types"
+                      final items = <DropdownMenuItem<String>>[
+                        DropdownMenuItem(value: 'tout', child: Text("Tous les types")),
+                        ...roomTypes.map((type) {
+                          return DropdownMenuItem(value: type, child: Text(type));
+                        }).toList(),
+                      ];
+
+                      // Vérifier si filterType est initialisé avec une valeur qui existe
+                      if (filterType != null && !items.map((item) => item.value).contains(filterType)) {
+                        filterType = 'tout'; // Réinitialiser filterType à "tout" si la valeur n'existe pas
+                      }
+
+                      return DropdownButton<String>(
+                        value: filterType,
+                        items: items,
+                        onChanged: (value) => setState(() => filterType = value!),
+                      );
+                    }
+                  },
                 ),
                 SizedBox(width: 12),
                 DropdownButton<String>(

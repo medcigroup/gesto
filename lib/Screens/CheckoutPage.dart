@@ -3,6 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 
+import '../widgets/side_menu.dart';
+
 class CheckoutPage extends StatefulWidget {
   @override
   _CheckoutPageState createState() => _CheckoutPageState();
@@ -251,6 +253,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
           onPressed: () => Navigator.pop(context),
         ),
       ),
+      drawer: const SideMenu(),
       body: Container(
       decoration: BoxDecoration(
       gradient: LinearGradient(
@@ -525,7 +528,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
       _buildInfoItem(
         icon: Icons.credit_card_outlined,
         title: 'Statut de paiement',
-        value: _bookingData!['paymentStatus'] ?? 'Non renseigné',
+        value: _bookingData!['paymentStatus'] ?? 'En attente',
       ),
       _buildInfoItem(
         icon: Icons.note_outlined,

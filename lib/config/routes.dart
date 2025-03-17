@@ -7,9 +7,13 @@ import '../Screens/ActivateLicencePage.dart';
 import '../Screens/CheckInPage.dart';
 import '../Screens/CheckoutPage.dart';
 import '../Screens/ChoosePlanUpgrade.dart';
+import '../Screens/ComingSoonPage.dart';
+import '../Screens/FinancePage.dart';
 import '../Screens/GestionPersonnelPage.dart';
+import '../Screens/PaymentPage.dart';
 import '../Screens/ReservationPage.dart';
 import '../Screens/RoomsPage.dart';
+import '../Screens/SettingsPage.dart';
 import '../Screens/renew_licence_page.dart';
 import '../modules/auth/screens/ThankYouScreen.dart';
 import '../modules/auth/screens/login_screen.dart';
@@ -27,7 +31,7 @@ class AppRoutes {
   static const String employees = '/employees';
   static const String statistiques = '/statistiques';
   static const String finance = '/finance';
-  static const String settings = '/settings';
+  static const String settingspage = '/settingspage ';
   static const String choosePlan = '/choose-plan';
   static const String thankYou = '/thank-you';
   static const String roomsPage = '/roomsPage';
@@ -40,12 +44,22 @@ class AppRoutes {
   static const String administration = '/Administration';
   static const String tarifpage = '/tarifpage';
   static const String contactpage = '/contactpage';
+  static const String comingSoonPage = '/comingSoonPage';
+  static const String paiement = '/paiement';
 
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
     switch (settings.name) {
       case home:
         return MaterialPageRoute(builder: (_) => GestoLandingPage());
+      case comingSoonPage:
+        return MaterialPageRoute(builder: (_) => ComingSoonPage());
+      case settingspage:
+        return MaterialPageRoute(builder: (_) => SettingsPage());
+      case paiement:
+        return MaterialPageRoute(builder: (_) => PaymentPage());
+      case finance:
+        return MaterialPageRoute(builder: (_) => FinancePage());
       case tarifpage:
         return MaterialPageRoute(builder: (_) => GestoPricingPage());
       case contactpage:

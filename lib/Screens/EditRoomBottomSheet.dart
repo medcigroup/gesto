@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../config/HotelSettingsService.dart';
 import '../config/room_models.dart';
 
 class EditRoomBottomSheet extends StatefulWidget {
@@ -150,22 +151,38 @@ class _EditRoomBottomSheetState extends State<EditRoomBottomSheet> {
               SizedBox(height: 16),
 
               // Type de chambre
-              DropdownButtonFormField<String>(
-                value: _selectedType,
-                decoration: InputDecoration(
-                  labelText: 'Type de chambre',
-                  border: OutlineInputBorder(),
-                ),
-                items: [
-                  DropdownMenuItem(value: 'simple', child: Text('Simple')),
-                  DropdownMenuItem(value: 'double', child: Text('Double')),
-                  DropdownMenuItem(value: 'suite', child: Text('Suite')),
-                ],
-                onChanged: (value) {
-                  if (value != null) {
-                    setState(() {
-                      _selectedType = value;
-                    });
+              FutureBuilder<Map<String, dynamic>>(
+                future: HotelSettingsService().getHotelSettings(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return CircularProgressIndicator();
+                  } else if (snapshot.hasError) {
+                    return Text('Erreur: ${snapshot.error}');
+                  } else {
+                    final roomTypes = List<String>.from(snapshot.data?['roomTypes'] ?? []);
+
+                    // Vérifier si _selectedType est initialisé avec une valeur qui existe
+                    if (_selectedType != null && !roomTypes.contains(_selectedType)) {
+                      _selectedType = (roomTypes.isNotEmpty ? roomTypes.first : null)!; // Réinitialiser _selectedType à la première valeur ou null
+                    }
+
+                    return DropdownButtonFormField<String>(
+                      value: _selectedType,
+                      decoration: InputDecoration(
+                        labelText: 'Type de chambre',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: roomTypes.map((type) {
+                        return DropdownMenuItem(value: type, child: Text(type));
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() {
+                            _selectedType = value;
+                          });
+                        }
+                      },
+                    );
                   }
                 },
               ),

@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../components/checkin/CustomerInfoSection.dart';
+import '../config/HotelSettingsService.dart';
 import '../config/generationcode.dart';
 import '../config/room_models.dart';
 import '../widgets/side_menu.dart';
@@ -123,6 +124,7 @@ class _CheckInPageState extends State<CheckInPage> {
     ).toList();
   }
 
+
   Future<void> _registerWalkInGuest() async {
     if (_formKey.currentState!.validate()) {
       if (_selectedRoom == null) {
@@ -139,15 +141,30 @@ class _CheckInPageState extends State<CheckInPage> {
           throw Exception('Utilisateur non connecté');
         }
 
+        // Récupérer les paramètres de l'hôtel
+        final settingsService = HotelSettingsService();
+        final settings = await settingsService.getHotelSettings();
+
+        // Vérifier si les paramètres existent et si les heures sont définies
+        if (settings.isEmpty || settings['checkInTime'] == null || settings['checkOutTime'] == null) {
+          throw Exception('Paramètres de l\'hôtel non configurés');
+        }
+
+        final checkInTime = settings['checkInTime'];
+        final checkOutTime = settings['checkOutTime'];
+
         // Créer un nouveau document de réservation
         final bookingRef = FirebaseFirestore.instance.collection('bookings').doc();
 
         // Générer un code de réservation unique
         String generatedReservationCode = await CodeGenerator.generateRegistrationCode();
 
-        // Convertir les dates
-        final checkInDate = DateFormat('dd/MM/yyyy').parse(_checkInDateController.text);
-        final checkOutDate = DateFormat('dd/MM/yyyy').parse(_checkOutDateController.text);
+        // Convertir les dates en utilisant les heures récupérées
+        final checkInDateString = _checkInDateController.text + ' ' + checkInTime + ':00';
+        final checkOutDateString = _checkOutDateController.text + ' ' + checkOutTime + ':00';
+
+        final checkInDate = DateFormat('dd/MM/yyyy HH:mm:ss').parse(checkInDateString);
+        final checkOutDate = DateFormat('dd/MM/yyyy HH:mm:ss').parse(checkOutDateString);
 
         // Calculer le nombre de nuits
         final nights = checkOutDate.difference(checkInDate).inDays;

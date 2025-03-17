@@ -59,7 +59,6 @@ dependencies:
   hive: ^2.2.3 # Cache local
   hive_flutter: ^1.1.0
   intl: ^0.18.1 # Internationalisation
-  pdf: ^3.10.2 # Génération PDF
   excel: ^2.0.1 # Export Excel
 
   flutter_secure_storage: ^8.1.0
@@ -86,6 +85,13 @@ dependencies:
   mask_text_input_formatter: ^2.9.0
   flutter_slidable: ^4.0.0
   universal_html: ^2.2.1
+  pdf: ^3.11.3
+
+    # Pour l'impression et l'aperçu de PDFs
+  printing: ^5.14.2
+
+    # Pour accéder au système de fichiers (si vous souhaitez sauvegarder les PDFs)
+  path_provider: ^2.1.5
 
 
 

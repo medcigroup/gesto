@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../../../../../config/routes.dart';
 import '../../../../../config/theme.dart';
 import '../../../config/CodeEntrepriseGenerator.dart';
+import '../../../config/HotelSettingsService.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({Key? key}) : super(key: key);
@@ -63,9 +64,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
       setState(() => _isLoading = true);
 
       try {
-        // Supprimez le délai artificiel en production
-        // await Future.delayed(const Duration(seconds: 2));
-
         // Création du compte
         final email = _emailController.text.trim();
         final password = _passwordController.text.trim();
@@ -74,12 +72,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
         // Générer un code entreprise unique
         final entrepriseData = await CodeEntrepriseGenerator.generateUniqueCode(
-          _establishmentNameController.text.trim(), // Nom de l'entreprise
-          email, // Email
-          _phoneController.text.trim(), // Numéro de téléphone
+          _establishmentNameController.text.trim(),
+          email,
+          _phoneController.text.trim(),
         );
 
-        // Sauvegarde des données
+        // Sauvegarde des données utilisateur
         await FirebaseFirestore.instance
             .collection('users')
             .doc(userCredential.user!.uid)
@@ -95,6 +93,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
           'createdAt': FieldValue.serverTimestamp(),
           'entrepriseCode': entrepriseData['code'],
         });
+
+        // Utilisation du service pour définir les paramètres par défaut
+        final hotelSettingsService = HotelSettingsService();
+        await hotelSettingsService.saveHotelSettings(
+          hotelName : _establishmentNameController.text.trim(),
+          address : _establishmentAddressController.text.trim(),
+          phoneNumber : _phoneController.text.trim(),
+          email : email,
+          currency: "FCFA",
+          checkInTime: "12:00",
+          checkOutTime: "10:00",
+          roomTypes: ["Standard", "Deluxe", "Suite"],
+          otherSettings: {},
+        );
 
         // Mise à jour du nom d'affichage
         await userCredential.user!.updateDisplayName(

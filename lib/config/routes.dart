@@ -15,6 +15,7 @@ import '../Screens/ReservationPage.dart';
 import '../Screens/RoomsPage.dart';
 import '../Screens/SettingsPage.dart';
 import '../Screens/renew_licence_page.dart';
+import '../components/reservation/ModernReservationPage.dart';
 import '../modules/auth/screens/ThankYouScreen.dart';
 import '../modules/auth/screens/login_screen.dart';
 import '../modules/auth/screens/register_screen.dart';
@@ -84,11 +85,11 @@ class AppRoutes {
         return MaterialPageRoute(builder: (_) => const LoginScreen());
       case register:
         return MaterialPageRoute(builder: (_) => const RegisterScreen());
-      case roomsPage: // Correspond à la nouvelle route roomsPage
+      case roomsPage:
         return MaterialPageRoute(builder: (_) => RoomsPage());
-      case reservationPage: // Correspond à la nouvelle route roomsPage
-        return MaterialPageRoute(builder: (_) => ReservationPage());
-      case enregistrement: // Correspond à la nouvelle route roomsPage
+      case reservationPage:
+        return MaterialPageRoute(builder: (_) => ModernReservationPage());
+      case enregistrement:
         return MaterialPageRoute(builder: (_) => CheckInPage());
 
       default:

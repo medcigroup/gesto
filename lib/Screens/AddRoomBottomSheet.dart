@@ -188,6 +188,7 @@ class _AddRoomBottomSheetState extends State<AddRoomBottomSheet> {
           'description': room.description,
           'userId': room.userId, // Ajoutez l'ID de l'utilisateur ici aussi
           'createdAt': FieldValue.serverTimestamp(),
+          'datedisponible': FieldValue.serverTimestamp(),
         });
 
         // Informer le parent qu'une chambre a été ajoutée

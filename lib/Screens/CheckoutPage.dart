@@ -102,6 +102,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
       // Libérer la chambre
       await FirebaseFirestore.instance.collection('rooms').doc(roomId).update({
         'status': 'disponible',
+        'datedisponible': FieldValue.serverTimestamp(),
         'lastUpdated': FieldValue.serverTimestamp(),
       });
 

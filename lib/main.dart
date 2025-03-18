@@ -3,6 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../config/routes.dart';
 import 'FirebaseOptions.dart';
+import 'package:flutter_web_plugins/flutter_web_plugins.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

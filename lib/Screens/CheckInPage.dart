@@ -166,8 +166,9 @@ class _CheckInPageState extends State<CheckInPage> {
         final checkInDate = DateFormat('dd/MM/yyyy HH:mm:ss').parse(checkInDateString);
         final checkOutDate = DateFormat('dd/MM/yyyy HH:mm:ss').parse(checkOutDateString);
 
-        // Calculer le nombre de nuits
-        final nights = checkOutDate.difference(checkInDate).inDays;
+        // Calculer le nombre de nuit
+        final numberOfNights = checkOutDate.difference(checkInDate).inDays;
+        final numberOfNightsCorrected = numberOfNights + (checkOutDate.isAfter(checkInDate) ? 1 : 0);
 
         // Enregistrer la réservation
         await bookingRef.set({
@@ -185,8 +186,8 @@ class _CheckInPageState extends State<CheckInPage> {
           'checkInDate': Timestamp.fromDate(checkInDate),
           'checkOutDate': Timestamp.fromDate(checkOutDate),
           'numberOfGuests': _numberOfGuests,
-          'nights': nights,
-          'totalAmount': _selectedRoom!.price * nights,
+          'nights': numberOfNightsCorrected,
+          'totalAmount': _selectedRoom!.price * numberOfNightsCorrected,
           'status': 'enregistré',
           'createdAt': FieldValue.serverTimestamp(),
           'userId': userId,
@@ -199,6 +200,7 @@ class _CheckInPageState extends State<CheckInPage> {
             .doc(_selectedRoom!.id)
             .update({
           'status': 'occupée',
+          'datedisponible': Timestamp.fromDate(checkOutDate),
           'lastUpdated': FieldValue.serverTimestamp(),
         });
 

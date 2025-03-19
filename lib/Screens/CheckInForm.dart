@@ -109,6 +109,7 @@ class _CheckInFormState extends State<CheckInForm> {
       final bookingRef = FirebaseFirestore.instance.collection('bookings').doc();
       await bookingRef.set({
         'EnregistrementCode': enregistrementCode,
+        'reservationId': bookingData['reservationId'],
         'actualCheckOutDate': DateTime.now().toUtc(), // Current UTC time as actual check-out (can be updated later)
         'address': bookingData['address'],
         'checkInDate': bookingData['checkInDate'],
@@ -137,6 +138,15 @@ class _CheckInFormState extends State<CheckInForm> {
           .collection('reservations')
           .doc(bookingData['reservationId'])
           .update({'status': 'Enregistré'});
+
+      await FirebaseFirestore.instance
+          .collection('rooms')
+          .doc(bookingData['roomId'])
+          .update({
+        'status': 'occupée',
+        'datedisponible': Timestamp.fromDate(_checkOutDate!),
+        'lastUpdated': FieldValue.serverTimestamp(),
+      });
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Client enregistré avec succès')),

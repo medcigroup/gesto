@@ -56,7 +56,7 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
   final userId = FirebaseAuth.instance.currentUser!.uid;
 
   // Vérification de la disponibilité des chambres pour les dates sélectionnées
-  Future<void> checkAvailableRooms() async {
+  Future<void> getAvailableRooms() async {
     if (checkInDate == null || checkOutDate == null) {
       _showErrorSnackBar('Veuillez sélectionner les dates de séjour');
       return;
@@ -69,24 +69,17 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
 
     setState(() {
       isLoadingRooms = true;
-      availableRooms =[];
+      availableRooms = [];
       selectedRoom = null;
     });
 
     try {
-      // 1. Récupérer toutes les chambres de l'utilisateur
+      // Récupérer toutes les chambres disponibles
       final roomsSnapshot = await FirebaseFirestore.instance
           .collection('rooms')
           .where('userId', isEqualTo: userId)
           .get();
 
-      // 2. Récupérer les réservations existantes pour cette période
-      final reservationsSnapshot = await FirebaseFirestore.instance
-          .collection('reservations')
-          .where('userId', isEqualTo: userId)
-          .get();
-
-      // Transformer les snapshots en listes d'objets
       List<Room> allRooms = roomsSnapshot.docs.map((doc) {
         final data = doc.data();
         return Room(
@@ -99,62 +92,14 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
           amenities: List<String>.from(data['amenities']),
           floor: data['floor'],
           image: data['image'],
-          datedisponible: (data['datedisponible'] as Timestamp?)?.toDate(), // Récupérer la date de disponibilité
         );
       }).toList();
 
-      List<Reservation> existingReservations = reservationsSnapshot.docs.map((doc) {
-        final data = doc.data();
-        return Reservation(
-          id: doc.id,
-          customerName: data['customerName'],
-          roomNumber: data['roomNumber'],
-          roomType: data['roomType'] ?? '',
-          checkInDate: (data['checkInDate'] as Timestamp).toDate(),
-          checkOutDate: (data['checkOutDate'] as Timestamp).toDate(),
-          status: data['status'],
-          roomId: data['roomId'],
-          reservationCode: data['reservationCode'],
-          customerEmail: data['customerEmail'] ?? '',
-          customerPhone: data['customerPhone'] ?? '',
-          numberOfGuests: data['numberOfGuests'] ?? 1,
-          specialRequests: data['specialRequests'] ?? '',
-        );
-      }).toList();
-
-      // 3. Filtrer les chambres disponibles
+      // Vérifier si chaque chambre a une réservation qui chevauche les dates sélectionnées
       for (Room room in allRooms) {
-        bool isAvailable = true;
+        bool isAvailable = await _isRoomAvailable(room.id, checkInDate!, checkOutDate!);
 
-        // Vérifier si la date d'arrivée choisie est égale ou supérieure à la date de disponibilité de la chambre
-        DateTime checkInDateOnly = DateTime(checkInDate!.year, checkInDate!.month, checkInDate!.day);
-        DateTime availableDateOnly = DateTime(room.datedisponible!.year, room.datedisponible!.month, room.datedisponible!.day);
-
-        if (checkInDateOnly.isBefore(availableDateOnly)) {
-          isAvailable = false;
-        }
-        else {
-          // Vérifier si la chambre est déjà réservée pour les dates demandées
-          for (Reservation reservation in existingReservations) {
-            if (reservation.roomId == room.id &&
-                (reservation.status == 'réservée' || reservation.status == 'Confirmée')) {
-
-              // Vérifier si les périodes se chevauchent
-              bool overlap = (checkInDate!.isBefore(reservation.checkOutDate) ||
-                  checkInDate!.isAtSameMomentAs(reservation.checkOutDate)) &&
-                  (checkOutDate!.isAfter(reservation.checkInDate) ||
-                      checkOutDate!.isAtSameMomentAs(reservation.checkInDate));
-
-              if (overlap) {
-                isAvailable = false;
-                break;
-              }
-            }
-          }
-        }
-
-        // Ajouter la chambre disponible à la liste
-        if (isAvailable && (room.status == 'disponible' || room.status == 'réservée')) {
+        if (isAvailable && (room.status == 'disponible' || room.status == 'occupée')) {
           availableRooms.add(room);
         }
       }
@@ -167,7 +112,6 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
         if (availableRooms.isEmpty) {
           _showInfoSnackBar('Aucune chambre disponible pour ces dates');
         } else {
-          // Passer à l'étape suivante si des chambres sont disponibles
           _currentStep = 1;
         }
       });
@@ -178,6 +122,51 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
       _showErrorSnackBar('Erreur lors de la recherche de chambres disponibles');
     }
   }
+
+  Future<bool> _isRoomAvailable(String roomId, DateTime checkIn, DateTime checkOut) async {
+    // Vérifier les deux collections en parallèle pour de meilleures performances
+    final reservationsFuture = FirebaseFirestore.instance
+        .collection('reservations')
+        .where('roomId', isEqualTo: roomId)
+        .where('status', whereIn: ['réservée', 'Enregistré'])
+        .get();
+
+    final bookingsFuture = FirebaseFirestore.instance
+        .collection('bookings')
+        .where('roomId', isEqualTo: roomId)
+        .where('status', whereIn: ['réservée','enregistré'])
+        .get();
+
+    // Attendre les deux requêtes
+    final results = await Future.wait([reservationsFuture, bookingsFuture]);
+    final reservationsSnapshot = results[0];
+    final bookingsSnapshot = results[1];
+
+    // Fonction pour vérifier les chevauchements dans une liste de documents
+    bool hasOverlap(List<QueryDocumentSnapshot> docs) {
+      for (var doc in docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        DateTime resCheckIn = (data['checkInDate'] as Timestamp).toDate();
+        DateTime resCheckOut = (data['checkOutDate'] as Timestamp).toDate();
+
+        // Vérification de chevauchement
+        bool overlap = !(checkOut.isBefore(resCheckIn.subtract(const Duration(days: 0))) || checkIn.isAfter(resCheckOut.subtract(const Duration(days: 1))));
+
+        if (overlap) {
+          return true; // Il y a chevauchement
+        }
+      }
+      return false;
+    }
+
+    // Vérifier les chevauchements dans les deux collections
+    if (hasOverlap(reservationsSnapshot.docs) || hasOverlap(bookingsSnapshot.docs)) {
+      return false; // La chambre n'est pas disponible
+    }
+
+    return true; // La chambre est disponible
+  }
+
 
   // Comparaison des numéros de chambre
   int _compareRoomNumbers(String a, String b) {
@@ -339,7 +328,7 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
 
       // Mise à jour du statut de la chambre à 'occupée'
       final roomRef = FirebaseFirestore.instance.collection('rooms').doc(selectedRoom!.id);
-      batch.update(roomRef, {'status': 'occupée'});
+      batch.update(roomRef, {'datedisponible': finalCheckOutDate,});
 
       await batch.commit();
 
@@ -639,7 +628,7 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
         },
         onStepContinue: () {
         if (_currentStep == 0) {
-          checkAvailableRooms();
+          getAvailableRooms();
         } else if (_currentStep == 1 && selectedRoom != null) {
           setState(() {
             _currentStep = 2;
@@ -885,13 +874,18 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
                   ),
                   keyboardType: TextInputType.emailAddress,
                   validator: (value) {
+                    // Make the email field optional by returning null if it's empty.
                     if (value == null || value.isEmpty) {
-                      return 'Veuillez entrer l\'email du client';
+                      return null; // No error message for empty email
+                    }
+                    // You can add more sophisticated email format validation here if needed.
+                    if (!value.contains('@')) {
+                      return 'Veuillez entrer un email valide';
                     }
                     return null;
                   },
                   onSaved: (value) {
-                    customerEmail = value!;
+                    customerEmail = value ?? ''; // Save the value, or an empty string if null
                   },
                 ),
               ),
@@ -899,7 +893,7 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
               Expanded(
                 child: TextFormField(
                   decoration: const InputDecoration(
-                    labelText: 'Téléphone',
+                    labelText: 'Téléphone/Whatsapp',
                     border: OutlineInputBorder(),
                   ),
                   keyboardType: TextInputType.phone,
@@ -1030,9 +1024,15 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
                           'Réservation #${_foundReservation!.reservationCode}',
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
-                            fontSize: 16,
+                            fontSize: 14,
                           ),
                         ),
+                        if (_foundReservation!.status != 'Annulée' &&  _foundReservation!.status != 'Enregistré'&&  _foundReservation!.status != 'Terminé')
+                          IconButton(
+                            icon: const Icon(Icons.edit, color: Colors.orange),
+                            tooltip: 'Modifier la réservation',
+                            onPressed: () => _editReservation(_foundReservation!),
+                          ),
                         IconButton(
                           icon: const Icon(Icons.print, color: Colors.blue),
                           tooltip: 'Imprimer le reçu',
@@ -1063,18 +1063,34 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
                     if (_foundReservation!.customerPhone.isNotEmpty)
                       _infoRow('Téléphone', _foundReservation!.customerPhone),
                     const SizedBox(height: 16),
-                    if (_foundReservation!.status == 'réservée' || _foundReservation!.status == 'Confirmée')
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: () => _checkInClient(_foundReservation!),
-                          icon: const Icon(Icons.login_outlined),
-                          label: const Text('Enregistrer l\'arrivée'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green[400],
-                            foregroundColor: Colors.white,
+                    if (_foundReservation!.status != 'Annulée' &&  _foundReservation!.status != 'Enregistré'&&  _foundReservation!.status != 'Terminé')
+                      Row(
+                        children: [
+                          if (_foundReservation!.status == 'réservée' || _foundReservation!.status == 'Confirmée')
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: () => _checkInClient(_foundReservation!),
+                                icon: const Icon(Icons.login_outlined),
+                                label: const Text('Enregistrer'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.green[400],
+                                  foregroundColor: Colors.white,
+                                ),
+                              ),
+                            ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () => _cancelReservation(_foundReservation!),
+                              icon: const Icon(Icons.cancel_outlined),
+                              label: const Text('Annuler'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red[400],
+                                foregroundColor: Colors.white,
+                              ),
+                            ),
                           ),
-                        ),
+                        ],
                       ),
                   ],
                 ),
@@ -1121,6 +1137,7 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
     if (reservationsList.isEmpty) {
       return const Center(child: Text('Aucune réservation récente.'));
     }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1131,82 +1148,413 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
         ),
         const SizedBox(height: 10),
         Expanded(
-          child: ListView.builder(
-            itemCount: reservationsList.length,
-            itemBuilder: (context, index) {
-              final reservation = reservationsList[index];
-              return Card(
-                elevation: 2,
-                margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Réservation #${reservation.reservationCode}',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                          Row(
-                            children: [
-                              // Bouton d'impression
-                              IconButton(
-                                icon: const Icon(Icons.print, color: Colors.blue),
-                                tooltip: 'Imprimer le reçu',
-                                onPressed: () => _reprintReceipt(reservation),
-                              ),
-                              const SizedBox(width: 8),
-                              // Status chip
-                              Chip(
-                                label: Text(reservation.status),
-                                backgroundColor: _getStatusColor(reservation.status),
-                              ),
-                            ],
-                          ),
-                        ],
+          child: SingleChildScrollView(
+            scrollDirection: Axis.vertical,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: DataTable(
+                columnSpacing: 20,
+                headingRowColor: MaterialStateProperty.all(Colors.grey[200]),
+                dataRowColor: MaterialStateProperty.all(Colors.white),
+                border: TableBorder.all(color: Colors.grey[300]!),
+                columns: const [
+                  DataColumn(label: Text('Réservation', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('Client', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('Chambre', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('Arrivée', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('Départ', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('Nuits', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('Prix/nuit', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('Total', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('Statut', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold))),
+                ],
+                rows: reservationsList.map((reservation) {
+                  return DataRow(
+                    cells: [
+                      DataCell(Text('#${reservation.reservationCode}',
+                          style: const TextStyle(fontWeight: FontWeight.bold))),
+                      DataCell(Text(reservation.customerName)),
+                      DataCell(Text(reservation.roomNumber)),
+                      DataCell(Text(DateFormat('dd/MM/yyyy').format(reservation.checkInDate))),
+                      DataCell(Text(DateFormat('dd/MM/yyyy').format(reservation.checkOutDate))),
+                      DataCell(Text(reservation.numberOfNights != null
+                          ? '${reservation.numberOfNights}' : '-')),
+                      DataCell(Text(reservation.pricePerNight != null
+                          ? '${reservation.pricePerNight?.toStringAsFixed(2)} FCFA' : '-')),
+                      DataCell(Text(reservation.totalPrice != null
+                          ? '${reservation.totalPrice?.toStringAsFixed(2)} FCFA' : '-')),
+                      DataCell(
+                        Chip(
+                          label: Text(reservation.status),
+                          backgroundColor: _getStatusColor(reservation.status),
+                        ),
                       ),
-                      const SizedBox(height: 8),
-                      _infoRowWithIcon(Icons.person_outline, 'Client:', reservation.customerName),
-                      _infoRowWithIcon(Icons.hotel_outlined, 'Chambre:', reservation.roomNumber),
-                      _infoRowWithIcon(Icons.calendar_today_outlined, 'Arrivée:', DateFormat('dd/MM/yyyy').format(reservation.checkInDate)),
-                      _infoRowWithIcon(Icons.calendar_today_outlined, 'Départ:', DateFormat('dd/MM/yyyy').format(reservation.checkOutDate)),
-                      if (reservation.numberOfNights != null)
-                        _infoRowWithIcon(Icons.mode_night_rounded, 'Nuits:', '${reservation.numberOfNights}'),
-                      if (reservation.pricePerNight != null)
-                        _infoRowWithIcon(Icons.euro_symbol_outlined, 'Prix/nuit:', '${reservation.pricePerNight?.toStringAsFixed(2)} FCFA'),
-                      if (reservation.totalPrice != null)
-                        _infoRowWithIcon(Icons.money_outlined, 'Total:', '${reservation.totalPrice?.toStringAsFixed(2)} FCFA'),
-                      const SizedBox(height: 16),
-                      if (reservation.status == 'réservée' || reservation.status == 'Confirmée')
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            onPressed: () => _checkInClient(reservation), // Pass the entire reservation object
-                            icon: const Icon(Icons.login_outlined),
-                            label: const Text('Enregistrer l\'arrivée'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.green[400],
-                              foregroundColor: Colors.white,
+                      DataCell(
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Icône Modifier
+                            if (reservation.status != 'Annulée' && reservation.status != 'Enregistré' && reservation.status != 'Terminé')
+                              IconButton(
+                                icon: const Icon(Icons.edit, color: Colors.orange, size: 20),
+                                tooltip: 'Modifier la réservation',
+                                onPressed: () => _editReservation(reservation),
+                              ),
+                            // Icône Imprimer
+                            IconButton(
+                              icon: const Icon(Icons.print, color: Colors.blue, size: 20),
+                              tooltip: 'Imprimer le reçu',
+                              onPressed: () => _reprintReceipt(reservation),
                             ),
-                          ),
-                        )
+                            // Boutons d'actions conditionnels
+                            if (reservation.status != 'Annulée' && reservation.status != 'Enregistré' && reservation.status != 'Terminé')
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (reservation.status == 'réservée' || reservation.status == 'Confirmée')
+                                    IconButton(
+                                      icon: const Icon(Icons.login_outlined, color: Colors.green, size: 20),
+                                      tooltip: 'Enregistrer l\'arrivée',
+                                      onPressed: () => _checkInClient(reservation),
+                                    ),
+                                  IconButton(
+                                    icon: const Icon(Icons.cancel_outlined, color: Colors.red, size: 20),
+                                    tooltip: 'Annuler la réservation',
+                                    onPressed: () => _cancelReservation(reservation),
+                                  ),
+                                ],
+                              ),
+                            // Bouton Supprimer (disponible pour toutes les réservations)
+                            IconButton(
+                              icon: const Icon(Icons.delete_forever, color: Colors.red, size: 20),
+                              tooltip: 'Supprimer la réservation',
+                              onPressed: () => _deleteReservation(reservation),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
-                  ),
-                ),
-              );
-            },
+                  );
+                }).toList(),
+              ),
+            ),
           ),
         ),
       ],
     );
   }
+
+  Future<void> _editReservation(Reservation reservation) async {
+    final customerNameController = TextEditingController(text: reservation.customerName);
+    final customerPhoneController = TextEditingController(text: reservation.customerPhone);
+    final numberOfGuestsController = TextEditingController(text: reservation.numberOfGuests.toString());
+    final specialRequestsController = TextEditingController(text: reservation.specialRequests ?? '');
+    final pricePerNightController = TextEditingController(text: reservation.pricePerNight?.toString() ?? '0');
+
+    final settingsService = HotelSettingsService();
+    final settings = await settingsService.getHotelSettings();
+
+    final checkInTimeParts = settings['checkInTime'].split(":");
+    final checkOutTimeParts = settings['checkOutTime'].split(":");
+
+    final checkInHour = int.parse(checkInTimeParts[0]);
+    final checkInMinute = int.parse(checkInTimeParts[1]);
+    final checkOutHour = int.parse(checkOutTimeParts[0]);
+    final checkOutMinute = int.parse(checkOutTimeParts[1]);
+
+    DateTime _checkInDate = reservation.checkInDate ?? DateTime.now();
+    DateTime _checkOutDate = reservation.checkOutDate ?? _checkInDate.add(const Duration(days: 1));
+
+    Future<bool> _isRoomAvailable(String roomId, DateTime checkIn, DateTime checkOut, String? currentReservationId) async {
+      final reservationsSnapshot = await FirebaseFirestore.instance
+          .collection('reservations')
+          .where('roomId', isEqualTo: roomId)
+          .where('status', whereIn: ['réservée', 'Enregistré'])
+          .get();
+
+      for (var doc in reservationsSnapshot.docs) {
+        if (doc.id == currentReservationId) continue;
+        final data = doc.data();
+        DateTime resCheckIn = (data['checkInDate'] as Timestamp).toDate();
+        DateTime resCheckOut = (data['checkOutDate'] as Timestamp).toDate();
+
+        if (!(checkOut.isBefore(resCheckIn) || checkIn.isAfter(resCheckOut))) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(25.0)),
+      ),
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            int numberOfNights = _checkOutDate.difference(_checkInDate).inDays + 1;
+            double totalAmount = numberOfNights * (double.tryParse(pricePerNightController.text) ?? 0);
+
+            Future<void> _selectCheckInDate(BuildContext context) async {
+              final DateTime? picked = await showDatePicker(
+                context: context,
+                initialDate: _checkInDate,
+                firstDate: DateTime(2000),
+                lastDate: DateTime(2030),
+              );
+              if (picked != null && picked != _checkInDate) {
+                setState(() {
+                  _checkInDate = DateTime(picked.year, picked.month, picked.day, _checkInDate.hour, _checkInDate.minute);
+                });
+              }
+            }
+
+            Future<void> _selectCheckOutDate(BuildContext context) async {
+              final DateTime? picked = await showDatePicker(
+                context: context,
+                initialDate: _checkOutDate,
+                firstDate: DateTime(2000),
+                lastDate: DateTime(2030),
+              );
+              if (picked != null && picked != _checkOutDate) {
+                setState(() {
+                  _checkOutDate = DateTime(picked.year, picked.month, picked.day, _checkOutDate.hour, _checkOutDate.minute);
+                });
+              }
+            }
+
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+                left: 16,
+                right: 16,
+                top: 16,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Modifier la réservation', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                      IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(controller: customerNameController, decoration: const InputDecoration(labelText: 'Nom du client', border: OutlineInputBorder())),
+                  const SizedBox(height: 10),
+                  TextField(controller: customerPhoneController, decoration: const InputDecoration(labelText: 'Téléphone du client', border: OutlineInputBorder()), keyboardType: TextInputType.phone),
+                  const SizedBox(height: 10),
+                  TextField(controller: numberOfGuestsController, decoration: const InputDecoration(labelText: 'Nombre de personnes', border: OutlineInputBorder()), keyboardType: TextInputType.number),
+                  const SizedBox(height: 10),
+                  InkWell(
+                    onTap: () => _selectCheckInDate(context),
+                    child: InputDecorator(
+                      decoration: const InputDecoration(labelText: 'Date d\'arrivée', border: OutlineInputBorder()),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: <Widget>[
+                          Text('${_checkInDate.day}/${_checkInDate.month}/${_checkInDate.year}'),
+                          const Icon(Icons.calendar_today),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  InkWell(
+                    onTap: () => _selectCheckOutDate(context),
+                    child: InputDecorator(
+                      decoration: const InputDecoration(labelText: 'Date de départ', border: OutlineInputBorder()),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: <Widget>[
+                          Text('${_checkOutDate.day}/${_checkOutDate.month}/${_checkOutDate.year}'),
+                          const Icon(Icons.calendar_today),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextFormField(
+                    controller: pricePerNightController,
+                    decoration: const InputDecoration(labelText: 'Prix par nuit', border: OutlineInputBorder()),
+                    keyboardType: TextInputType.number,
+                    onChanged: (value) {
+                      setState(() {
+                        // Recalculate totalAmount when price changes
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  Text('Nombre de nuits: $numberOfNights', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  Text('Montant total: $totalAmount', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 10),
+                  ElevatedButton(
+                    onPressed: () async {
+                      final finalCheckInDate = DateTime(_checkInDate.year, _checkInDate.month, _checkInDate.day, checkInHour, checkInMinute);
+                      final finalCheckOutDate = DateTime(_checkOutDate.year, _checkOutDate.month, _checkOutDate.day, checkOutHour, checkOutMinute);
+
+                      bool isAvailable = await _isRoomAvailable(reservation.roomId, finalCheckInDate, finalCheckOutDate, reservation.id);
+                      if (!isAvailable) {
+                        if (context.mounted) {
+                          showDialog(
+                            context: context,
+                            builder: (BuildContext context) {
+                              return AlertDialog(
+                                title: const Text('Chambre non disponible'),
+                                content: const Text('Cette chambre est déjà réservée pour les dates sélectionnées. Veuillez choisir d’autres dates.'),
+                                actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
+                              );
+                            },
+                          );
+                        }
+                        return;
+                      }
+                      await FirebaseFirestore.instance.collection('reservations').doc(reservation.id).update({
+                        'customerName': customerNameController.text,
+                        'customerPhone': customerPhoneController.text,
+                        'numberOfGuests': int.tryParse(numberOfGuestsController.text) ?? reservation.numberOfGuests,
+                        'specialRequests': specialRequestsController.text,
+                        'checkInDate': finalCheckInDate,
+                        'checkOutDate': finalCheckOutDate,
+                        'pricePerNight': double.tryParse(pricePerNightController.text) ?? 0,
+                        'numberOfNights': numberOfNights,
+                        'totalPrice': totalAmount,
+                        'updatedAt': DateTime.now(),
+                      });
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Réservation mise à jour avec succès!'), backgroundColor: Colors.green));
+                      }
+                      Navigator.pop(context);
+                      fetchReservations();
+                    },
+                    child: const Text('Enregistrer'),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+
+  void _cancelReservation(Reservation reservation) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Annulation de la réservation'),
+          content: const Text('Voulez-vous vraiment annuler cette réservation ?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context), // Fermer la boîte de dialogue
+              child: const Text('Non'),
+            ),
+            TextButton(
+              onPressed: () async {
+                // Mettre à jour Firestore
+                await FirebaseFirestore.instance
+                    .collection('reservations')
+                    .doc(reservation.id)
+                    .update({'status': 'Annulée'});
+
+                // Rafraîchir les données depuis Firestore
+                fetchReservations();
+
+                Navigator.pop(context); // Fermer la boîte de dialogue
+              },
+              child: const Text('Oui', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _deleteReservation(Reservation reservation) async {
+    // Afficher une boîte de dialogue de confirmation
+    final bool confirmDelete = await showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Confirmer la suppression'),
+          content: Text('Êtes-vous sûr de vouloir supprimer définitivement la réservation #${reservation.reservationCode} ?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Annuler'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.red,
+              ),
+              child: const Text('Supprimer'),
+            ),
+          ],
+        );
+      },
+    );
+
+    // Si l'utilisateur annule, ne pas continuer
+    if (confirmDelete != true) {
+      return;
+    }
+
+    try {
+      // Afficher un indicateur de chargement
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return const Center(
+            child: CircularProgressIndicator(),
+          );
+        },
+      );
+
+      // Supprimer la réservation de Firestore
+      await FirebaseFirestore.instance
+          .collection('reservations')
+          .doc(reservation.id)
+          .delete();
+
+      // Fermer l'indicateur de chargement
+      Navigator.of(context).pop();
+
+      // Afficher un message de succès
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Réservation supprimée avec succès'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      // Rafraîchir la liste des réservations
+      fetchReservations(); // Assurez-vous que cette méthode existe pour recharger les données
+    } catch (e) {
+      // Fermer l'indicateur de chargement en cas d'erreur
+      Navigator.of(context).pop();
+
+      // Afficher un message d'erreur
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur lors de la suppression: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      print('Erreur lors de la suppression de la réservation: $e');
+    }
+  }
+
+
+
 
 // Méthode pour réimprimer le reçu
   Future<void> _reprintReceipt(Reservation reservation) async {
@@ -1331,18 +1679,18 @@ class Room {
 // Modèle pour une réservation
 class Reservation {
   final String id;
-  final String customerName;
+  late final String customerName;
   final String roomNumber;
   final String roomType;
-  final DateTime checkInDate;
-  final DateTime checkOutDate;
-  final String status;
+  late final DateTime checkInDate;
+  late final DateTime checkOutDate;
+  late final String status;
   final String roomId;
   final String reservationCode;
   final String customerEmail;
-  final String customerPhone;
-  final int numberOfGuests;
-  final String specialRequests;
+  late final String customerPhone;
+  late final int numberOfGuests;
+  late final String specialRequests;
   final int? numberOfNights; // Add this field
   final double? pricePerNight; // Add this field
   final double? totalPrice; // Add this field

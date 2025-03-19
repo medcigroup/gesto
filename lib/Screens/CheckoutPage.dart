@@ -92,12 +92,21 @@ class _CheckoutPageState extends State<CheckoutPage> {
     try {
       String bookingDocId = _bookingData!['documentId'];
       String roomId = _bookingData!['roomId'];
+      String? reservationId = _bookingData!['reservationId']; // Récupérer l'ID de réservation s'il existe
 
-      // Mettre à jour la réservation
+      // Mettre à jour la réservation dans la collection 'bookings'
       await FirebaseFirestore.instance.collection('bookings').doc(bookingDocId).update({
         'status': 'terminé',
         'actualCheckOutDate': FieldValue.serverTimestamp(),
       });
+
+      // Mettre à jour la réservation dans la collection 'reservations' si reservationId existe
+      if (reservationId != null && reservationId.isNotEmpty) {
+        await FirebaseFirestore.instance.collection('reservations').doc(reservationId).update({
+          'status': 'Terminé',
+          'actualCheckOutDate': FieldValue.serverTimestamp(),
+        });
+      }
 
       // Libérer la chambre
       await FirebaseFirestore.instance.collection('rooms').doc(roomId).update({
@@ -154,7 +163,12 @@ class _CheckoutPageState extends State<CheckoutPage> {
     );
   }
 
-  Widget _buildInfoItem({required IconData icon, required String title, required String value}) {
+  Widget _buildInfoItem({
+    required IconData icon,
+    required String title,
+    required String value,
+    MaterialColor? valueColor // Rendons ce paramètre optionnel
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Row(
@@ -167,7 +181,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
             ),
             child: Icon(
               icon,
-              color: Theme.of(context).primaryColor,
+              color: Colors.deepPurple,
               size: 20,
             ),
           ),
@@ -187,6 +201,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 style: TextStyle(
                   fontWeight: FontWeight.w500,
                   fontSize: 16,
+                  color: valueColor, // Utilisation de la couleur passée en paramètre
                 ),
               ),
             ],
@@ -530,6 +545,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
         icon: Icons.credit_card_outlined,
         title: 'Statut de paiement',
         value: _bookingData!['paymentStatus'] ?? 'En attente',
+        valueColor: (_bookingData!['paymentStatus'] == null || _bookingData!['paymentStatus'] == 'En attente')
+            ? Colors.red
+            : Colors.green,
       ),
       _buildInfoItem(
         icon: Icons.note_outlined,

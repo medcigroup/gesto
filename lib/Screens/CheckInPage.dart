@@ -37,14 +37,17 @@ class _CheckInPageState extends State<CheckInPage> {
   List<Room> _availableRooms = [];
   Room? _selectedRoom;
 
+  DateTime? checkInDate;
+  DateTime? checkOutDate;
+
   @override
   void initState() {
     super.initState();
     // Initialiser les dates avec aujourd'hui et demain
-    final now = DateTime.now();
-    final tomorrow = now.add(Duration(days: 1));
-    _checkInDateController.text = DateFormat('dd/MM/yyyy').format(now);
-    _checkOutDateController.text = DateFormat('dd/MM/yyyy').format(tomorrow);
+    //final now = DateTime.now();
+    //final tomorrow = now.add(Duration(days: 1));
+    //_checkInDateController.text = DateFormat('dd/MM/yyyy').format(now);
+    //_checkOutDateController.text = DateFormat('dd/MM/yyyy').format(tomorrow);
 
     // Charger les chambres disponibles
     fetchAvailableRooms();
@@ -68,20 +71,35 @@ class _CheckInPageState extends State<CheckInPage> {
     setState(() => _isLoading = true);
 
     try {
+      // Vérifier si les dates sont sélectionnées
+      if (checkInDate == null || checkOutDate == null) {
+        setState(() => _isLoading = false);
+        _showErrorSnackBar('Veuillez sélectionner les dates de séjour');
+        return;
+      }
+
+      // Vérifier la validité des dates
+      if (checkOutDate!.isBefore(checkInDate!)) {
+        setState(() => _isLoading = false);
+        _showErrorSnackBar(
+            'La date de départ doit être après la date d\'arrivée');
+        return;
+      }
+
       // Obtenir l'ID de l'utilisateur connecté
       final userId = FirebaseAuth.instance.currentUser?.uid;
       if (userId == null) {
         throw Exception('Utilisateur non connecté');
       }
 
-      // Récupérer les chambres disponibles
+      // Récupérer toutes les chambres de l'utilisateur
       final snapshot = await FirebaseFirestore.instance
           .collection('rooms')
-          .where('status', isEqualTo: 'disponible')
           .where('userId', isEqualTo: userId)
           .get();
 
-      final rooms = snapshot.docs.map((doc) {
+      // Transformer les documents en objets Room
+      final allRooms = snapshot.docs.map((doc) {
         final data = doc.data();
         return Room(
           id: doc.id,
@@ -93,25 +111,98 @@ class _CheckInPageState extends State<CheckInPage> {
           amenities: List<String>.from(data['amenities']),
           floor: data['floor'],
           image: data['image'],
-          userId: '',
+          userId: userId,
         );
       }).toList();
 
-      // Trier les chambres par numéro
-      rooms.sort((a, b) => compareRoomNumbers(a.number, b.number));
+      // Filtrer les chambres disponibles pour les dates sélectionnées
+      List<Room> roomsAvailable = [];
+      for (Room room in allRooms) {
 
-      // Extraire les types de chambres uniques
-      final types = rooms.map((room) => room.type).toSet().toList();
+        if (room.status == 'disponible') {
+          bool isAvailable = await isRoomAvailable(
+              room.id, checkInDate!, checkOutDate!);
+          if (isAvailable) {
+            roomsAvailable.add(room);
+          }
+        }
+      }
+
+      // Trier les chambres par numéro
+      roomsAvailable.sort((a, b) => compareRoomNumbers(a.number, b.number));
+
+      // Extraire les types de chambres uniques des chambres disponibles
+      final types = roomsAvailable.map((room) => room.type).toSet().toList();
 
       setState(() {
-        _availableRooms = rooms;
+        _availableRooms = roomsAvailable;
         _roomTypes = types;
         _isLoading = false;
+
+        if (_availableRooms.isEmpty) {
+          _showErrorSnackBar('Aucune chambre disponible pour ces dates');
+        }
       });
     } catch (e) {
       setState(() => _isLoading = false);
-      _showErrorSnackBar('Erreur lors du chargement des chambres: ${e.toString()}');
+      _showErrorSnackBar(
+          'Erreur lors du chargement des chambres: ${e.toString()}');
     }
+  }
+
+// Méthode pour vérifier si une chambre est disponible pour les dates spécifiées
+  Future<bool> isRoomAvailable(String roomId, DateTime checkIn, DateTime checkOut) async {
+    // Vérifier les deux collections en parallèle pour de meilleures performances
+    final reservationsFuture = FirebaseFirestore.instance
+        .collection('reservations')
+        .where('roomId', isEqualTo: roomId)
+        .where('status', whereIn: ['réservée', 'Enregistré'])
+        .get();
+
+    final bookingsFuture = FirebaseFirestore.instance
+        .collection('bookings')
+        .where('roomId', isEqualTo: roomId)
+        .where('status', whereIn: ['réservée','enregistré'])
+        .get();
+
+    // Attendre les deux requêtes
+    final results = await Future.wait([reservationsFuture, bookingsFuture]);
+    final reservationsSnapshot = results[0];
+    final bookingsSnapshot = results[1];
+
+    // Fonction pour vérifier les chevauchements dans une liste de documents
+    bool hasOverlap(List<QueryDocumentSnapshot> docs) {
+      for (var doc in docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        DateTime resCheckIn = (data['checkInDate'] as Timestamp).toDate();
+        DateTime resCheckOut = (data['checkOutDate'] as Timestamp).toDate();
+
+        // Vérification de chevauchement
+        bool overlap = !(checkOut.isBefore(resCheckIn.subtract(const Duration(days: 0))) || checkIn.isAfter(resCheckOut.subtract(const Duration(days: 1))));
+
+        if (overlap) {
+          return true; // Il y a chevauchement
+        }
+      }
+      return false;
+    }
+
+    // Vérifier les chevauchements dans les deux collections
+    if (hasOverlap(reservationsSnapshot.docs) || hasOverlap(bookingsSnapshot.docs)) {
+      return false; // La chambre n'est pas disponible
+    }
+
+    return true; // La chambre est disponible
+  }
+
+// Filtrer les chambres selon le type sélectionné et le nombre de personnes
+  List<Room> getFilteredRooms() {
+    if (_selectedRoomType == null) return [];
+
+    return _availableRooms.where((room) =>
+    room.type == _selectedRoomType &&
+        room.capacity >= _numberOfGuests
+    ).toList();
   }
 
   // Filtrer les chambres selon le type sélectionné
@@ -146,7 +237,8 @@ class _CheckInPageState extends State<CheckInPage> {
         final settings = await settingsService.getHotelSettings();
 
         // Vérifier si les paramètres existent et si les heures sont définies
-        if (settings.isEmpty || settings['checkInTime'] == null || settings['checkOutTime'] == null) {
+        if (settings.isEmpty || settings['checkInTime'] == null ||
+            settings['checkOutTime'] == null) {
           throw Exception('Paramètres de l\'hôtel non configurés');
         }
 
@@ -154,21 +246,30 @@ class _CheckInPageState extends State<CheckInPage> {
         final checkOutTime = settings['checkOutTime'];
 
         // Créer un nouveau document de réservation
-        final bookingRef = FirebaseFirestore.instance.collection('bookings').doc();
+        final bookingRef = FirebaseFirestore.instance.collection('bookings')
+            .doc();
 
         // Générer un code de réservation unique
-        String generatedReservationCode = await CodeGenerator.generateRegistrationCode();
+        String generatedReservationCode = await CodeGenerator
+            .generateRegistrationCode();
 
         // Convertir les dates en utilisant les heures récupérées
-        final checkInDateString = _checkInDateController.text + ' ' + checkInTime + ':00';
-        final checkOutDateString = _checkOutDateController.text + ' ' + checkOutTime + ':00';
+        final checkInDateString = _checkInDateController.text + ' ' +
+            checkInTime + ':00';
+        final checkOutDateString = _checkOutDateController.text + ' ' +
+            checkOutTime + ':00';
 
-        final checkInDate = DateFormat('dd/MM/yyyy HH:mm:ss').parse(checkInDateString);
-        final checkOutDate = DateFormat('dd/MM/yyyy HH:mm:ss').parse(checkOutDateString);
+        final checkInDate = DateFormat('dd/MM/yyyy HH:mm:ss').parse(
+            checkInDateString);
+        final checkOutDate = DateFormat('dd/MM/yyyy HH:mm:ss').parse(
+            checkOutDateString);
 
         // Calculer le nombre de nuit
-        final numberOfNights = checkOutDate.difference(checkInDate).inDays;
-        final numberOfNightsCorrected = numberOfNights + (checkOutDate.isAfter(checkInDate) ? 1 : 0);
+        final numberOfNights = checkOutDate
+            .difference(checkInDate)
+            .inDays;
+        final numberOfNightsCorrected = numberOfNights +
+            (checkOutDate.isAfter(checkInDate) ? 1 : 0);
 
         // Enregistrer la réservation
         await bookingRef.set({
@@ -259,14 +360,15 @@ class _CheckInPageState extends State<CheckInPage> {
     );
   }
 
-  Future<void> _selectDate(BuildContext context, TextEditingController controller, {bool isCheckOut = false}) async {
+  Future<void> _selectDate(BuildContext context,
+      TextEditingController controller, {bool isCheckOut = false}) async {
     DateTime initialDate;
     DateTime firstDate;
 
     if (isCheckOut && _checkInDateController.text.isNotEmpty) {
       try {
-        // Pour le check-out, la date initiale est au moins un jour après le check-in
-        final checkInDate = DateFormat('dd/MM/yyyy').parse(_checkInDateController.text);
+        final checkInDate = DateFormat('dd/MM/yyyy').parse(
+            _checkInDateController.text);
         initialDate = checkInDate.add(Duration(days: 1));
         firstDate = checkInDate.add(Duration(days: 1));
       } catch (e) {
@@ -287,7 +389,9 @@ class _CheckInPageState extends State<CheckInPage> {
         return Theme(
           data: ThemeData.light().copyWith(
             colorScheme: ColorScheme.light(
-              primary: Theme.of(context).primaryColor,
+              primary: Theme
+                  .of(context)
+                  .primaryColor,
             ),
           ),
           child: child!,
@@ -298,18 +402,36 @@ class _CheckInPageState extends State<CheckInPage> {
     if (picked != null) {
       controller.text = DateFormat('dd/MM/yyyy').format(picked);
 
-      // Si on change la date d'arrivée, vérifier que la date de départ est toujours valide
-      if (!isCheckOut && _checkOutDateController.text.isNotEmpty) {
-        try {
-          final checkOutDate = DateFormat('dd/MM/yyyy').parse(_checkOutDateController.text);
-          if (!checkOutDate.isAfter(picked)) {
-            // Mettre à jour la date de départ pour être le lendemain de l'arrivée
-            _checkOutDateController.text = DateFormat('dd/MM/yyyy').format(picked.add(Duration(days: 1)));
+      setState(() {
+        if (isCheckOut) {
+          checkOutDate = picked;
+          _selectedRoomType = null;
+          _selectedRoom = null;
+        } else {
+          checkInDate = picked;
+          // Reset selected room type and room when check-in date changes
+          _selectedRoomType = null;
+          _selectedRoom = null;
+          // Si on change la date d'arrivée, vérifier que la date de départ est toujours valide
+          if (_checkOutDateController.text.isNotEmpty) {
+            try {
+              final checkOutDate = DateFormat('dd/MM/yyyy').parse(
+                  _checkOutDateController.text);
+              if (!checkOutDate.isAfter(picked)) {
+                final newCheckOutDate = picked.add(Duration(days: 1));
+                _checkOutDateController.text =
+                    DateFormat('dd/MM/yyyy').format(newCheckOutDate);
+                this.checkOutDate = newCheckOutDate;
+              }
+            } catch (e) {
+              // Ignorer les erreurs de parsing
+            }
           }
-        } catch (e) {
-          // Ignorer les erreurs de parsing
         }
-      }
+      });
+
+      // Actualiser les chambres disponibles avec les nouvelles dates
+      fetchAvailableRooms();
     }
   }
 
@@ -348,7 +470,8 @@ class _CheckInPageState extends State<CheckInPage> {
                 checkInDateController: _checkInDateController,
                 checkOutDateController: _checkOutDateController,
                 numberOfGuests: _numberOfGuests,
-                onGuestsChanged: (value) => setState(() => _numberOfGuests = value),
+                onGuestsChanged: (value) =>
+                    setState(() => _numberOfGuests = value),
                 selectedRoomType: _selectedRoomType,
                 roomTypes: _roomTypes,
                 onRoomTypeChanged: (value) {
@@ -406,7 +529,11 @@ class _CheckInPageState extends State<CheckInPage> {
           children: <Widget>[
             Text(
               'Récapitulatif',
-              style: Theme.of(context).textTheme.titleLarge!.copyWith(
+              style: Theme
+                  .of(context)
+                  .textTheme
+                  .titleLarge!
+                  .copyWith(
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -447,9 +574,13 @@ class _CheckInPageState extends State<CheckInPage> {
             Builder(
               builder: (context) {
                 try {
-                  final checkInDate = DateFormat('dd/MM/yyyy').parse(_checkInDateController.text);
-                  final checkOutDate = DateFormat('dd/MM/yyyy').parse(_checkOutDateController.text);
-                  final nights = checkOutDate.difference(checkInDate).inDays;
+                  final checkInDate = DateFormat('dd/MM/yyyy').parse(
+                      _checkInDateController.text);
+                  final checkOutDate = DateFormat('dd/MM/yyyy').parse(
+                      _checkOutDateController.text);
+                  final nights = checkOutDate
+                      .difference(checkInDate)
+                      .inDays;
 
                   return Column(
                     children: [
@@ -466,11 +597,14 @@ class _CheckInPageState extends State<CheckInPage> {
                         children: [
                           Text('Total:'),
                           Text(
-                            '${(_selectedRoom!.price * nights).toStringAsFixed(0)} FCFA',
+                            '${(_selectedRoom!.price * nights).toStringAsFixed(
+                                0)} FCFA',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 18,
-                              color: Theme.of(context).primaryColor,
+                              color: Theme
+                                  .of(context)
+                                  .primaryColor,
                             ),
                           ),
                         ],
@@ -519,6 +653,7 @@ class _CheckInPageState extends State<CheckInPage> {
       ],
     );
   }
+
 }
 
 
@@ -806,7 +941,7 @@ class StayInfoSection extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8.0),
                 child: Text(
-                  'Aucune chambre disponible pour ce type et ces critères',
+                  'Aucune chambre disponible pour ce type de chambre et cette capacité',
                   style: TextStyle(color: Colors.red),
                 ),
               ),

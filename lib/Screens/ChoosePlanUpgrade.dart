@@ -7,7 +7,7 @@ import '../../../../../config/theme.dart';
 import '../config/LicenceGenerator.dart';
 
 
-enum PlanId { gratuit, starter, pro, entreprise,}
+enum PlanId { basic, starter, pro, entreprise,}
 
 class Plan {
   final String title;
@@ -67,11 +67,11 @@ class _ChoosePlanUpgradeState extends State<ChoosePlanUpgrade> {
           final currentPlanStr = userData['plan'] as String;
           _currentPlan = PlanId.values.firstWhere(
                 (p) => p.name == currentPlanStr,
-            orElse: () => PlanId.gratuit,
+            orElse: () => PlanId.basic,
           );
 
-          if (userData.containsKey('planExpiryDate')) {
-            final expiryTimestamp = userData['planExpiryDate'] as Timestamp?;
+          if (userData.containsKey('licenceExpiryDate')) {
+            final expiryTimestamp = userData['licenceExpiryDate'] as Timestamp?;
             if (expiryTimestamp != null) {
               _currentPlanExpiryDate = expiryTimestamp.toDate();
 
@@ -307,17 +307,17 @@ class _ChoosePlanUpgradeState extends State<ChoosePlanUpgrade> {
   @override
   Widget build(BuildContext context) {
     // Générer la liste des plans en fonction du plan actuel
-    final isFreePlanExpired = _currentPlan == PlanId.gratuit && _remainingDays <= 0;
+    final isFreePlanExpired = _currentPlan == PlanId.basic && _remainingDays <= 0;
     final plans = [
       Plan(
-        title: 'Essai Gratuit',
-        price: '0 FCFA',
-        duration: '30 jours',
+        title: 'Basic',
+        price: '15000 FCFA',
+        duration: '/mois',
         features: ['Module de réservation', '14 chambres max', 'Support de base', 'Rapports hebdo'],
-        planId: PlanId.gratuit,
+        planId: PlanId.basic,
         isRecommended: false,
         isDisabled: isFreePlanExpired ||
-            (_currentPlan != null && _currentPlan!.index > PlanId.gratuit.index),
+            (_currentPlan != null && _currentPlan!.index > PlanId.basic.index),
       ),
       Plan(
         title: 'Starter',
@@ -325,7 +325,7 @@ class _ChoosePlanUpgradeState extends State<ChoosePlanUpgrade> {
         duration: '/mois',
         features: ['Module de réservation', '20 chambres max', 'Gestion resto', '10 tables resto', 'Support prioritaire', 'Rapports quotidiens'],
         planId: PlanId.starter,
-        isRecommended: _currentPlan == PlanId.gratuit,
+        isRecommended: _currentPlan == PlanId.basic,
         isDisabled: _currentPlan == PlanId.starter,
       ),
       Plan(
@@ -406,7 +406,7 @@ class _ChoosePlanUpgradeState extends State<ChoosePlanUpgrade> {
                       ),
                     ),
                     const SizedBox(height: 20),
-                    if (_currentPlan != null && _currentPlan != PlanId.gratuit && _remainingDays > 0)
+                    if (_currentPlan != null && _currentPlan != PlanId.basic && _remainingDays > 0)
                       const Padding(
                         padding: EdgeInsets.all(16.0),
                         child: Text(

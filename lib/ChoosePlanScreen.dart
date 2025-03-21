@@ -6,11 +6,12 @@ import '../../../../../config/routes.dart';
 import '../../../../../config/theme.dart';
 import 'config/LicenceGenerator.dart';
 
-enum PlanId { gratuit, starter, pro, entreprise }
+enum PlanId { basic, starter, pro, entreprise }
 
 class Plan {
   final String title;
   final String price;
+  final String? oldPrice; // Properly mark as nullable
   final String duration;
   final List<String> features;
   final PlanId planId;
@@ -23,6 +24,7 @@ class Plan {
     required this.features,
     required this.planId,
     required this.isRecommended,
+    this.oldPrice, // No need for String? here since the property is already nullable
   });
 }
 
@@ -96,7 +98,7 @@ class _ChoosePlanScreenState extends State<ChoosePlanScreen> {
 
   Timestamp _getExpiryDate(PlanId planId) {
     final durations = {
-      PlanId.gratuit: 30,
+      PlanId.basic: 30,
       PlanId.starter: 30,
       PlanId.pro: 30,
       PlanId.entreprise: 365,
@@ -122,27 +124,68 @@ class _ChoosePlanScreenState extends State<ChoosePlanScreen> {
           children: [
             Text(plan.title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
-            Text(plan.price, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.green)),
-            if (plan.duration.isNotEmpty) Text(plan.duration, style: const TextStyle(fontSize: 14, color: Colors.grey)),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (plan.oldPrice != null) // Vérifie s'il y a un ancien prix
+                  Text(
+                    plan.oldPrice!,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.red,
+                      decoration: TextDecoration.lineThrough, // Ajoute le texte barré
+                    ),
+                  ),
+                const SizedBox(width: 5), // Espace entre les prix
+                Text(
+                  plan.price,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.green,
+                  ),
+                ),
+              ],
+            ),
+
+            if (plan.duration.isNotEmpty)
+              Text(plan.duration, style: const TextStyle(fontSize: 14, color: Colors.grey)),
             const Divider(),
-            ...plan.features.map((feature) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Row(
-                children: [
-                  const Icon(Icons.check, color: Colors.green, size: 18),
-                  const SizedBox(width: 5),
-                  Expanded(child: Text(feature, style: const TextStyle(fontSize: 14))),
-                ],
+            Expanded(
+              child: ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: plan.features.length,
+                itemBuilder: (context, index) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.check, color: Colors.green, size: 18),
+                        const SizedBox(width: 5),
+                        Expanded(
+                          child: Text(
+                              plan.features[index],
+                              style: const TextStyle(fontSize: 14)
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
               ),
-            )),
-            const Spacer(),
+            ),
             ElevatedButton(
               onPressed: () => _selectPlan(plan.planId),
               style: ElevatedButton.styleFrom(
                 backgroundColor: isSelected ? Colors.green : Colors.blueAccent,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
-              child: Text(isSelected ? 'Plan actuel' : 'Choisir ce plan', style: const TextStyle(color: Colors.white)),
+              child: Text(
+                  isSelected ? 'Plan actuel' : 'Choisir ce plan',
+                  style: const TextStyle(color: Colors.white)
+              ),
             ),
           ],
         ),
@@ -153,10 +196,52 @@ class _ChoosePlanScreenState extends State<ChoosePlanScreen> {
   @override
   Widget build(BuildContext context) {
     final plans = [
-      Plan(title: 'Essai Gratuit', price: '0 FCFA', duration: '30 jours', features: ['Module de réservation', '14 chambres max', 'Support de base', 'Rapports hebdo'], planId: PlanId.gratuit, isRecommended: false),
-      Plan(title: 'Starter', price: '20000 FCFA', duration: '/mois', features: ['Module de réservation', '20 chambres max', 'Gestion resto', '10 tables resto', 'Support prioritaire', 'Rapports quotidiens'], planId: PlanId.starter, isRecommended: true),
-      Plan(title: 'Starter Pro', price: '50000 FCFA', duration: '/mois', features: ['Module de réservation', 'Chambres illimitées', 'Gestion resto', 'Tables resto illimitées', 'Support 24/7', 'Analyses temps réel', 'Marketing tools', 'Formation incluse'], planId: PlanId.pro, isRecommended: false),
-      Plan(title: 'Grand Hôtel', price: 'Sur mesure', duration: '', features: ['Solution personnalisée', 'Intégrations API', 'Account manager dédié', 'Formation avancée', 'Maintenance incluse'], planId: PlanId.entreprise, isRecommended: false),
+      Plan(
+        title: 'Basic (Essai Gratuit 30J)',
+        price: '0 FCFA',
+        oldPrice: '15000 FCFA',
+        duration: '30 jours',
+        features: [
+          'Module de réservation',
+          '14 chambres max',
+          'Support de base',
+          'Rapports hebdo'
+        ],
+        planId: PlanId.basic,
+        isRecommended: false,
+      ),
+      Plan(
+        title: 'Starter',
+        price: '20000 FCFA',
+        duration: '/mois',
+        features: [
+          'Module de réservation',
+          '20 chambres max',
+          'Gestion resto',
+          '10 tables resto',
+          'Support prioritaire',
+          'Rapports quotidiens'
+        ],
+        planId: PlanId.starter,
+        isRecommended: true,
+      ),
+      Plan(
+        title: 'Pro',
+        price: '50000 FCFA',
+        duration: '/mois',
+        features: [
+          'Module de réservation',
+          'Chambres illimitées',
+          'Gestion resto',
+          'Tables resto illimitées',
+          'Support 24/7',
+          'Analyses temps réel',
+          'Marketing tools',
+          'Formation incluse'
+        ],
+        planId: PlanId.pro,
+        isRecommended: false,
+      ),
     ];
 
     return Scaffold(
@@ -175,17 +260,83 @@ class _ChoosePlanScreenState extends State<ChoosePlanScreen> {
                   children: [
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 20),
-                      child: Text('Sélectionnez la formule qui correspond à vos besoins', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: GestoTheme.navyBlue), textAlign: TextAlign.center),
+                      child: Text(
+                          'Sélectionnez la formule qui correspond à vos besoins',
+                          style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w500,
+                              color: GestoTheme.navyBlue
+                          ),
+                          textAlign: TextAlign.center
+                      ),
                     ),
+                    // Replace the ListView with a centered Row
                     Center(
-                      child: SizedBox(
-                        height: 600,
-                        child: ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: plans.length,
-                          separatorBuilder: (context, index) => const SizedBox(width: 20),
-                          itemBuilder: (context, index) => _buildPlanCard(context, plans[index]),
-                        ),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          // Responsive layout based on screen width
+                          if (constraints.maxWidth > 1000) {
+                            // For larger screens, show all plans in a row
+                            return Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: plans.map((plan) => Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 10),
+                                child: SizedBox(
+                                  width: 300,
+                                  height: MediaQuery.of(context).size.height * 0.7,
+                                  child: _buildPlanCard(context, plan),
+                                ),
+                              )).toList(),
+                            );
+                          } else if (constraints.maxWidth > 650) {
+                            // For medium screens, show two plans per row
+                            return Column(
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.all(10),
+                                      child: SizedBox(
+                                        width: 300,
+                                        height: MediaQuery.of(context).size.height * 0.7,
+                                        child: _buildPlanCard(context, plans[0]),
+                                      ),
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.all(10),
+                                      child: SizedBox(
+                                        width: 300,
+                                        height: MediaQuery.of(context).size.height * 0.7,
+                                        child: _buildPlanCard(context, plans[1]),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.all(10),
+                                  child: SizedBox(
+                                    width: 300,
+                                    height: MediaQuery.of(context).size.height * 0.7,
+                                    child: _buildPlanCard(context, plans[2]),
+                                  ),
+                                ),
+                              ],
+                            );
+                          } else {
+                            // For small screens, stack vertically
+                            return Column(
+                              children: plans.map((plan) => Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                child: SizedBox(
+                                  width: 300,
+                                  height: MediaQuery.of(context).size.height * 0.6,
+                                  child: _buildPlanCard(context, plan),
+                                ),
+                              )).toList(),
+                            );
+                          }
+                        },
                       ),
                     ),
                     const SizedBox(height: 40),

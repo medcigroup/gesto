@@ -2,21 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 
 class OccupancyChart extends StatelessWidget {
-  OccupancyChart({Key? key}) : super(key: key);
+  final List<FlSpot> occupancyData;
+
+  OccupancyChart({
+    Key? key,
+    required this.occupancyData,
+  }) : super(key: key);
 
   final List<Color> gradientColors = [
     const Color(0xFF000080), // Navy
     const Color(0xFF1E88E5),
-  ];
-
-  final List<FlSpot> occupancyData = [
-    const FlSpot(0, 55),
-    const FlSpot(1, 68),
-    const FlSpot(2, 75),
-    const FlSpot(3, 85),
-    const FlSpot(4, 78),
-    const FlSpot(5, 82),
-    const FlSpot(6, 88),
   ];
 
   @override

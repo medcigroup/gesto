@@ -1,17 +1,24 @@
+
+
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:gesto/widgets/side_menu.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/date_symbol_data_file.dart';
+import 'package:intl/intl.dart';
 
 // Composants importés
-import '../components/dashboard/occupancy_chart.dart'; // Graphique d'occupation
-import '../components/dashboard/revenue_chart.dart'; // Graphique des revenus
-import '../components/dashboard/recent_bookings.dart'; // Réservations récentes
-import '../components/dashboard/tasks_list.dart'; // Liste des tâches
-import 'Screens/RoomsPage.dart'; // Page des chambres
-import 'components/dashboard/StatCard.dart'; // Carte de statistiques
-import 'config/AuthService.dart'; // Service d'authentification
-import 'config/UserModel.dart'; // Modèle d'utilisateur
-import 'config/routes.dart'; // Routes de navigation
+import '../components/dashboard/occupancy_chart.dart';
+import '../components/dashboard/revenue_chart.dart';
+import '../components/dashboard/recent_bookings.dart';
+import '../components/dashboard/tasks_list.dart';
+import 'Screens/RoomsPage.dart';
+import 'components/dashboard/StatCard.dart';
+import 'config/AuthService.dart';
+import 'config/UserModel.dart';
+import 'config/calculerOccupationChambres.dart';
+import 'config/routes.dart';
 
 class Dashboard extends StatefulWidget {
   const Dashboard({Key? key}) : super(key: key);
@@ -21,35 +28,153 @@ class Dashboard extends StatefulWidget {
 }
 
 class _DashboardState extends State<Dashboard> {
-  bool _isDarkMode = false; // Indique si le mode sombre est activé
-  UserModel? _userModel; // Modèle de l'utilisateur connecté
-  final AuthService _authService = AuthService(); // Instance du service d'authentification
-  bool _isLoading = true; // Indique si les données sont en cours de chargement
+  bool _isDarkMode = false;
+  UserModel? _userModel;
+  final AuthService _authService = AuthService();
+  bool _isLoading = true;
+  double _tauxOccupationActuel = 0.0;
+  double _revenuJournalier = 0.0; // Ajout d'une variable pour stocker le revenu du jour
+  bool _isLoadingStats = true;
 
   @override
   void initState() {
     super.initState();
-    _loadUserData(); // Charge les données de l'utilisateur au démarrage
+    _loadUserData();
+    _loadStatistiques();
   }
-
+  final User? user = FirebaseAuth.instance.currentUser;
   Future<void> _loadUserData() async {
     setState(() {
-      _isLoading = true; // Début du chargement
+      _isLoading = true;
     });
-    UserModel? userModel = await _authService.getCurrentUser(); // Récupère l'utilisateur actuel
+    UserModel? userModel = await _authService.getCurrentUser();
     if (mounted) {
       setState(() {
-        _userModel = userModel; // Met à jour le modèle de l'utilisateur
-        _isLoading = false; // Fin du chargement
+        _userModel = userModel;
+        _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _loadStatistiques() async {
+    setState(() {
+      _isLoadingStats = true;
+    });
+
+    try {
+      // Calculer le taux d'occupation actuel pour aujourd'hui
+      final aujourdhui = DateTime.now();
+      final tauxOccupation = await _calculerTauxOccupationJour(aujourdhui);
+
+      // Calculer le revenu du jour
+      final revenuJour = await _calculerRevenuJour(aujourdhui);
+
+      if (mounted) {
+        setState(() {
+          _tauxOccupationActuel = tauxOccupation;
+          _revenuJournalier = revenuJour;
+          _isLoadingStats = false;
+        });
+      }
+    } catch (e) {
+      print('Erreur lors du chargement des statistiques: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingStats = false;
+        });
+      }
+    }
+  }
+
+  // Nouvelle méthode pour calculer le revenu du jour
+  Future<double> _calculerRevenuJour(DateTime jour) async {
+    try {
+      // Définir la plage horaire pour aujourd'hui
+      final dateDebut = DateTime(jour.year, jour.month, jour.day);
+      final dateFin = DateTime(jour.year, jour.month, jour.day, 23, 59, 59);
+
+      // Récupérer les transactions de type 'payment' pour aujourd'hui
+      final snapshotTransactions = await FirebaseFirestore.instance
+          .collection('transactions')
+          .where('customerId', isEqualTo: user?.uid) // Utiliser user.uid pour l'I
+          .where('date', isGreaterThanOrEqualTo: dateDebut)
+          .where('date', isLessThanOrEqualTo: dateFin)
+          .where('type', isEqualTo: 'payment')
+          .get();
+
+      // Calculer la somme des montants
+      double totalRevenu = 0.0;
+      for (var doc in snapshotTransactions.docs) {
+        final transaction = doc.data();
+        totalRevenu += (transaction['amount'] as num).toDouble();
+      }
+
+      return totalRevenu;
+    } catch (e) {
+      print('Erreur lors du calcul du revenu journalier: $e');
+      return 0.0;
+    }
+  }
+
+  Future<double> _calculerTauxOccupationJour(DateTime jour) async {
+    try {
+      // Récupérer le nombre total de chambres
+      final snapshotChambres = await FirebaseFirestore.instance
+          .collection('rooms')
+          .where('userId', isEqualTo: user?.uid) // Utiliser user.uid pour l'I
+          .get();
+
+      final nombreTotalChambres = snapshotChambres.docs.length;
+
+      if (nombreTotalChambres <= 0) {
+        return 0.0;
+      }
+
+      // Récupérer les réservations pour ce jour
+      final dateDebut = DateTime(jour.year, jour.month, jour.day);
+      final dateFin = DateTime(jour.year, jour.month, jour.day, 23, 59, 59);
+
+      final snapshotReservations = await FirebaseFirestore.instance
+          .collection('bookings')
+          .where('userId', isEqualTo: user?.uid) // Utiliser user.uid pour l'I
+          .where('checkInDate', isLessThanOrEqualTo: dateFin)
+          .where('checkOutDate', isGreaterThanOrEqualTo: dateDebut)
+          .get();
+
+      final nombreChambresOccupees = snapshotReservations.docs.length;
+
+      // Calculer le taux d'occupation en pourcentage
+      return (nombreChambresOccupees / nombreTotalChambres) * 100;
+    } catch (e) {
+      print('Erreur lors du calcul du taux d\'occupation: $e');
+      return 0.0;
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // Formater le revenu avec séparateur de milliers et devise FCFA
+    final formattedRevenu = NumberFormat.currency(
+      locale: 'fr_FR',
+      symbol: '',
+      decimalDigits: 0,
+    ).format(_revenuJournalier);
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Tableau de bord'),
+        title: Row(
+          children: [
+            const Text('Tableau de bord'),
+            const SizedBox(width: 8),
+            Text(
+              'v1.2.0',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[400],
+              ),
+            ),
+          ],
+        ),
         actions: <Widget>[
           IconButton(
             icon: const Icon(Icons.notifications),
@@ -67,14 +192,16 @@ class _DashboardState extends State<Dashboard> {
             icon: Icon(_isDarkMode ? Icons.light_mode : Icons.dark_mode),
             onPressed: () {
               setState(() {
-                _isDarkMode = !_isDarkMode; // Bascule le mode sombre
+                _isDarkMode = !_isDarkMode;
               });
             },
           ),
         ],
       ),
-      drawer: const SideMenu(), // Menu latéral
-      body: SingleChildScrollView(
+      drawer: const SideMenu(),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -91,7 +218,9 @@ class _DashboardState extends State<Dashboard> {
               children: [
                 StatCard(
                   title: "Taux d'occupation",
-                  value: "85%",
+                  value: _isLoadingStats
+                      ? "Chargement..."
+                      : "${_tauxOccupationActuel.toStringAsFixed(1)}%",
                   icon: Icons.bed,
                   change: {"value": 12, "isPositive": true},
                   color: const Color(0xFF000080),
@@ -112,7 +241,9 @@ class _DashboardState extends State<Dashboard> {
                 ),
                 StatCard(
                   title: "Revenus du jour",
-                  value: "\$4,285",
+                  value: _isLoadingStats
+                      ? "Chargement..."
+                      : "$formattedRevenu FCFA",
                   icon: Icons.attach_money,
                   change: {"value": 15, "isPositive": true},
                   color: const Color(0xFF000080),
@@ -126,14 +257,16 @@ class _DashboardState extends State<Dashboard> {
                     ? Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(child: OccupancyChart()), // Graphique d'occupation
+                    Expanded(
+                        child: OccupancyChartAvecDonnees()
+                    ),
                     const SizedBox(width: 16),
-                    Expanded(child: RevenueChart()), // Graphique des revenus
+                    Expanded(child: RevenueChart()),
                   ],
                 )
                     : Column(
                   children: [
-                    OccupancyChart(),
+                    OccupancyChartAvecDonnees(),
                     const SizedBox(height: 16),
                     RevenueChart(),
                   ],
@@ -147,9 +280,9 @@ class _DashboardState extends State<Dashboard> {
                     ? Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(child: RecentBookings()), // Réservations récentes
+                    Expanded(child: RecentBookings()),
                     const SizedBox(width: 16),
-                    Expanded(child: TasksList()), // Liste des tâches
+                    Expanded(child: TasksList()),
                   ],
                 )
                     : Column(
@@ -207,16 +340,17 @@ class _DashboardState extends State<Dashboard> {
                           label: "Nouvelle réservation",
                           color: const Color(0xFF000080),
                           onTap: () {
-                            Navigator.pushNamed(context, AppRoutes.reservationPage);}
+                            Navigator.pushNamed(context, AppRoutes.reservationPage);
+                          }
                       ),
-
                       _buildActionButton(
                           context: context,
                           icon: Icons.event_available,
                           label: "Enregistrement",
                           color: Colors.green,
                           onTap: () {
-                            Navigator.pushNamed(context, AppRoutes.enregistrement);}
+                            Navigator.pushNamed(context, AppRoutes.enregistrement);
+                          }
                       ),
                       _buildActionButton(
                           context: context,
@@ -224,7 +358,8 @@ class _DashboardState extends State<Dashboard> {
                           label: "Départ",
                           color: Colors.red,
                           onTap: () {
-                            Navigator.pushNamed(context, AppRoutes.checkoutPage);}
+                            Navigator.pushNamed(context, AppRoutes.checkoutPage);
+                          }
                       ),
                       _buildActionButton(
                           context: context,
@@ -232,7 +367,8 @@ class _DashboardState extends State<Dashboard> {
                           label: "Nouvelle tâche",
                           color: const Color(0xFF000080),
                           onTap: () {
-                            Navigator.pushNamed(context, AppRoutes.reservationPage);}
+                            Navigator.pushNamed(context, AppRoutes.reservationPage);
+                          }
                       ),
                     ],
                   ),
@@ -250,7 +386,7 @@ class _DashboardState extends State<Dashboard> {
     required IconData icon,
     required String label,
     required Color color,
-    required VoidCallback onTap, // Add onTap callback
+    required VoidCallback onTap,
   }) {
     return Material(
       color: Theme.of(context).brightness == Brightness.dark
@@ -258,7 +394,7 @@ class _DashboardState extends State<Dashboard> {
           : Colors.grey[50],
       borderRadius: BorderRadius.circular(8),
       child: InkWell(
-        onTap: onTap, // Use the onTap callback
+        onTap: onTap,
         borderRadius: BorderRadius.circular(8),
         child: Container(
           padding: const EdgeInsets.all(16),

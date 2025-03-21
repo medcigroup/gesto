@@ -14,6 +14,7 @@ import '../Screens/PaymentPage.dart';
 import '../Screens/ReservationPage.dart';
 import '../Screens/RoomsPage.dart';
 import '../Screens/SettingsPage.dart';
+import '../Screens/UserManagementScreen.dart';
 import '../Screens/renew_licence_page.dart';
 import '../components/reservation/ModernReservationPage.dart';
 import '../modules/auth/screens/ThankYouScreen.dart';
@@ -91,6 +92,8 @@ class AppRoutes {
         return MaterialPageRoute(builder: (_) => ModernReservationPage());
       case enregistrement:
         return MaterialPageRoute(builder: (_) => CheckInPage());
+      case administration:
+        return MaterialPageRoute(builder: (_) => UserManagementScreen());
 
       default:
         return MaterialPageRoute(

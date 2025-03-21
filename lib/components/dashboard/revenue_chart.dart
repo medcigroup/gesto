@@ -1,41 +1,82 @@
-import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 
-class RevenueChart extends StatelessWidget {
-  RevenueChart({Key? key}) : super(key: key);
+class RevenueChart extends StatefulWidget {
+  @override
+  _RevenueChartState createState() => _RevenueChartState();
+}
 
-  // Sample data - replace with your actual data
-  final List<BarChartGroupData> barGroups = [
-    for (int i = 0; i < 7; i++)
-      BarChartGroupData(
-        x: i,
-        barRods: [
-          BarChartRodData(
-            toY: [3200, 4100, 3800, 4500, 4200, 5100, 4800][i].toDouble(),
-            gradient: _barsGradient,
-            width: 18,
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(4),
-              topRight: Radius.circular(4),
-            ),
-          ),
-        ],
-      ),
+class _RevenueChartState extends State<RevenueChart> {
+  List<FlSpot> revenueData =[];
+  bool isLoading = true;
+
+  final List<Color> gradientColors = [
+    const Color(0xFF008000), // Green
+    const Color(0xFF8FBC8F), // DarkSeaGreen
   ];
 
-  static const LinearGradient _barsGradient = LinearGradient(
-    colors: [
-      Color(0xFFFFD700), // gold
-      Color(0xFFFFA500), // orange
-    ],
-    begin: Alignment.bottomCenter,
-    end: Alignment.topCenter,
-  );
+  @override
+  void initState() {
+    super.initState();
+    _loadRevenueData();
+  }
+
+  Future<void> _loadRevenueData() async {
+    try {
+      final now = DateTime.now();
+      List<FlSpot> spots =[];
+
+      for (int i = 6; i >= 0; i--) {
+        final day = now.subtract(Duration(days: i));
+        final revenue = await _fetchDailyRevenue(day);
+        spots.add(FlSpot((6 - i).toDouble(), revenue));
+      }
+
+      if (mounted) {
+        setState(() {
+          revenueData = spots;
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Erreur lors du chargement des données de revenus : $e');
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+  final User? user = FirebaseAuth.instance.currentUser; // Récupérer l'utilisateur connecté
+  Future<double> _fetchDailyRevenue(DateTime day) async {
+    try {
+      final start = DateTime(day.year, day.month, day.day);
+      final end = DateTime(day.year, day.month, day.day, 23, 59, 59);
+
+      final snapshot = await FirebaseFirestore.instance
+          .collection('transactions')
+          .where('customerId',isEqualTo: user?.uid)
+          .where('date', isGreaterThanOrEqualTo: start)
+          .where('date', isLessThanOrEqualTo: end)
+          .where('type', isEqualTo: 'payment')
+          .get();
+
+      double totalRevenue = 0.0;
+      for (var doc in snapshot.docs) {
+        totalRevenue += (doc['amount'] as num).toDouble();
+      }
+
+      return totalRevenue;
+    } catch (e) {
+      print('Erreur lors du calcul du revenu journalier : $e');
+      return 0.0;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 300,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Theme.of(context).brightness == Brightness.dark
@@ -50,11 +91,12 @@ class RevenueChart extends StatelessWidget {
           ),
         ],
       ),
+      height: 300,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            "Aperçu des revenus",
+            "Revenus des 7 derniers jours",
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
@@ -64,7 +106,7 @@ class RevenueChart extends StatelessWidget {
             ),
           ),
           Text(
-            "Les 7 derniers jours",
+            "Dernière semaine",
             style: TextStyle(
               fontSize: 14,
               color: Theme.of(context).brightness == Brightness.dark
@@ -74,22 +116,22 @@ class RevenueChart extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           Expanded(
-            child: BarChart(
-              BarChartData(
-                alignment: BarChartAlignment.spaceAround,
-                barTouchData: BarTouchData(
-                  enabled: true,
-                  touchTooltipData: BarTouchTooltipData(
-
-                    getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                      return BarTooltipItem(
-                        '${rod.toY.round()} FCFA',
-                        const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      );
-                    },
+            child: isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : LineChart(
+              LineChartData(
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: true,
+                  horizontalInterval: 500, // Adjust based on your revenue range
+                  verticalInterval: 1,
+                  getDrawingHorizontalLine: (value) => FlLine(
+                    color: Colors.white, // Couleur forcée pour le test
+                    strokeWidth: 1,
+                  ),
+                  getDrawingVerticalLine: (value) => FlLine(
+                    color: Colors.white, // Couleur forcée pour le test
+                    strokeWidth: 1,
                   ),
                 ),
                 titlesData: FlTitlesData(
@@ -99,13 +141,13 @@ class RevenueChart extends StatelessWidget {
                       showTitles: true,
                       reservedSize: 30,
                       getTitlesWidget: (value, meta) {
-                        List<String> days = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+                        final now = DateTime.now();
+                        final day = now.subtract(Duration(days: 6 - value.toInt()));
+                        final weekDays = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
                         return Padding(
                           padding: const EdgeInsets.only(top: 8),
                           child: Text(
-                            value.toInt() >= 0 && value.toInt() < days.length
-                                ? days[value.toInt()]
-                                : '',
+                            weekDays[day.weekday - 1],
                             style: const TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
@@ -118,12 +160,12 @@ class RevenueChart extends StatelessWidget {
                   leftTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
-                      reservedSize: 70,
+                      reservedSize: 60, // Adjusted for currency
                       getTitlesWidget: (value, meta) {
                         return Padding(
                           padding: const EdgeInsets.only(right: 8),
                           child: Text(
-                            '${value.toInt()} Fcfa',
+                            NumberFormat.compact().format(value),
                             style: const TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
@@ -140,18 +182,6 @@ class RevenueChart extends StatelessWidget {
                     sideTitles: SideTitles(showTitles: false),
                   ),
                 ),
-                gridData: FlGridData(
-                  show: true,
-                  horizontalInterval: 1000,
-                  getDrawingHorizontalLine: (value) {
-                    return FlLine(
-                      color: Theme.of(context).brightness == Brightness.dark
-                          ? Colors.grey[700]
-                          : Colors.grey[300]!,
-                      strokeWidth: 1,
-                    );
-                  },
-                ),
                 borderData: FlBorderData(
                   show: true,
                   border: Border.all(
@@ -160,9 +190,40 @@ class RevenueChart extends StatelessWidget {
                         : Colors.grey[300]!,
                   ),
                 ),
-                groupsSpace: 12,
-                barGroups: barGroups,
-                maxY: 6000,
+                minX: 0,
+                maxX: 6,
+                minY: 0,
+                // maxY will be determined by the data
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: revenueData,
+                    isCurved: true,
+                    gradient: LinearGradient(colors: gradientColors),
+                    barWidth: 3,
+                    isStrokeCapRound: true,
+                    dotData: FlDotData(
+                      show: true,
+                      getDotPainter: (spot, percent, barData, index) {
+                        return FlDotCirclePainter(
+                          radius: 4,
+                          color: gradientColors[0],
+                          strokeWidth: 2,
+                          strokeColor: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.white
+                              : Colors.black,
+                        );
+                      },
+                    ),
+                    belowBarData: BarAreaData(
+                      show: true,
+                      gradient: LinearGradient(
+                        colors: gradientColors
+                            .map((color) => color.withOpacity(0.3))
+                            .toList(),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -171,4 +232,6 @@ class RevenueChart extends StatelessWidget {
     );
   }
 }
+
+
 

@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../components/rooms/RoomCalendar.dart';
 import '../components/rooms/RoomCard.dart';
 import '../config/HotelSettingsService.dart';
+import '../config/checkRoomCreationLimit.dart';
 import '../config/room_models.dart';
 import '../widgets/side_menu.dart';
 import 'AddRoomBottomSheet.dart';
@@ -230,7 +231,45 @@ class _RoomsPageState extends State<RoomsPage> {
                     ),
                   ),
                   IconButton(
-                    onPressed: _showAddRoomBottomSheet,
+                    onPressed: () async {
+                      if (userId == null || userId!.isEmpty) {
+                        print('Utilisateur non connecté');
+                        return;
+                      }
+
+                      try {
+                        print('Vérification de la limite pour l\'utilisateur: $userId');
+                        Map<String, dynamic> result = await checkRoomCreationLimit(userId!);
+
+                        if (result["canCreate"]) {
+                          _showAddRoomBottomSheet();
+                        } else {
+                          // Si une erreur s'est produite lors de la vérification
+                          if (result.containsKey("error")) {
+                            throw Exception(result["error"]);
+                          }
+
+                          int roomCount = result["roomCount"];
+                          int limit = result["limit"];
+
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Vous avez atteint votre limite de chambres ($roomCount/$limit). Veuillez mettre à niveau votre abonnement.'),
+                              backgroundColor: Colors.orange,
+                              duration: Duration(seconds: 5),
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        print('Erreur lors de la vérification de la limite: $e');
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Erreur lors de la vérification de votre limite. Veuillez réessayer.'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    },
                     icon: Icon(LucideIcons.plus, color: Colors.green),
                   ),
                 ],
@@ -326,7 +365,45 @@ class _RoomsPageState extends State<RoomsPage> {
                 ),
                 SizedBox(width: 12),
                 IconButton(
-                  onPressed: _showAddRoomBottomSheet,
+                  onPressed: () async {
+                    if (userId == null || userId!.isEmpty) {
+                      print('Utilisateur non connecté');
+                      return;
+                    }
+
+                    try {
+                      print('Vérification de la limite pour l\'utilisateur: $userId');
+                      Map<String, dynamic> result = await checkRoomCreationLimit(userId!);
+
+                      if (result["canCreate"]) {
+                        _showAddRoomBottomSheet();
+                      } else {
+                        // Si une erreur s'est produite lors de la vérification
+                        if (result.containsKey("error")) {
+                          throw Exception(result["error"]);
+                        }
+
+                        int roomCount = result["roomCount"];
+                        int limit = result["limit"];
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Vous avez atteint votre limite de chambres ($roomCount/$limit). Veuillez mettre à niveau votre abonnement.'),
+                            backgroundColor: Colors.orange,
+                            duration: Duration(seconds: 5),
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      print('Erreur lors de la vérification de la limite: $e');
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Erreur lors de la vérification de votre limite. Veuillez réessayer.'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  },
                   icon: Icon(LucideIcons.plus, color: Colors.green),
                 ),
               ],

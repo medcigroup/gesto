@@ -77,7 +77,9 @@ class _RenewLicencePageState extends State<RenewLicencePage> {
       // Déterminer la durée en fonction du plan actuel
       int durationDays = 30; // Par défaut, 1 an
 
-      if (_userModel?.plan == 'starter') {
+      if (_userModel?.plan == 'basic') {
+        durationDays = 30;
+      } else if (_userModel?.plan == 'Starter') {
         durationDays = 30;
       } else if (_userModel?.plan == 'Pro') {
         durationDays = 30;
@@ -142,8 +144,9 @@ class _RenewLicencePageState extends State<RenewLicencePage> {
       // Déterminer la durée en fonction du nouveau plan
       int durationDays = 30; // Par défaut, 1 an
 
-      if (newPlan == 'starter') {
+      if (newPlan == 'basic') {
         durationDays = 30;
+      } else if (newPlan == 'Starter') {
       } else if (newPlan == 'Pro') {
         durationDays = 30;
       } else if (newPlan == 'entreprise') {

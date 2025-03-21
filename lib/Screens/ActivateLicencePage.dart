@@ -85,6 +85,7 @@ class _ActivateLicencePageState extends State<ActivateLicencePage> {
           'licence': cleanedLicenceCode, // Stocker le code nettoyé
           'licenceGenerationDate': generationDate,
           'licenceExpiryDate': expiryDate,
+          'licenceType': plan,
           'plan': plan,
         });
 

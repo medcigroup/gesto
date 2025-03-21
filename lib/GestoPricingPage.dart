@@ -4,7 +4,7 @@ import 'package:animate_do/animate_do.dart';
 
 import 'config/routes.dart';
 
-enum PlanId { gratuit, starter, pro, entreprise }
+enum PlanId { basic, starter, pro, entreprise }
 
 class Plan {
   final String title;
@@ -29,11 +29,11 @@ class GestoPricingPage extends StatelessWidget {
 
   final List<Plan> plans = [
     Plan(
-      title: 'Essai Gratuit',
-      price: '0 FCFA',
-      duration: '30 jours',
+      title: 'Basic (essai gratuit 30j)',
+      price: '15000 FCFA',
+      duration: '/mois',
       features: ['Module de réservation', '14 chambres max', 'Support de base', 'Rapports hebdo'],
-      planId: PlanId.gratuit,
+      planId: PlanId.basic,
       isRecommended: false,
     ),
     Plan(
@@ -378,14 +378,14 @@ class GestoPricingPage extends StatelessWidget {
                     ),
                   ),
                   onPressed: () {
-                    if (plan.planId == PlanId.gratuit||plan.planId == PlanId.starter||plan.planId == PlanId.pro) {
+                    if (plan.planId == PlanId.basic||plan.planId == PlanId.starter||plan.planId == PlanId.pro) {
                       Navigator.pushNamed(context, AppRoutes.register);
                     } else {
                       Navigator.pushNamed(context, AppRoutes.contactpage);
                     }
                   },
                   child: Text(
-                    plan.planId == PlanId.gratuit
+                    plan.planId == PlanId.basic
                         ? 'Démarrer l\'essai'
                         : (plan.planId == PlanId.entreprise ? 'Contacter un expert' : 'Souscrire maintenant'),
                   ),

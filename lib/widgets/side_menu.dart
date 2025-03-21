@@ -79,7 +79,7 @@ class _SideMenuState extends State<SideMenu> {
   // Fonction pour vérifier si l'élément doit être affiché en fonction du type de licence
   bool _shouldDisplayMenuItem(String routeName) {
     // Si la licence est payante, afficher tous les éléments
-    if (_userModel?.plan != 'gratuit') {
+    if (_userModel?.plan != 'basic') {
       return true;
     }
     // Si la licence est gratuite, masquer uniquement les éléments payants
@@ -96,7 +96,8 @@ class _SideMenuState extends State<SideMenu> {
 
   @override
   Widget build(BuildContext context) {
-    final bool isPremium = _userModel?.plan != 'gratuit';
+    final bool isPremium = _userModel?.plan != 'basic';
+    final bool isBasic = _userModel?.plan == 'basic';
 
     return Drawer(
       child: ListView(
@@ -123,6 +124,21 @@ class _SideMenuState extends State<SideMenu> {
                 ),
                 Row(
                   children: [
+                    if (isBasic)
+                      Expanded( // Utiliser Expanded pour qu'ils prennent la même largeur
+                        child: Container(
+                          margin: const EdgeInsets.only(top: 8, right: 4), // Ajouter une marge à droite
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade500,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Text(
+                            'Licence Basic',
+                            style: TextStyle(color: Colors.white, fontSize: 12),
+                          ),
+                        ),
+                      ),
                     if (isPremium)
                       Expanded( // Utiliser Expanded pour qu'ils prennent la même largeur
                         child: Container(

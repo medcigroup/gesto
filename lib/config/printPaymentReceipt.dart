@@ -1,4 +1,3 @@
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
@@ -6,9 +5,34 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
-// Modified function to handle the future properly
-Future<void> printPaymentReceipt(DocumentSnapshot booking, double amount, String paymentMethod, Timestamp paymentDate) async {
+// Fonction modifiée pour prendre en compte les informations de réduction
+Future<void> printPaymentReceipt(
+    DocumentSnapshot booking,
+    double amount,
+    String paymentMethod,
+    String transactionCodev,
+    Timestamp paymentDate,
+    [double discountRate = 0,
+      double discountAmount = 0]) async {
   final data = booking.data() as Map<String, dynamic>;
+
+  final paymentsSnapshot  = await FirebaseFirestore.instance
+      .collection('transactions')
+      .where('bookingId', isEqualTo: booking.id)
+      .where('transactionCode', isEqualTo: transactionCodev)
+      .where('type', isEqualTo: 'payment')
+      .get();
+
+  List<String> transactionCodes = [];
+
+  // D'abord, récupérez le code de transaction à partir du premier document dans le snapshot
+  String transactionCode = 'NOCODE';
+  if (paymentsSnapshot.docs.isNotEmpty) {
+    var docData = paymentsSnapshot.docs.first.data();
+    transactionCode = docData['transactionCode'] ?? 'NOCODE';
+  }
+
+
 
   // Calculate the remaining amount before creating the PDF
   final double remainingAmount = await _calculateRemainingAmount(booking.id, data['totalAmount'], amount);
@@ -24,10 +48,16 @@ Future<void> printPaymentReceipt(DocumentSnapshot booking, double amount, String
   final hotelAddress = hotelSettings['address'] ?? "Adresse non spécifiée";
   final hotelPhone = hotelSettings['phoneNumber'] ?? "Téléphone non spécifié";
   final hotelEmail = hotelSettings['email'] ?? "Email non spécifié";
+  final currency = hotelSettings['currency'] ?? "FCFA";
+
+  // Déterminer si une réduction a été appliquée
+  final bool hasDiscount = discountRate > 0 || discountAmount > 0;
+  // Calculer le montant brut (avant réduction)
+  final double grossAmount = hasDiscount ? amount + discountAmount : amount;
 
   pdf.addPage(
     pw.Page(
-      pageFormat: PdfPageFormat.a5,
+      pageFormat: PdfPageFormat.a4,  // Format A4 au lieu de A5
       build: (pw.Context context) {
         return pw.Padding(
           padding: const pw.EdgeInsets.all(20),
@@ -57,7 +87,9 @@ Future<void> printPaymentReceipt(DocumentSnapshot booking, double amount, String
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
                   pw.Text('Numéro de reçu:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                  pw.Text('REÇU-${DateFormat('yyyyMMdd').format(DateTime.now())}-${data['EnregistrementCode']}'),
+                  pw.Text(
+                          'REÇU-${DateFormat('yyyyMMdd').format(DateTime.now())}-${data['EnregistrementCode']}-$transactionCode',
+                  ),
                 ],
               ),
               pw.SizedBox(height: 5),
@@ -134,7 +166,7 @@ Future<void> printPaymentReceipt(DocumentSnapshot booking, double amount, String
                 ),
               ),
 
-              pw.SizedBox(height: 15),
+              pw.SizedBox(height: 10),
 
               // Détails du paiement
               pw.Container(
@@ -152,15 +184,72 @@ Future<void> printPaymentReceipt(DocumentSnapshot booking, double amount, String
                       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                       children: [
                         pw.Text('Montant total:'),
-                        pw.Text(NumberFormat.currency(symbol: '${hotelSettings['currency'] ?? 'FCFA'} ', decimalDigits: 0).format(data['totalAmount'])),
+                        pw.Text(NumberFormat.currency(symbol: '$currency ', decimalDigits: 0).format(data['totalAmount'])),
                       ],
                     ),
+
+                    // Afficher les détails de réduction si une réduction a été appliquée
+                    if (hasDiscount) ...[
+                      pw.SizedBox(height: 3),
+                      pw.Row(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                        children: [
+                          pw.Text('Montant avant réduction:'),
+                          pw.Text(
+                            NumberFormat.currency(symbol: '$currency ', decimalDigits: 0).format(grossAmount),
+
+                          ),
+                        ],
+                      ),
+                      // Afficher le taux de réduction s'il est supérieur à zéro
+                      if (discountRate > 0) ...[
+                        pw.SizedBox(height: 3),
+                        pw.Row(
+                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                          children: [
+                            pw.Text('Réduction (${discountRate.toStringAsFixed(1)}%):'),
+                            pw.Text(
+                              '- ${NumberFormat.currency(symbol: '$currency ', decimalDigits: 0).format(discountAmount)}',
+                              style: pw.TextStyle(color: PdfColors.green),
+                            ),
+                          ],
+                        ),
+                      ] else ...[
+                        // Sinon, afficher seulement le montant de réduction
+                        pw.SizedBox(height: 3),
+                        pw.Row(
+                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                          children: [
+                            pw.Text('Réduction:'),
+                            pw.Text(
+                              '- ${NumberFormat.currency(symbol: '$currency ', decimalDigits: 0).format(discountAmount)}',
+                              style: pw.TextStyle(color: PdfColors.green),
+                            ),
+                          ],
+                        ),
+                      ],
+                      pw.SizedBox(height: 3),
+                      pw.Row(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                        children: [
+                          pw.Text('Montant après réduction:'),
+                          pw.Text(
+                            NumberFormat.currency(symbol: '$currency ', decimalDigits: 0).format(grossAmount-discountAmount),
+
+                          ),
+                        ],
+                      ),
+                    ],
+
                     pw.SizedBox(height: 3),
                     pw.Row(
                       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                       children: [
                         pw.Text('Montant payé ce jour:'),
-                        pw.Text(NumberFormat.currency(symbol: '${hotelSettings['currency'] ?? 'FCFA'} ', decimalDigits: 0).format(amount), style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                        pw.Text(
+                          NumberFormat.currency(symbol: '$currency ', decimalDigits: 0).format(amount),
+                          style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                        ),
                       ],
                     ),
                     pw.SizedBox(height: 3),
@@ -178,7 +267,7 @@ Future<void> printPaymentReceipt(DocumentSnapshot booking, double amount, String
                       children: [
                         pw.Text('Solde restant:'),
                         pw.Text(
-                          NumberFormat.currency(symbol: '${hotelSettings['currency'] ?? 'FCFA'} ', decimalDigits: 0).format(remainingAmount),
+                          NumberFormat.currency(symbol: '$currency ', decimalDigits: 0).format(remainingAmount),
                           style: pw.TextStyle(
                             fontWeight: pw.FontWeight.bold,
                             color: remainingAmount > 0 ? PdfColors.red : PdfColors.green,
@@ -229,7 +318,6 @@ Future<void> printPaymentReceipt(DocumentSnapshot booking, double amount, String
                     pw.SizedBox(height: 5),
                     pw.Text('Merci pour votre confiance !', style: pw.TextStyle(fontStyle: pw.FontStyle.italic)),
                     pw.SizedBox(height: 2),
-                    pw.Text('Ce reçu est généré automatiquement et ne nécessite pas de cachet.', style: pw.TextStyle(fontSize: 8)),
                   ],
                 ),
               ),
@@ -245,30 +333,40 @@ Future<void> printPaymentReceipt(DocumentSnapshot booking, double amount, String
     onLayout: (PdfPageFormat format) async => pdf.save(),
     name: 'Reçu_${data['EnregistrementCode']}_${DateFormat('yyyyMMdd').format(DateTime.now())}',
   );
-
-  // Optionnel: Sauvegarder le PDF
-  // final output = await getTemporaryDirectory();
-  // final file = File('${output.path}/Reçu_${data['EnregistrementCode']}_${DateFormat('yyyyMMdd').format(DateTime.now())}.pdf');
-  // await file.writeAsBytes(await pdf.save());
 }
 
 // Fonction auxiliaire pour calculer le montant restant
 Future<double> _calculateRemainingAmount(String bookingId, double totalAmount, double currentPayment) async {
+  // Récupération des paiements précédents
   final paymentsSnapshot = await FirebaseFirestore.instance
       .collection('transactions')
       .where('bookingId', isEqualTo: bookingId)
       .where('type', isEqualTo: 'payment')
       .get();
 
+  // Récupération des réductions
+  final discountsSnapshot = await FirebaseFirestore.instance
+      .collection('transactions')
+      .where('bookingId', isEqualTo: bookingId)
+      .where('type', isEqualTo: 'discount')
+      .get();
+
+  // Calcul du montant total payé (hors paiement actuel)
   double paidAmount = 0;
   for (var payment in paymentsSnapshot.docs) {
     paidAmount += (payment.data()['amount'] ?? 0).toDouble();
   }
-
   // Ne pas compter deux fois le paiement actuel
   paidAmount -= currentPayment;
 
-  return totalAmount - paidAmount - currentPayment;
+  // Calcul du montant total des réductions
+  double discountAmount = 0;
+  for (var discount in discountsSnapshot.docs) {
+    discountAmount += (discount.data()['amount'] ?? 0).toDouble();
+  }
+
+  // Calcul du montant restant en prenant en compte totalAmount, paidAmount, discountAmount et currentPayment
+  return totalAmount - paidAmount - discountAmount - currentPayment;
 }
 
 // Fonction pour récupérer les paramètres de l'hôtel

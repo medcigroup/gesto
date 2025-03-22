@@ -223,7 +223,14 @@ class ReportService {
                       // Lignes de données
                       ...transactions.map((transaction) {
                         final DateTime date = (transaction['date'] as Timestamp).toDate();
+                        // Vérifier si le type de transaction est 'discount'
+                        final bool isDiscount = transaction['type'] == 'discount';
+
                         return pw.TableRow(
+                          // Appliquer une décoration rouge transparente pour les transactions de type discount
+                          decoration: isDiscount
+                              ? pw.BoxDecoration(color: PdfColors.red50)
+                              : null,
                           children: [
                             pw.Padding(
                               padding: const pw.EdgeInsets.all(5),

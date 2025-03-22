@@ -41,8 +41,8 @@ class _AddRoomBottomSheetState extends State<AddRoomBottomSheet> {
   final ImagePicker _picker = ImagePicker();
 
   List<String> availableAmenities = [
-    'WIFI', 'TV', 'Climatisation', 'Minibar', 'Coffre-fort',
-    'Baignoire', 'Vue sur mer', 'Balcon', 'Service en chambre','Petit-dejeuner','Parking','Piscine','Jacuzzi',
+    'WIFI', 'TV', 'Climatisation','Cuisine','Frigo','Minibar','Petit-dejeuner', 'Coffre-fort',
+    'Baignoire', 'Vue sur mer', 'Balcon', 'Service en chambre','Parking','Piscine','Jacuzzi',
   ];
 
   @override

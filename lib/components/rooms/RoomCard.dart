@@ -45,6 +45,10 @@ class RoomCard extends StatelessWidget {
         return Icons.wine_bar;
       case 'coffre-fort':
         return LucideIcons.lock;
+      case 'cuisine':
+        return Icons.kitchen_outlined;
+      case 'frigo':
+        return LucideIcons.refrigerator;
       case 'vue sur mer':
         return LucideIcons.mountain;
       case 'petit-dejeuner':

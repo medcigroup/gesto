@@ -1,7 +1,11 @@
+import 'dart:math';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+
+import '../config/generationcode.dart';
 import '../config/printPaymentReceipt.dart';
 import '../widgets/side_menu.dart';
 
@@ -41,6 +45,7 @@ class _PaymentPageState extends State<PaymentPage> {
     return capitalizeFirst(status);
   }
 
+  final transactionCode = CodeGenerator.generateTransactionCode();
   Future<void> fetchBookings() async {
     setState(() {
       isLoading = true;
@@ -121,6 +126,7 @@ class _PaymentPageState extends State<PaymentPage> {
     }
   }
 
+  // Dans la fonction makePayment, après les variables pour le paiement
   Future<void> makePayment(DocumentSnapshot booking) async {
     final data = booking.data() as Map<String, dynamic>;
 
@@ -130,8 +136,14 @@ class _PaymentPageState extends State<PaymentPage> {
     String description = '';
     bool isFullPayment = true;
 
+    // Variables pour la réduction
+    bool applyDiscount = false;
+    double discountRate = 0;
+    double discountAmount = 0;
+
     // Calculer le montant restant dû
     double totalAmount = (data['totalAmount'] ?? 0).toDouble();
+    int nights = (data['nights'] ?? 1).toInt();
 
     // Récupérer les paiements existants
     final paymentsSnapshot = await FirebaseFirestore.instance
@@ -145,7 +157,20 @@ class _PaymentPageState extends State<PaymentPage> {
       paidAmount += (payment.data()['amount'] ?? 0).toDouble();
     }
 
-    double remainingAmount = totalAmount - paidAmount;
+    // Récupérer les réductions déjà appliquées
+    final discountsSnapshot = await FirebaseFirestore.instance
+        .collection('transactions')
+        .where('bookingId', isEqualTo: booking.id)
+        .where('type', isEqualTo: 'discount')
+        .get();
+
+    double totalDiscountApplied = 0;
+    for (var discount in discountsSnapshot.docs) {
+      totalDiscountApplied += (discount.data()['amount'] ?? 0).toDouble();
+    }
+
+    // Calculer le montant réellement restant à payer (après réductions précédentes)
+    double remainingAmount = totalAmount - paidAmount - totalDiscountApplied;
     amountToPay = remainingAmount;
 
     // Si déjà payé complètement
@@ -158,111 +183,185 @@ class _PaymentPageState extends State<PaymentPage> {
 
     // Afficher le dialogue de paiement
     await showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
+      context: context,
+      builder: (context) => AlertDialog(
         title: Text('Paiement pour ${data['customerName']}'),
         content: StatefulBuilder(
-        builder: (BuildContext context, StateSetter setState) {
-      return SingleChildScrollView(
-          child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-          Text('Montant total: ${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(totalAmount)}'),
-    Text('Déjà payé: ${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(paidAmount)}'),
-    Text('Montant restant: ${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(remainingAmount)}'),
-    const SizedBox(height: 16),
+          builder: (BuildContext context, StateSetter setState) {
+            // Calculer le montant de la réduction
+            void calculateDiscount() {
+              if (applyDiscount && discountRate > 0) {
+                // Calculer le montant de la réduction basé sur le montant à payer
+                discountAmount = isFullPayment
+                    ? (remainingAmount * discountRate / 100)
+                    : (amountToPay * discountRate / 100);
+              } else {
+                discountAmount = 0;
+              }
+            }
 
-    // Option de paiement complet ou partiel
-    CheckboxListTile(
-    title: const Text('Paiement complet'),
-    value: isFullPayment,
-    onChanged: (value) {
-    setState(() {
-    isFullPayment = value ?? true;
-    if (isFullPayment) {
-    amountToPay = remainingAmount;
-    }
-    });
-    },
-    ),
+            return SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('Montant total: ${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(totalAmount)}'),
+                  Text('Déjà payé: ${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(paidAmount)}'),
+                  if (totalDiscountApplied > 0)
+                    Text('Réductions précédentes: ${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(totalDiscountApplied)}'),
+                  Text('Montant restant: ${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(remainingAmount)}'),
+                  Text('Nombre de nuits: $nights'),
+                  const SizedBox(height: 16),
 
-    // Montant à payer (éditable si paiement partiel)
-                // Montant à payer (éditable si paiement partiel)
-                if (!isFullPayment)
-                  TextFormField(
-                    decoration: const InputDecoration(
-                      labelText: 'Montant à payer',
-                      prefixText: 'FCFA ',
-                    ),
-                    keyboardType: TextInputType.number,
-                    initialValue: amountToPay.toStringAsFixed(0),
+                  // Option de paiement complet ou partiel
+                  CheckboxListTile(
+                    title: const Text('Paiement complet'),
+                    value: isFullPayment,
                     onChanged: (value) {
-                      amountToPay = double.tryParse(value) ?? 0;
+                      setState(() {
+                        isFullPayment = value ?? true;
+                        if (isFullPayment) {
+                          amountToPay = remainingAmount;
+                        }
+                        calculateDiscount(); // Recalculer la réduction
+                      });
                     },
                   ),
 
-                // Méthode de paiement
-                DropdownButtonFormField<String>(
-                  decoration: const InputDecoration(labelText: 'Méthode de paiement'),
-                  value: paymentMethod,
-                  items: ['Espèces', 'Carte bancaire', 'Mobile Money', 'Virement', 'Autre']
-                      .map((method) => DropdownMenuItem(
-                    value: method,
-                    child: Text(method),
-                  ))
-                      .toList(),
-                  onChanged: (value) {
-                    paymentMethod = value ?? 'Espèces';
-                  },
-                ),
+                  // Montant à payer (éditable si paiement partiel)
+                  if (!isFullPayment)
+                    TextFormField(
+                      decoration: const InputDecoration(
+                        labelText: 'Montant à payer',
+                        prefixText: 'FCFA ',
+                      ),
+                      keyboardType: TextInputType.number,
+                      initialValue: amountToPay.toStringAsFixed(0),
+                      onChanged: (value) {
+                        setState(() {
+                          amountToPay = double.tryParse(value) ?? 0;
+                          calculateDiscount(); // Recalculer la réduction
+                        });
+                      },
+                    ),
 
-                // Description du paiement
-                TextFormField(
-                  decoration: const InputDecoration(labelText: 'Description (optionnel)'),
-                  maxLines: 2,
-                  onChanged: (value) {
-                    description = value;
-                  },
-                ),
-              ],
-          ),
-      );
-        },
+                  // Option d'application de réduction
+                  CheckboxListTile(
+                    title: const Text('Appliquer une réduction'),
+                    value: applyDiscount,
+                    onChanged: (value) {
+                      setState(() {
+                        applyDiscount = value ?? false;
+                        calculateDiscount(); // Recalculer la réduction
+                      });
+                    },
+                  ),
+
+                  // Taux de réduction (visible si réduction activée)
+                  if (applyDiscount)
+                    Column(
+                      children: [
+                        TextFormField(
+                          decoration: const InputDecoration(
+                            labelText: 'Taux de réduction',
+                            suffixText: '%',
+                          ),
+                          keyboardType: TextInputType.number,
+                          initialValue: discountRate.toString(),
+                          onChanged: (value) {
+                            setState(() {
+                              discountRate = double.tryParse(value) ?? 0;
+                              calculateDiscount(); // Recalculer la réduction
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Réduction: ${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(discountAmount)}',
+                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Montant après réduction: ${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(isFullPayment ? (remainingAmount - discountAmount) : (amountToPay - discountAmount))}',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+
+                  // Méthode de paiement
+                  DropdownButtonFormField<String>(
+                    decoration: const InputDecoration(labelText: 'Méthode de paiement'),
+                    value: paymentMethod,
+                    items: ['Espèces', 'Carte bancaire', 'Mobile Money', 'Virement', 'Autre']
+                        .map((method) => DropdownMenuItem(
+                      value: method,
+                      child: Text(method),
+                    ))
+                        .toList(),
+                    onChanged: (value) {
+                      paymentMethod = value ?? 'Espèces';
+                    },
+                  ),
+
+                  // Description du paiement
+                  TextFormField(
+                    decoration: const InputDecoration(labelText: 'Description (optionnel)'),
+                    maxLines: 2,
+                    onChanged: (value) {
+                      description = value;
+                    },
+                  ),
+                ],
+              ),
+            );
+          },
         ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Annuler'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                // Validation du montant
-                if (amountToPay <= 0) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Veuillez entrer un montant valide')),
-                  );
-                  return;
-                }
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              // Validation du montant
+              double cashAmount = isFullPayment ? remainingAmount : amountToPay;
+              double finalAmount = cashAmount;
 
-                if (amountToPay > remainingAmount) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Le montant ne peut pas dépasser le solde restant')),
-                  );
-                  return;
-                }
+              // Appliquer la réduction si activée
+              if (applyDiscount && discountRate > 0) {
+                finalAmount -= discountAmount;
+              }
 
-                // Effectuer l'enregistrement du paiement
-                try {
-                  // Date du paiement
-                  final paymentDate = Timestamp.now();
+              if (finalAmount <= 0 && !applyDiscount) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Veuillez entrer un montant valide')),
+                );
+                return;
+              }
 
-                  // Créer la transaction
-                  final transactionRef = await FirebaseFirestore.instance.collection('transactions').add({
+              if (!isFullPayment && cashAmount > remainingAmount) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Le montant ne peut pas dépasser le solde restant')),
+                );
+                return;
+              }
+
+              // Effectuer l'enregistrement du paiement
+              try {
+                // Date du paiement
+                final paymentDate = Timestamp.now();
+                final transactionCode = await CodeGenerator.generateTransactionCode();
+                // Créer la transaction pour le paiement en espèces
+                if (finalAmount > 0) {
+                  await FirebaseFirestore.instance.collection('transactions').add({
+                    'transactionCode': transactionCode,
                     'bookingId': booking.id,
                     'roomId': data['roomId'],
                     'customerId': data['userId'],
                     'customerName': data['customerName'],
-                    'amount': amountToPay,
+                    'amount': finalAmount,
+                    'originalAmount': cashAmount,
+                    'discountRate': applyDiscount ? discountRate : 0,
+                    'discountAmount': discountAmount,
                     'date': paymentDate,
                     'type': 'payment',
                     'paymentMethod': paymentMethod,
@@ -270,60 +369,88 @@ class _PaymentPageState extends State<PaymentPage> {
                         ? 'Paiement pour la réservation ${data['EnregistrementCode']}'
                         : description,
                     'createdAt': paymentDate,
-                    'createdBy': 'currentUser', // À remplacer par l'ID de l'utilisateur connecté
+                    'createdBy': FirebaseAuth.instance.currentUser?.uid ?? 'unknown',
                   });
-
-                  // Mettre à jour le statut de paiement si payé complètement
-                  if (paidAmount + amountToPay >= totalAmount) {
-                    await FirebaseFirestore.instance
-                        .collection('bookings')
-                        .doc(booking.id)
-                        .update({'paymentStatus': 'payé'});
-                  }
-
-                  Navigator.of(context).pop();
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Paiement enregistré avec succès')),
-                  );
-
-                  // Imprimer le reçu de paiement
-                  await showDialog(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      title: const Text('Impression du reçu'),
-                      content: const Text('Voulez-vous imprimer un reçu pour ce paiement?'),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          child: const Text('Non'),
-                        ),
-                        ElevatedButton(
-                          onPressed: () async {
-                            Navigator.of(context).pop();
-                            // Imprimer le reçu
-                            await printPaymentReceipt(booking, amountToPay, paymentMethod, paymentDate);
-                          },
-                          child: const Text('Oui, imprimer'),
-                        ),
-                      ],
-                    ),
-                  );
-
-                  // Rafraîchir la liste
-                  fetchBookings();
-
-                } catch (e) {
-                  print('Erreur lors de l\'enregistrement du paiement: $e');
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Erreur: $e')),
-                  );
                 }
-              },
-              child: const Text('Enregistrer le paiement'),
-            ),
-          ],
-        ),
+
+                // Si une réduction est appliquée, créer une transaction séparée pour la réduction
+                if (applyDiscount && discountAmount > 0) {
+                  await FirebaseFirestore.instance.collection('transactions').add({
+                    'transactionCode': transactionCode,
+                    'bookingId': booking.id,
+                    'roomId': data['roomId'],
+                    'customerId': data['userId'],
+                    'customerName': data['customerName'],
+                    'amount': discountAmount,
+                    'date': paymentDate,
+                    'type': 'discount',
+                    'discountRate': discountRate,
+                    'description': 'Réduction ${discountRate}% sur la réservation ${data['EnregistrementCode']}',
+                    'createdAt': paymentDate,
+                    'createdBy': FirebaseAuth.instance.currentUser?.uid ?? 'unknown',
+                  });
+                }
+
+                // Mettre à jour le statut de paiement si payé complètement
+                if (paidAmount + finalAmount + discountAmount + totalDiscountApplied >= totalAmount) {
+                  await FirebaseFirestore.instance
+                      .collection('bookings')
+                      .doc(booking.id)
+                      .update({'paymentStatus': 'payé'});
+                }
+
+                Navigator.of(context).pop();
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Paiement enregistré avec succès')),
+                );
+
+                // Imprimer le reçu de paiement
+                await showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Impression du reçu'),
+                    content: const Text('Voulez-vous imprimer un reçu pour ce paiement?'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Non'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () async {
+                          Navigator.of(context).pop();
+                          // Modifier la fonction printPaymentReceipt pour inclure les informations de réduction
+                          await printPaymentReceipt(
+                              booking,
+                              finalAmount,
+                              paymentMethod,
+                              transactionCode as String,
+                              paymentDate,
+                              (applyDiscount ? discountRate : 0) as double,
+                              discountAmount,
+
+                          );
+                        },
+                        child: const Text('Oui, imprimer'),
+                      ),
+                    ],
+                  ),
+                );
+
+                // Rafraîchir la liste
+                fetchBookings();
+
+              } catch (e) {
+                print('Erreur lors de l\'enregistrement du paiement: $e');
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Erreur: $e')),
+                );
+              }
+            },
+            child: const Text('Enregistrer le paiement'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -348,13 +475,14 @@ class _PaymentPageState extends State<PaymentPage> {
               _buildDetailRow('Nuits', '${data['nights']}'),
               _buildDetailRow('Prix/nuit', '${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(data['roomPrice'])}'),
               _buildDetailRow('Montant total', '${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(data['totalAmount'])}'),
-              _buildDetailRow('Statut', data['status'] ?? ''),
+              _buildDetailRow('Statut', formatStatus(data['status'] ?? '')),
               const Divider(),
+
+              // Historique des paiements et réductions
               FutureBuilder<QuerySnapshot>(
                 future: FirebaseFirestore.instance
                     .collection('transactions')
                     .where('bookingId', isEqualTo: booking.id)
-                    .where('type', isEqualTo: 'payment')
                     .get(),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
@@ -365,10 +493,28 @@ class _PaymentPageState extends State<PaymentPage> {
                     return const Text('Aucun paiement enregistré');
                   }
 
+                  // Séparer les paiements et les réductions
+                  final payments = snapshot.data!.docs
+                      .where((doc) => (doc.data() as Map<String, dynamic>)['type'] == 'payment')
+                      .toList();
+
+                  final discounts = snapshot.data!.docs
+                      .where((doc) => (doc.data() as Map<String, dynamic>)['type'] == 'discount')
+                      .toList();
+
+                  // Calculer les totaux
                   double totalPaid = 0;
-                  for (var doc in snapshot.data!.docs) {
+                  for (var doc in payments) {
                     totalPaid += (doc.data() as Map<String, dynamic>)['amount'] ?? 0;
                   }
+
+                  double totalDiscounted = 0;
+                  for (var doc in discounts) {
+                    totalDiscounted += (doc.data() as Map<String, dynamic>)['amount'] ?? 0;
+                  }
+
+                  double totalAmount = (data['totalAmount'] ?? 0).toDouble();
+                  double remainingAmount = totalAmount - totalPaid - totalDiscounted;
 
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -376,51 +522,109 @@ class _PaymentPageState extends State<PaymentPage> {
                       const Text('Historique des paiements:',
                           style: TextStyle(fontWeight: FontWeight.bold)),
                       const SizedBox(height: 8),
-                      ...snapshot.data!.docs.map((doc) {
-                        final paymentData = doc.data() as Map<String, dynamic>;
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 4),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  '${_formatDate(paymentData['date'])} - ${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(paymentData['amount'])} (${paymentData['paymentMethod']})',
+
+                      // Afficher les paiements
+                      if (payments.isNotEmpty)
+                        ...payments.map((doc) {
+                          final paymentData = doc.data() as Map<String, dynamic>;
+                          final double discountRate = (paymentData['discountRate'] ?? 0).toDouble();
+                          final double discountAmount = (paymentData['discountAmount'] ?? 0).toDouble();
+                          final double amount = (paymentData['amount'] ?? 0).toDouble();
+                          final double originalAmount = (paymentData['originalAmount'] ?? amount).toDouble();
+
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        '${_formatDate(paymentData['date'])} - ${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(amount)} (${paymentData['paymentMethod']})',
+                                      ),
+                                    ),
+                                    // Bouton pour imprimer le reçu spécifique
+                                    IconButton(
+                                      icon: const Icon(Icons.receipt, size: 18),
+                                      onPressed: () async {
+                                        // Fermer ce dialogue pour éviter la confusion
+                                        Navigator.of(context).pop();
+                                        // Imprimer le reçu pour ce paiement spécifique
+                                        await printPaymentReceipt(
+                                            booking,
+                                            amount,
+                                            paymentData['paymentMethod'],
+                                            paymentData['transactionCode'],
+                                            paymentData['date'],
+                                            discountRate,
+                                            discountAmount,
+
+                                        );
+                                      },
+                                      tooltip: 'Imprimer ce reçu',
+                                    ),
+                                  ],
                                 ),
-                              ),
-                              // Bouton pour imprimer le reçu spécifique
-                              IconButton(
-                                icon: const Icon(Icons.receipt, size: 18),
-                                onPressed: () async {
-                                  // Fermer ce dialogue pour éviter la confusion
-                                  Navigator.of(context).pop();
-                                  // Imprimer le reçu pour ce paiement spécifique
-                                  await printPaymentReceipt(
-                                      booking,
-                                      paymentData['amount'],
-                                      paymentData['paymentMethod'],
-                                      paymentData['date']
-                                  );
-                                },
-                                tooltip: 'Imprimer ce reçu',
-                              ),
-                            ],
-                          ),
-                        );
-                      }).toList(),
+                                // Afficher les informations de réduction si une réduction a été appliquée
+                                if (discountRate > 0)
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 16, top: 2, bottom: 2),
+                                    child: Text(
+                                      'Réduction: ${discountRate.toStringAsFixed(1)}% (${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(discountAmount)})',
+                                      style: TextStyle(color: Colors.green, fontStyle: FontStyle.italic, fontSize: 12),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          );
+                        }).toList()
+                      else
+                        const Text('Aucun paiement enregistré'),
+
+                      // Afficher les réductions séparées
+                      if (discounts.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        const Text('Réductions appliquées:',
+                            style: TextStyle(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 8),
+                        ...discounts.map((doc) {
+                          final discountData = doc.data() as Map<String, dynamic>;
+                          final double amount = (discountData['amount'] ?? 0).toDouble();
+                          final double rate = (discountData['discountRate'] ?? 0).toDouble();
+
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Text(
+                              '${_formatDate(discountData['date'])} - ${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(amount)} (${rate.toStringAsFixed(1)}%)',
+                              style: TextStyle(color: Colors.green),
+                            ),
+                          );
+                        }).toList(),
+                      ],
+
                       const Divider(),
                       Text(
                         'Total payé: ${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(totalPaid)}',
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
+                      if (totalDiscounted > 0)
+                        Text(
+                          'Total réductions: ${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(totalDiscounted)}',
+                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
+                        ),
                       Text(
-                        'Reste à payer: ${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(data['totalAmount'] - totalPaid)}',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
+                        'Reste à payer: ${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(remainingAmount)}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: remainingAmount <= 0 ? Colors.green : Colors.red,
+                        ),
                       ),
                     ],
                   );
                 },
-              ),
+              )
             ],
           ),
         ),
@@ -525,22 +729,31 @@ class _PaymentPageState extends State<PaymentPage> {
                 final data = booking.data() as Map<String, dynamic>;
 
                 // Calculer le solde à payer
+                // Dans le widget build, dans le ListView.builder, modifiez le FutureBuilder
+// pour récupérer toutes les transactions (paiements ET réductions)
+
                 return FutureBuilder<QuerySnapshot>(
                   future: FirebaseFirestore.instance
                       .collection('transactions')
                       .where('bookingId', isEqualTo: booking.id)
-                      .where('type', isEqualTo: 'payment')
                       .get(),
                   builder: (context, snapshot) {
                     double paidAmount = 0;
+                    double discountAmount = 0;
+
                     if (snapshot.hasData) {
                       for (var doc in snapshot.data!.docs) {
-                        paidAmount += (doc.data() as Map<String, dynamic>)['amount'] ?? 0;
+                        final data = doc.data() as Map<String, dynamic>;
+                        if (data['type'] == 'payment') {
+                          paidAmount += (data['amount'] ?? 0).toDouble();
+                        } else if (data['type'] == 'discount') {
+                          discountAmount += (data['amount'] ?? 0).toDouble();
+                        }
                       }
                     }
 
                     double totalAmount = (data['totalAmount'] ?? 0).toDouble();
-                    double remainingAmount = totalAmount - paidAmount;
+                    double remainingAmount = totalAmount - paidAmount - discountAmount;
                     String paymentStatus = remainingAmount <= 0 ? 'Payé' : 'En attente';
 
                     return Card(
@@ -562,7 +775,7 @@ class _PaymentPageState extends State<PaymentPage> {
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: Text(
-                                formatStatus(data['status']),  // Utiliser la fonction formatStatus
+                                formatStatus(data['status']),
                                 style: const TextStyle(color: Colors.white, fontSize: 12),
                               ),
                             ),
@@ -576,7 +789,7 @@ class _PaymentPageState extends State<PaymentPage> {
                               children: [
                                 Expanded(
                                   child: Text(
-                                      'Code: ${data['EnregistrementCode'] ?? ''} - Chambre: ${data['roomNumber'] ?? ''}'
+                                    'Code: ${data['EnregistrementCode'] ?? ''} - Chambre: ${data['roomNumber'] ?? ''}',
                                   ),
                                 ),
                                 Container(
@@ -607,16 +820,21 @@ class _PaymentPageState extends State<PaymentPage> {
                                   Text(
                                     'Reste: ${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(remainingAmount)}',
                                     style: const TextStyle(color: Colors.red),
+                                  )
+                                else
+                                  Text(
+                                    'Payé intégralement',
+                                    style: const TextStyle(color: Colors.green),
                                   ),
                               ],
                             ),
                           ],
                         ),
-                        trailing: data['status'] == 'annulé' ? null : IconButton(
+                        trailing: data['status'] == 'annulé' || remainingAmount <= 0 ? null : IconButton(
                           icon: const Icon(Icons.payment),
-                          onPressed: remainingAmount <= 0 ? null : () => makePayment(booking),
+                          onPressed: () => makePayment(booking),
                           tooltip: 'Effectuer un paiement',
-                          color: remainingAmount <= 0 ? Colors.grey : Colors.green,
+                          color: Colors.green,
                         ),
                       ),
                     );

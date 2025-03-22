@@ -1,47 +1,77 @@
+import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class CodeGenerator {
-  // Méthode privée générique pour générer des codes
+  // Méthode privée générique pour générer des codes séquentiels
   static Future<String> _generateCode(String counterName, String prefix) async {
     final counterRef = FirebaseFirestore.instance.collection('counters').doc('${counterName}Counter');
 
     return FirebaseFirestore.instance.runTransaction<String>((transaction) async {
-      // Récupérer le snapshot du compteur
-      final counterSnapshot = await transaction.get(counterRef);
+      try {
+        final counterSnapshot = await transaction.get(counterRef);
+        int currentCounter = counterSnapshot.exists ? (counterSnapshot.data()?['lastNumber'] ?? 0) as int : 0;
 
-      // Gérer le compteur de manière sécurisée
-      int currentCounter = 0;
-      if (counterSnapshot.exists) {
-        currentCounter = (counterSnapshot.data()?['lastNumber'] as int?) ?? 0;
+        currentCounter++;
+        transaction.set(counterRef, {
+          'lastNumber': currentCounter,
+          'lastUpdated': FieldValue.serverTimestamp()
+        }, SetOptions(merge: true));
+
+        return '$prefix${currentCounter.toString().padLeft(6, '0')}';
+      } catch (e) {
+        print('Erreur Firestore lors de la génération du code ($counterName) : $e');
+        return '$prefix${Random().nextInt(999999).toString().padLeft(6, '0')}'; // Fallback aléatoire
       }
-
-      // Incrémenter le compteur
-      currentCounter++;
-
-      // Mettre à jour le compteur dans la transaction
-      transaction.set(counterRef, {
-        'lastNumber': currentCounter,
-        'lastUpdated': FieldValue.serverTimestamp()
-      }, SetOptions(merge: true));
-
-      // Formater le code avec le préfixe et un numéro de séquence
-      return '$prefix${currentCounter.toString().padLeft(6, '0')}';
     });
   }
 
-  // Méthode pour générer un code de réservation
+  // Générer un code de réservation
   static Future<String> generateReservationCode() async {
     return _generateCode('reservation', 'RES');
   }
 
-  // Méthode pour générer un code d'enregistrement
+  // Générer un code d'enregistrement
   static Future<String> generateRegistrationCode() async {
     return _generateCode('registration', 'ENG');
   }
 
-  // Méthode statique pour générer des codes aléatoires sécurisés (optionnel)
+  // Générer un code de transaction (méthode séparée)
+  static Future<String> generateTransactionCode() async {
+    final FirebaseFirestore firestore = FirebaseFirestore.instance;
+    final DocumentReference counterRef = firestore.collection('counters').doc('transactionCounter');
+
+    return await firestore.runTransaction((transaction) async {
+      try {
+        final snapshot = await transaction.get(counterRef);
+
+        // ✅ Cast explicite pour éviter l'erreur
+        final data = snapshot.data() as Map<String, dynamic>?;
+
+        int lastNumber = data != null ? (data['lastNumber'] ?? 0) as int : 0;
+        lastNumber++;
+
+        transaction.set(counterRef, {
+          'lastNumber': lastNumber,
+          'lastUpdated': FieldValue.serverTimestamp()
+        }, SetOptions(merge: true));
+
+        return 'T${lastNumber.toString().padLeft(6, '0')}';
+      } catch (e) {
+        print('Erreur Firestore lors de la génération du code transaction : $e');
+        return 'T${Random().nextInt(999999).toString().padLeft(6, '0')}'; // Fallback aléatoire
+      }
+    });
+  }
+
+
+  // Générer un code aléatoire sécurisé
   static String generateRandomCode({int length = 8}) {
-    final random = DateTime.now().millisecondsSinceEpoch;
-    return random.toString().padLeft(length, '0').substring(0, length);
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    final random = Random();
+    return List.generate(length, (index) => chars[random.nextInt(chars.length)]).join();
   }
 }
+
+
+
+

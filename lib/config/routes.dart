@@ -11,7 +11,7 @@ import '../Screens/ComingSoonPage.dart';
 import '../Screens/FinancePage.dart';
 import '../Screens/GestionPersonnelPage.dart';
 import '../Screens/PaymentPage.dart';
-import '../Screens/ReservationPage.dart';
+
 import '../Screens/RoomsPage.dart';
 import '../Screens/SettingsPage.dart';
 import '../Screens/UserManagementScreen.dart';

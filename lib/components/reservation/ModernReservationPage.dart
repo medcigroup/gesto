@@ -287,6 +287,7 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
 
       // Création des données de réservation pour l'impression du reçu
       final reservationData = {
+        'roomId': selectedRoom!.id,
         'roomNumber': selectedRoom!.number,
         'roomType': selectedRoom!.type,
         'customerName': customerName,
@@ -1576,6 +1577,7 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
 
       // Préparer les données de réservation pour l'impression
       final reservationData = {
+        'roomId': reservation.roomId,
         'roomNumber': reservation.roomNumber,
         'roomType': reservation.roomType,
         'customerName': reservation.customerName,

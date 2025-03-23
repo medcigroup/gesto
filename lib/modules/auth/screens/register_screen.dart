@@ -105,6 +105,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           checkInTime: "12:00",
           checkOutTime: "10:00",
           roomTypes: ["Standard", "Deluxe", "Suite"],
+          depositPercentage: 30,
           otherSettings: {},
         );
 

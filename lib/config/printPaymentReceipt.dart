@@ -23,7 +23,19 @@ Future<void> printPaymentReceipt(
       .where('type', isEqualTo: 'payment')
       .get();
 
-  List<String> transactionCodes = [];
+  final roomsSnapshot = await FirebaseFirestore.instance
+      .collection('rooms')
+      .where('id', isEqualTo: data['roomId'])
+      .get();
+
+// Vérifier si des documents existent
+  List<String> amenities = [];
+  if (roomsSnapshot.docs.isNotEmpty) {
+    // Récupérer les données du premier document
+    var roomData = roomsSnapshot.docs.first.data();
+    amenities = List<String>.from(roomData['amenities'] ?? []);
+  }
+
 
   // D'abord, récupérez le code de transaction à partir du premier document dans le snapshot
   String transactionCode = 'NOCODE';
@@ -60,7 +72,7 @@ Future<void> printPaymentReceipt(
       pageFormat: PdfPageFormat.a4,  // Format A4 au lieu de A5
       build: (pw.Context context) {
         return pw.Padding(
-          padding: const pw.EdgeInsets.all(20),
+          padding: const pw.EdgeInsets.all(15),
           child: pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
@@ -80,7 +92,7 @@ Future<void> printPaymentReceipt(
                 ),
               ),
 
-              pw.SizedBox(height: 10),
+              pw.SizedBox(height: 5),
 
               // Informations client et réservation
               pw.Row(
@@ -117,7 +129,7 @@ Future<void> printPaymentReceipt(
                 ],
               ),
 
-              pw.SizedBox(height: 15),
+              pw.SizedBox(height: 5),
 
               // Détails de la réservation
               pw.Container(
@@ -142,14 +154,6 @@ Future<void> printPaymentReceipt(
                     pw.Row(
                       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                       children: [
-                        pw.Text('Chambre:'),
-                        pw.Text('${data['roomNumber']} (${data['roomType']})'),
-                      ],
-                    ),
-                    pw.SizedBox(height: 3),
-                    pw.Row(
-                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                      children: [
                         pw.Text('Période:'),
                         pw.Text('${_formatDateShort(data['checkInDate'])} - ${_formatDateShort(data['checkOutDate'])}'),
                       ],
@@ -162,12 +166,64 @@ Future<void> printPaymentReceipt(
                         pw.Text('${data['nights']}'),
                       ],
                     ),
+                    pw.SizedBox(height: 3),
+                    pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Text('Tarif par nuit:'),
+                        pw.Text('${NumberFormat.currency(symbol: '$currency ', decimalDigits: 0).format(data['roomPrice'])}'),
+                      ],
+                    ),
                   ],
                 ),
               ),
 
-              pw.SizedBox(height: 10),
+              pw.SizedBox(height: 5),
+              pw.Container(
+                padding: const pw.EdgeInsets.all(8),
+                decoration: pw.BoxDecoration(
+                  borderRadius: const pw.BorderRadius.all(pw.Radius.circular(5)),
+                  border: pw.Border.all(width: 0.5),
+                ),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text('Détails de la chambre', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                    pw.SizedBox(height: 5),
+                    pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Text('Chambre:'),
+                        pw.Text('N°${data['roomNumber']} (${data['roomType']})'),
+                      ],
+                    ),
+                    pw.SizedBox(height: 3),
+                    pw.Text('Commodités:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                    pw.SizedBox(height: 3),
+                    // Utilisation de Wrap pour aligner horizontalement
+                    pw.Wrap(
+                      spacing: 8, // Espace entre les éléments
+                      runSpacing: 4, // Espace entre les lignes
+                      children: amenities.map((amenity) {
+                        return pw.Container(
+                          padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: pw.BoxDecoration(
+                            color: PdfColors.grey300,
+                            borderRadius: pw.BorderRadius.circular(5),
+                          ),
+                          child: pw.Text(
+                            amenity,
+                            style: pw.TextStyle(color: PdfColors.black),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ),
+              ),
 
+
+              pw.SizedBox(height: 5),
               // Détails du paiement
               pw.Container(
                 padding: const pw.EdgeInsets.all(8),
@@ -279,45 +335,76 @@ Future<void> printPaymentReceipt(
                 ),
               ),
 
-              pw.SizedBox(height: 20),
-
-              // Signatures
+// Signatures
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
+                  // Signature Client
                   pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.center,
                     children: [
                       pw.Container(
                         width: 150,
-                        height: 40,
+                        height: 40, // Légèrement augmenté pour faciliter la signature
+                        decoration: pw.BoxDecoration(
+                          border: pw.Border(bottom: pw.BorderSide(width: 1)), // Ligne pour la signature
+                        ),
                       ),
-                      pw.Text('Signature Client'),
+                      pw.SizedBox(height: 3), // Moins d'espace après la ligne de signature
+                      pw.Text(
+                        'Signature Client',
+                        style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
+                      ),
                     ],
                   ),
+
+                  // Signature Caissier
                   pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.center,
                     children: [
                       pw.Container(
                         width: 150,
                         height: 40,
+                        decoration: pw.BoxDecoration(
+                          border: pw.Border(bottom: pw.BorderSide(width: 1)), // Ligne pour la signature
+                        ),
                       ),
-                      pw.Text('Signature Caissier'),
+                      pw.SizedBox(height: 3),
+                      pw.Text(
+                        'Signature Caissier',
+                        style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
+                      ),
                     ],
                   ),
                 ],
               ),
 
-              pw.Spacer(),
+              pw.SizedBox(height: 5), // Réduit l'espace avant le pied de page
 
-              // Pied de page
+// Pied de page
               pw.Center(
                 child: pw.Column(
                   children: [
                     pw.Divider(),
-                    pw.SizedBox(height: 5),
-                    pw.Text('Merci pour votre confiance !', style: pw.TextStyle(fontStyle: pw.FontStyle.italic)),
                     pw.SizedBox(height: 2),
+                    pw.Text(
+                      'Merci pour votre confiance !',
+                      style: pw.TextStyle(fontStyle: pw.FontStyle.italic),
+                    ),
+                    pw.SizedBox(height: 3), // Réduction de l’espace entre les textes
+                    pw.Text(
+                      'Ce reçu fait office de preuve de paiement.',
+                      style: pw.TextStyle(fontSize: 10),
+                    ),
+                    pw.Text(
+                      'Pour toute annulation ou remboursement, veuillez consulter notre politique d\'annulation.',
+                      style: pw.TextStyle(fontSize: 10),
+                    ),
+                    pw.Text(
+                      'Nous espérons vous revoir bientôt !',
+                      style: pw.TextStyle(fontSize: 10),
+                    ),
+
                   ],
                 ),
               ),

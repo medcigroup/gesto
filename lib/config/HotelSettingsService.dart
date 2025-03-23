@@ -17,6 +17,8 @@ class HotelSettingsService {
     required String email,
     List<String>? roomTypes,
     Map<String, dynamic>? otherSettings,
+    // Paramètre pour le pourcentage d'acompte
+    required int depositPercentage,
   }) async {
     try {
       final userId = _auth.currentUser?.uid;
@@ -33,6 +35,7 @@ class HotelSettingsService {
         'phoneNumber': phoneNumber,
         'email': email,
         'roomTypes': roomTypes ?? [],
+        'depositPercentage': depositPercentage, // Nouveau paramètre ajouté
         'otherSettings': otherSettings ?? {},
       });
     } catch (e) {

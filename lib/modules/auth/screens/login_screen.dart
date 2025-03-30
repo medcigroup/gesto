@@ -96,6 +96,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       color: GestoTheme.gold,
                     ),
                     const SizedBox(height: 24),
+                  Row(mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
                     Text(
                       'GESTO',
                       style: theme.textTheme.displaySmall?.copyWith(
@@ -103,6 +105,15 @@ class _LoginScreenState extends State<LoginScreen> {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
+                    Text(
+                      ' v1.2.2',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[400],
+                      ),
+                    ),
+                    ]
+                  ),
                     const SizedBox(height: 16),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 48),

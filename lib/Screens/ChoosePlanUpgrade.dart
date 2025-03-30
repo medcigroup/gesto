@@ -153,7 +153,7 @@ class _ChoosePlanUpgradeState extends State<ChoosePlanUpgrade> {
       }
 
       // Générer la nouvelle licence avec les dates et le type
-      final licenceData = await LicenceGenerator.generateUniqueLicence(durationDays, licenceType);
+      final licenceData = await LicenceGenerator.generateUniqueLicence(durationDays, licenceType,'month');
 
       await FirebaseFirestore.instance
           .collection('users')

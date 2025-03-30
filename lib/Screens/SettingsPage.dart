@@ -301,7 +301,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         TextFormField(
                           controller: _checkInTimeController,
                           decoration: InputDecoration(
-                            labelText: 'Heure d\'arrivée',
+                            labelText: 'Heure d\'arrivée en chambre',
                             prefixIcon: Icon(Icons.login),
                             suffixIcon: IconButton(
                               icon: Icon(Icons.access_time),
@@ -319,7 +319,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         TextFormField(
                           controller: _checkOutTimeController,
                           decoration: InputDecoration(
-                            labelText: 'Heure de départ',
+                            labelText: 'Heure de départ de la chambre',
                             prefixIcon: Icon(Icons.logout),
                             suffixIcon: IconButton(
                               icon: Icon(Icons.access_time),
@@ -338,7 +338,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         TextFormField(
                           controller: _depositPercentageController,
                           decoration: InputDecoration(
-                            labelText: 'Pourcentage d\'acompte requis',
+                            labelText: 'Pourcentage d\'acompte requis lors de la réservation',
                             prefixIcon: Icon(Icons.percent),
                             suffixText: '%',
                             border: OutlineInputBorder(

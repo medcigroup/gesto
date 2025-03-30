@@ -16,6 +16,32 @@ class _ActivateLicencePageState extends State<ActivateLicencePage> {
   final TextEditingController _licenceInputController = TextEditingController();
   bool _isLoading = false;
 
+  // Fonction pour calculer la date d'expiration basée sur le type de licence
+  Timestamp _calculateExpiryDate(String periodeType) {
+    final now = DateTime.now();
+    DateTime expiryDate;
+
+    switch (periodeType) {
+      case "month":
+      // Ajouter 30 jours
+        expiryDate = now.add(const Duration(days: 30));
+        break;
+      case "6months":
+      // Ajouter 6 mois (approximativement 182 jours)
+        expiryDate = now.add(const Duration(days: 182));
+        break;
+      case "year":
+      // Ajouter 365 jours
+        expiryDate = now.add(const Duration(days: 365));
+        break;
+      default:
+      // Pour tout autre type, utiliser 30 jours par défaut
+        expiryDate = now.add(const Duration(days: 30));
+    }
+
+    return Timestamp.fromDate(expiryDate);
+  }
+
   Future<void> _activateLicence(BuildContext context) async {
     setState(() {
       _isLoading = true;
@@ -44,7 +70,7 @@ class _ActivateLicencePageState extends State<ActivateLicencePage> {
       try {
         final licenceSnapshot = await FirebaseFirestore.instance
             .collection('licences')
-            .where('code', isEqualTo: cleanedLicenceCode) // Utiliser le code nettoyé
+            .where('code', isEqualTo: cleanedLicenceCode)
             .get();
 
         if (licenceSnapshot.docs.isEmpty) {
@@ -55,10 +81,10 @@ class _ActivateLicencePageState extends State<ActivateLicencePage> {
 
         // Vérification des valeurs null
         final generationDate = licenceData['generationDate'];
-        final expiryDate = licenceData['expiryDate'];
-        final plan = licenceData['licenceType'];
+        final periodeType = licenceData['periodeType'];
+        final licenceType = licenceData['licenceType'];
 
-        if (generationDate == null || expiryDate == null || plan == null) {
+        if (generationDate == null || periodeType == null) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Données de licence incomplètes.'),
@@ -73,20 +99,18 @@ class _ActivateLicencePageState extends State<ActivateLicencePage> {
           return;
         }
 
-        // Vérification de l'expiration
-        if ((expiryDate as Timestamp).toDate().isBefore(DateTime.now())) {
-          throw Exception('Cette licence a expiré.');
-        }
+        // Calculer la date d'expiration basée sur le type de licence
+        final finalExpiryDate = _calculateExpiryDate(periodeType);
 
         final user = FirebaseAuth.instance.currentUser;
         if (user == null) throw Exception('Utilisateur non connecté.');
 
         await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
-          'licence': cleanedLicenceCode, // Stocker le code nettoyé
+          'licence': cleanedLicenceCode,
           'licenceGenerationDate': generationDate,
-          'licenceExpiryDate': expiryDate,
-          'licenceType': plan,
-          'plan': plan,
+          'licenceExpiryDate': finalExpiryDate, // Utiliser la date d'expiration calculée
+          'licenceType': licenceType,
+          'plan': licenceType,
         });
 
         await FirebaseFirestore.instance

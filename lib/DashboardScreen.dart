@@ -167,7 +167,7 @@ class _DashboardState extends State<Dashboard> {
             const Text('Tableau de bord'),
             const SizedBox(width: 8),
             Text(
-              'v1.2.0',
+              'v1.2.2',
               style: TextStyle(
                 fontSize: 14,
                 color: Colors.grey[400],

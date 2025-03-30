@@ -8,7 +8,7 @@ class LicenceGenerator {
   static String getRandomString(int length) => String.fromCharCodes(Iterable.generate(
       length, (_) => _chars.codeUnitAt(_rnd.nextInt(_chars.length))));
 
-  static Future<Map<String, dynamic>> generateUniqueLicence(int durationDays, String licenceType) async {
+  static Future<Map<String, dynamic>> generateUniqueLicence(int durationDays, String licenceType, String periodeType) async {
     String licence = '';
     bool isUnique = false;
     final licencesCollection = FirebaseFirestore.instance.collection('licences');
@@ -32,6 +32,7 @@ class LicenceGenerator {
       'generationDate': generationDate,
       'expiryDate': expiryDate,
       'licenceType': licenceType, // Stocker le type de licence
+      'periodeType': periodeType, // Stocker le type de période
     });
 
     return {
@@ -39,6 +40,7 @@ class LicenceGenerator {
       'generationDate': generationDate,
       'expiryDate': expiryDate,
       'licenceType': licenceType,
+      'periodeType': periodeType,
     };
   }
 }

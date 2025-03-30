@@ -90,7 +90,7 @@ class _RenewLicencePageState extends State<RenewLicencePage> {
       // Générer une nouvelle licence
       final licenceData = await LicenceGenerator.generateUniqueLicence(
           durationDays,
-          _userModel?.plan ?? 'gratuit'
+          _userModel?.plan ?? 'gratuit','month'
       );
 
       // Récupérer l'utilisateur actuel
@@ -156,7 +156,8 @@ class _RenewLicencePageState extends State<RenewLicencePage> {
       // Générer une nouvelle licence
       final licenceData = await LicenceGenerator.generateUniqueLicence(
           durationDays,
-          newPlan
+          newPlan,
+        'month'
       );
 
       // Récupérer l'utilisateur actuel

@@ -103,7 +103,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           email : email,
           currency: "FCFA",
           checkInTime: "12:00",
-          checkOutTime: "10:00",
+          checkOutTime: "11:00",
           roomTypes: ["Standard", "Deluxe", "Suite"],
           depositPercentage: 30,
           otherSettings: {},

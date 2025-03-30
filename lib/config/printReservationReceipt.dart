@@ -293,7 +293,19 @@ class PrinterService {
                             ),
                           ],
                         ),
-
+                        pw.SizedBox(height: 3),
+                        pw.Row(
+                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                          children: [
+                            pw.Text('Acompte ($depositPercentage %):'),
+                            pw.Text(
+                                NumberFormat.currency(
+                                    symbol: '$hotelCurrency ',
+                                    decimalDigits: 0
+                                ).format(totalPrice * (depositPercentage / 100))
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                   ),

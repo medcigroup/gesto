@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'dart:async';
 
 import '../config/LicenceGenerator.dart';
+import '../config/LicencePrinter.dart';
 
 // Importation de la classe LicenceGenerator
 // Assurez-vous que cette classe est accessible dans votre projet
@@ -23,11 +24,14 @@ class _LicenceManagerPageState extends State<LicenceManagerPage> {
   // Variables pour la génération de nouvelles licences
   int _durationDays = 30;
   String _licenceType = 'basic';
+  String _PeriodeType = 'month';
   bool _isGenerating = false;
   String? _lastGeneratedLicence;
 
   // Liste des types de licences disponibles
   final List<String> _licenceTypes = ['basic','starter', 'pro', 'entreprise'];
+  final List<String> _PeriodeTypes = ['month','6months', 'year'];
+
 
   // Liste des durées prédéfinies en jours
   final List<int> _durationOptions = [7, 30, 90, 180, 365];
@@ -83,6 +87,32 @@ class _LicenceManagerPageState extends State<LicenceManagerPage> {
                         validator: (value) {
                           if (value == null || value.isEmpty) {
                             return 'Veuillez sélectionner un type de licence';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      // Choix du type de période
+                      DropdownButtonFormField<String>(
+                        decoration: const InputDecoration(
+                          labelText: 'Type de période',
+                          border: OutlineInputBorder(),
+                        ),
+                        value: _PeriodeType,
+                        items: _PeriodeTypes.map((type) {
+                          return DropdownMenuItem<String>(
+                            value: type,
+                            child: Text(type),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            _PeriodeType = value!;
+                          });
+                        },
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Veuillez sélectionner un type de période';
                           }
                           return null;
                         },
@@ -262,6 +292,7 @@ class _LicenceManagerPageState extends State<LicenceManagerPage> {
                             children: [
                               const SizedBox(height: 4),
                               Text('Type: ${data['licenceType'] ?? 'Non spécifié'}'),
+                              Text('Période: ${data['periodeType'] ?? 'Non spécifié'}'),
                               Text('Généré le: ${dateFormat.format(generationDate)}'),
                               Text('Expire le: ${dateFormat.format(expiryDate)}'),
                               const SizedBox(height: 4),
@@ -335,8 +366,9 @@ class _LicenceManagerPageState extends State<LicenceManagerPage> {
     try {
       // Génération de la licence en utilisant la classe LicenceGenerator
       final result = await LicenceGenerator.generateUniqueLicence(
-        _durationDays,
-        _licenceType,
+          _durationDays,
+          _licenceType,
+          _PeriodeType
       );
 
       setState(() {
@@ -394,6 +426,14 @@ class _LicenceManagerPageState extends State<LicenceManagerPage> {
                 },
               ),
               ListTile(
+                leading: const Icon(Icons.print),
+                title: const Text('Imprimer la licence'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _printLicence(context, data);
+                },
+              ),
+              ListTile(
                 leading: const Icon(Icons.calendar_today),
                 title: const Text('Prolonger'),
                 onTap: () {
@@ -446,6 +486,7 @@ class _LicenceManagerPageState extends State<LicenceManagerPage> {
               ),
               const SizedBox(height: 16),
               Text('Type: ${data['licenceType'] ?? 'Non spécifié'}'),
+              Text('Période: ${data['periodeType'] ?? 'Non spécifié'}'),
               Text('Date de génération: ${dateFormat.format(generationDate)}'),
               Text('Date d\'expiration: ${dateFormat.format(expiryDate)}'),
               const SizedBox(height: 16),
@@ -533,6 +574,24 @@ class _LicenceManagerPageState extends State<LicenceManagerPage> {
                   );
                 }).toList(),
               ),
+              const Divider(),
+              // Type de période
+              const Padding(
+                padding: EdgeInsets.all(8.0),
+                child: Text('Filtrer par période'),
+              ),
+              Wrap(
+                spacing: 8.0,
+                children: _PeriodeTypes.map((type) {
+                  return ActionChip(
+                    label: Text(type),
+                    onPressed: () {
+                      Navigator.pop(context);
+                      // Implémentez la logique de filtrage ici
+                    },
+                  );
+                }).toList(),
+              ),
               const SizedBox(height: 16),
             ],
           ),
@@ -544,53 +603,75 @@ class _LicenceManagerPageState extends State<LicenceManagerPage> {
   // Boîte de dialogue pour prolonger une licence
   void _showExtendLicence(BuildContext context, String docId, Map<String, dynamic> data) {
     int extensionDays = 30;
+    String extensionPeriodeType = data['periodeType'] ?? 'month';
 
     showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('Prolonger la licence'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Choisissez la durée de prolongation:'),
-              const SizedBox(height: 16),
-              DropdownButton<int>(
-                value: extensionDays,
-                items: _durationOptions.map((days) {
-                  return DropdownMenuItem<int>(
-                    value: days,
-                    child: Text('$days jours'),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  extensionDays = value!;
-                },
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text('Annuler'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _extendLicence(docId, extensionDays);
-              },
-              child: const Text('Prolonger'),
-            ),
-          ],
+        return StatefulBuilder(
+            builder: (context, setState) {
+              return AlertDialog(
+                title: const Text('Prolonger la licence'),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Choisissez la durée et le type de période:'),
+                    const SizedBox(height: 16),
+                    DropdownButton<int>(
+                      value: extensionDays,
+                      items: _durationOptions.map((days) {
+                        return DropdownMenuItem<int>(
+                          value: days,
+                          child: Text('$days jours'),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          extensionDays = value!;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButton<String>(
+                      value: extensionPeriodeType,
+                      items: _PeriodeTypes.map((type) {
+                        return DropdownMenuItem<String>(
+                          value: type,
+                          child: Text(type),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          extensionPeriodeType = value!;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                    child: const Text('Annuler'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _extendLicence(docId, extensionDays, extensionPeriodeType);
+                    },
+                    child: const Text('Prolonger'),
+                  ),
+                ],
+              );
+            }
         );
       },
     );
   }
 
   // Méthode pour prolonger une licence
-  Future<void> _extendLicence(String docId, int days) async {
+  Future<void> _extendLicence(String docId, int days, String periodeType) async {
     try {
       // Récupérer la licence actuelle
       final docSnapshot = await _licencesCollection.doc(docId).get();
@@ -602,14 +683,15 @@ class _LicenceManagerPageState extends State<LicenceManagerPage> {
       // Calculer la nouvelle date d'expiration
       final newExpiryDate = currentExpiryDate.add(Duration(days: days));
 
-      // Mettre à jour la date d'expiration
+      // Mettre à jour la date d'expiration et le type de période
       await _licencesCollection.doc(docId).update({
         'expiryDate': newExpiryDate,
+        'periodeType': periodeType,
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Licence prolongée de $days jours'),
+          content: Text('Licence prolongée de $days jours ($periodeType)'),
           backgroundColor: Colors.green,
         ),
       );
@@ -735,4 +817,15 @@ class _LicenceManagerPageState extends State<LicenceManagerPage> {
       );
     }
   }
+
+  // Méthode pour imprimer une licence
+  void _printLicence(BuildContext context, Map<String, dynamic> data) {
+    // Conversion des Timestamps en DateTime pour l'impression
+    final licenceData = Map<String, dynamic>.from(data);
+    licenceData['generationDate'] = (data['generationDate'] as Timestamp).toDate();
+    licenceData['expiryDate'] = (data['expiryDate'] as Timestamp).toDate();
+
+    LicencePrinter.printLicence(context, licenceData);
+  }
 }
+

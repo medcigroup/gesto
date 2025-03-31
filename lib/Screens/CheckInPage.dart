@@ -225,6 +225,26 @@ class _CheckInPageState extends State<CheckInPage> {
 
       setState(() => _isLoading = true);
 
+      // Afficher le dialogue de chargement
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 20),
+                  Text('Enregistrement du client en cours...')
+                ],
+              ),
+            );
+          },
+        );
+      }
+
       try {
         // Obtenir l'ID de l'utilisateur connecté
         final userId = FirebaseAuth.instance.currentUser?.uid;
@@ -292,6 +312,10 @@ class _CheckInPageState extends State<CheckInPage> {
           'status': 'enregistré',
           'createdAt': FieldValue.serverTimestamp(),
           'userId': userId,
+          'depositPaid': false,
+          'balanceDue': _selectedRoom!.price * numberOfNightsCorrected,
+          'depositAmount': 0,
+          'depositPercentage': 0,
           'isWalkIn': true,
         });
 
@@ -305,9 +329,19 @@ class _CheckInPageState extends State<CheckInPage> {
           'lastUpdated': FieldValue.serverTimestamp(),
         });
 
+        // Fermer le dialogue de chargement avant d'afficher le SnackBar
+        if (mounted && Navigator.canPop(context)) {
+          Navigator.of(context).pop();
+        }
+
         _showSuccessSnackBar('Client enregistré avec succès');
         _resetForm();
       } catch (e) {
+        // Fermer le dialogue de chargement en cas d'erreur
+        if (mounted && Navigator.canPop(context)) {
+          Navigator.of(context).pop();
+        }
+
         _showErrorSnackBar('Erreur lors de l\'enregistrement: ${e.toString()}');
       } finally {
         setState(() => _isLoading = false);
@@ -329,11 +363,12 @@ class _CheckInPageState extends State<CheckInPage> {
       _idNumberController.clear();
       _nationalityController.clear();
       _addressController.clear();
-      _checkInDateController.text = DateFormat('dd/MM/yyyy').format(now);
-      _checkOutDateController.text = DateFormat('dd/MM/yyyy').format(tomorrow);
+      _checkInDateController.clear();
+      _checkOutDateController.clear();
       _numberOfGuests = 1;
       _selectedRoomType = null;
       _selectedRoom = null;
+
 
       // Recharger les chambres disponibles
       fetchAvailableRooms();

@@ -101,9 +101,47 @@ class _CheckInFormState extends State<CheckInForm> {
   }
 
   Future<void> _saveBookingData(Map<String, dynamic> bookingData) async {
+    // Variable pour suivre l'état de chargement
+    bool isLoading = true;
+
+    // Afficher le dialogue de chargement
+    if (mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(height: 20),
+                Text('Enregistrement du client en cours...')
+              ],
+            ),
+          );
+        },
+      );
+    }
+
     try {
       // Generate a unique EnregistrementCode
       final enregistrementCode = await CodeGenerator.generateRegistrationCode();
+
+      // Récupérer les informations d'acompte de la réservation originale
+      final reservationDoc = await FirebaseFirestore.instance
+          .collection('reservations')
+          .doc(bookingData['reservationId'])
+          .get();
+
+      // Extraire les données d'acompte
+      final depositAmount = reservationDoc.data()?['depositAmount'] ?? 0;
+      final depositPercentage = reservationDoc.data()?['depositPercentage'] ?? 0;
+      final depositPaid = reservationDoc.data()?['depositPaid'] ?? false;
+
+      // Calculer le montant restant à payer
+      final totalAmount = bookingData['totalAmount'] ?? 0;
+      final balanceDue = totalAmount - depositAmount;
 
       // Create a new document in the 'bookings' collection
       final bookingRef = FirebaseFirestore.instance.collection('bookings').doc();
@@ -123,7 +161,7 @@ class _CheckInFormState extends State<CheckInForm> {
         'nationality': bookingData['nationality'],
         'nights': bookingData['nights'],
         'numberOfGuests': bookingData['numberOfGuests'],
-        'paymentStatus': 'En attente', // You might need to handle payment status
+        'paymentStatus': balanceDue > 0 ? 'Partiellement payé' : 'Payé', // Mise à jour du statut de paiement
         'roomId': bookingData['roomId'],
         'roomNumber': bookingData['roomNumber'],
         'roomPrice': bookingData['pricePerNight'],
@@ -131,6 +169,11 @@ class _CheckInFormState extends State<CheckInForm> {
         'status': 'enregistré', // Status in the bookings collection
         'totalAmount': bookingData['totalAmount'],
         'userId': bookingData['userId'],
+        // Ajout des informations d'acompte
+        'depositAmount': depositAmount,
+        'depositPercentage': depositPercentage,
+        'depositPaid': depositPaid,
+        'balanceDue': balanceDue,
       });
 
       // Update the status in the 'reservations' collection
@@ -148,6 +191,11 @@ class _CheckInFormState extends State<CheckInForm> {
         'lastUpdated': FieldValue.serverTimestamp(),
       });
 
+      // Fermer le dialogue de chargement
+      if (mounted && Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Client enregistré avec succès')),
       );
@@ -158,6 +206,11 @@ class _CheckInFormState extends State<CheckInForm> {
         Navigator.pop(context);
       }
     } catch (e) {
+      // Fermer le dialogue de chargement en cas d'erreur
+      if (mounted && Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erreur lors de l\'enregistrement: ${e.toString()}')),
       );

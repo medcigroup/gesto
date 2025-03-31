@@ -47,7 +47,7 @@ Future<void> printPaymentReceipt(
 
 
   // Calculate the remaining amount before creating the PDF
-  final double remainingAmount = await _calculateRemainingAmount(booking.id, data['totalAmount'], amount);
+  final double remainingAmount = await _calculateRemainingAmount(booking.id, data['totalAmount'], amount,data['depositAmount']);
 
   // Récupérer les paramètres de l'hôtel depuis Firestore
   final hotelSettings = await _getHotelSettings();
@@ -243,6 +243,16 @@ Future<void> printPaymentReceipt(
                         pw.Text(NumberFormat.currency(symbol: '$currency ', decimalDigits: 0).format(data['totalAmount'])),
                       ],
                     ),
+                    if (data['depositPaid'] == true) ...[
+                      pw.SizedBox(height: 3),
+                    pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                     children: [
+                      pw.Text('Acompte:'),
+                      pw.Text(NumberFormat.currency(symbol: '$currency ', decimalDigits: 0).format(data['depositAmount'])),
+                      ],
+                      )],
+
 
                     // Afficher les détails de réduction si une réduction a été appliquée
                     if (hasDiscount) ...[
@@ -423,7 +433,7 @@ Future<void> printPaymentReceipt(
 }
 
 // Fonction auxiliaire pour calculer le montant restant
-Future<double> _calculateRemainingAmount(String bookingId, double totalAmount, double currentPayment) async {
+Future<double> _calculateRemainingAmount(String bookingId, double totalAmount, double currentPayment,double depositAmount) async {
   // Récupération des paiements précédents
   final paymentsSnapshot = await FirebaseFirestore.instance
       .collection('transactions')
@@ -453,7 +463,7 @@ Future<double> _calculateRemainingAmount(String bookingId, double totalAmount, d
   }
 
   // Calcul du montant restant en prenant en compte totalAmount, paidAmount, discountAmount et currentPayment
-  return totalAmount - paidAmount - discountAmount - currentPayment;
+  return totalAmount - paidAmount - discountAmount - currentPayment-depositAmount;
 }
 
 // Fonction pour récupérer les paramètres de l'hôtel

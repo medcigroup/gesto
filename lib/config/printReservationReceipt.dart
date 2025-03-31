@@ -32,7 +32,7 @@ class PrinterService {
       final hotelPhone = hotelSettings['phoneNumber'] ?? '';
       final hotelEmail = hotelSettings['email'] ?? '';
       final hotelCurrency = hotelSettings['currency'] ?? 'FCFA';
-      final depositPercentage = hotelSettings['depositPercentage'] ?? 30;
+      final depositPercentageHOTEL = hotelSettings['depositPercentage'] ?? 30;
 
       // Formater les dates avec gestion des nulls
       final dateFormatter = DateFormat('dd/MM/yyyy HH:mm');
@@ -68,6 +68,8 @@ class PrinterService {
       final numberOfGuests = reservationData['numberOfGuests'] ?? 0;
       final pricePerNight = reservationData['pricePerNight'] ?? 0;
       final totalPrice = reservationData['totalPrice'] ?? 0;
+      final depositPercentage = reservationData['depositPercentage'] ?? depositPercentageHOTEL;
+      final paiementMethod = reservationData['paymentMethod'] ?? 'Espèces';
 
       // Vérifier si les demandes spéciales existent et ne sont pas vides
       final specialRequests = reservationData['specialRequests'];
@@ -294,6 +296,7 @@ class PrinterService {
                           ],
                         ),
                         pw.SizedBox(height: 3),
+                        if (depositPercentage > 0) ...[
                         pw.Row(
                           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                           children: [
@@ -306,7 +309,30 @@ class PrinterService {
                             ),
                           ],
                         ),
-                      ],
+                          pw.SizedBox(height: 3),
+                          pw.Row(
+                            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                            children: [
+                              pw.Text('Méthode de paiement :'),
+                              pw.Text(paiementMethod),
+                            ],
+                          ),
+                          pw.SizedBox(height: 3),
+                        pw.Row(
+                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                          children: [
+                            pw.Text('Reste à payer:',
+                                style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                            pw.Text(
+                              NumberFormat.currency(
+                                  symbol: '$hotelCurrency ',
+                                  decimalDigits: 0
+                              ).format(totalPrice-(totalPrice * (depositPercentage / 100))),
+                              style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      ]],
                     ),
                   ),
 

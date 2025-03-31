@@ -130,6 +130,13 @@ class _PaymentPageState extends State<PaymentPage> {
   Future<void> makePayment(DocumentSnapshot booking) async {
     final data = booking.data() as Map<String, dynamic>;
 
+    final bool depositPaid = data['depositPaid'] ?? false;
+    final double depositAmount = (data['depositAmount'] ?? 0).toDouble();
+    final double balanceDue = (data['balanceDue'] ?? 0).toDouble();
+    final double depositPercentage = (data['depositPercentage'] ?? 0).toDouble();
+
+
+
     // Variables pour le paiement
     double amountToPay = 0;
     String paymentMethod = 'Espèces';
@@ -152,7 +159,7 @@ class _PaymentPageState extends State<PaymentPage> {
         .where('type', isEqualTo: 'payment')
         .get();
 
-    double paidAmount = 0;
+    double paidAmount = depositPaid ? depositAmount : 0;
     for (var payment in paymentsSnapshot.docs) {
       paidAmount += (payment.data()['amount'] ?? 0).toDouble();
     }
@@ -205,6 +212,7 @@ class _PaymentPageState extends State<PaymentPage> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text('Montant total: ${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(totalAmount)}'),
+                  Text('Acompte: ${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(depositAmount)} (${depositPaid ? 'Payé' : 'En attente'})'),
                   Text('Déjà payé: ${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(paidAmount)}'),
                   if (totalDiscountApplied > 0)
                     Text('Réductions précédentes: ${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(totalDiscountApplied)}'),
@@ -366,7 +374,7 @@ class _PaymentPageState extends State<PaymentPage> {
                     'type': 'payment',
                     'paymentMethod': paymentMethod,
                     'description': description.isEmpty
-                        ? 'Paiement pour la réservation ${data['EnregistrementCode']}'
+                        ? 'Paiement pour l\'enregistrement ${data['EnregistrementCode']}'
                         : description,
                     'createdAt': paymentDate,
                     'createdBy': FirebaseAuth.instance.currentUser?.uid ?? 'unknown',
@@ -385,7 +393,7 @@ class _PaymentPageState extends State<PaymentPage> {
                     'date': paymentDate,
                     'type': 'discount',
                     'discountRate': discountRate,
-                    'description': 'Réduction ${discountRate}% sur la réservation ${data['EnregistrementCode']}',
+                    'description': 'Réduction ${discountRate}% sur l\'enregistrement ${data['EnregistrementCode']}',
                     'createdAt': paymentDate,
                     'createdBy': FirebaseAuth.instance.currentUser?.uid ?? 'unknown',
                   });
@@ -475,6 +483,8 @@ class _PaymentPageState extends State<PaymentPage> {
               _buildDetailRow('Nuits', '${data['nights']}'),
               _buildDetailRow('Prix/nuit', '${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(data['roomPrice'])}'),
               _buildDetailRow('Montant total', '${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(data['totalAmount'])}'),
+              _buildDetailRow('Acompte', '${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(data['depositAmount'])} ''(${data['depositPaid'] ? 'Payé' : 'En attente'})'),
+              _buildDetailRow('Solde dû', NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(data['balanceDue'])),
               _buildDetailRow('Statut', formatStatus(data['status'] ?? '')),
               const Divider(),
 
@@ -514,7 +524,8 @@ class _PaymentPageState extends State<PaymentPage> {
                   }
 
                   double totalAmount = (data['totalAmount'] ?? 0).toDouble();
-                  double remainingAmount = totalAmount - totalPaid - totalDiscounted;
+                  double depositAmount = (data['depositAmount'] ?? 0).toDouble();
+                  double remainingAmount = totalAmount - totalPaid - totalDiscounted-depositAmount;;
 
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -606,7 +617,7 @@ class _PaymentPageState extends State<PaymentPage> {
 
                       const Divider(),
                       Text(
-                        'Total payé: ${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(totalPaid)}',
+                        'Total payé (Acompte + Paiements) : ${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(totalPaid+depositAmount)}',
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                       if (totalDiscounted > 0)
@@ -728,17 +739,15 @@ class _PaymentPageState extends State<PaymentPage> {
                 final booking = bookings[index];
                 final data = booking.data() as Map<String, dynamic>;
 
-                // Calculer le solde à payer
-                // Dans le widget build, dans le ListView.builder, modifiez le FutureBuilder
-// pour récupérer toutes les transactions (paiements ET réductions)
-
                 return FutureBuilder<QuerySnapshot>(
                   future: FirebaseFirestore.instance
                       .collection('transactions')
                       .where('bookingId', isEqualTo: booking.id)
                       .get(),
                   builder: (context, snapshot) {
-                    double paidAmount = 0;
+                    double paidAmount = (data['depositPaid'] ?? false)
+                        ? (data['depositAmount'] ?? 0).toDouble()
+                        : 0;
                     double discountAmount = 0;
 
                     if (snapshot.hasData) {
@@ -752,9 +761,10 @@ class _PaymentPageState extends State<PaymentPage> {
                       }
                     }
 
-                    double totalAmount = (data['totalAmount'] ?? 0).toDouble();
-                    double remainingAmount = totalAmount - paidAmount - discountAmount;
-                    String paymentStatus = remainingAmount <= 0 ? 'Payé' : 'En attente';
+                    final double totalAmount = (data['totalAmount'] ?? 0).toDouble();
+                    final double remainingAmount = totalAmount - paidAmount - discountAmount;
+                    final String paymentStatus = remainingAmount <= 0 ? 'Payé' : 'En attente';
+
 
                     return Card(
                       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -789,8 +799,7 @@ class _PaymentPageState extends State<PaymentPage> {
                               children: [
                                 Expanded(
                                   child: Text(
-                                    'Code: ${data['EnregistrementCode'] ?? ''} - Chambre: ${data['roomNumber'] ?? ''}',
-                                  ),
+                                      'Code: ${data['EnregistrementCode'] ?? ''} - Chambre: ${data['roomNumber'] ?? ''}'),
                                 ),
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -828,9 +837,23 @@ class _PaymentPageState extends State<PaymentPage> {
                                   ),
                               ],
                             ),
+                            if ((data['depositAmount'] ?? 0) > 0)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Text(
+                                  'Acompte: ${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(data['depositAmount'])} '
+                                      '(${data['depositPaid'] ? 'Payé' : 'En attente'})',
+                                  style: TextStyle(
+                                      color: data['depositPaid'] ? Colors.green : Colors.orange,
+                                      fontSize: 12
+                                  ),
+                                ),
+                              ),
                           ],
                         ),
-                        trailing: data['status'] == 'annulé' || remainingAmount <= 0 ? null : IconButton(
+                        trailing: data['status'] == 'annulé' || remainingAmount <= 0
+                            ? null
+                            : IconButton(
                           icon: const Icon(Icons.payment),
                           onPressed: () => makePayment(booking),
                           tooltip: 'Effectuer un paiement',

@@ -17,8 +17,14 @@ class ModernReservationPage extends StatefulWidget {
 
 class _ModernReservationPageState extends State<ModernReservationPage> {
   // Etapes de réservation
-  final int _totalSteps = 3;
+  final int _totalSteps = 4;
   int _currentStep = 0;
+
+  // Ajouter dans la section des variables d'état de la classe
+  // Dans la section des variables d'état de votre classe
+  int selectedDepositPercentage = 30; // Initialiser avec une valeur par défaut (10%)
+  double? depositAmount; // Garder comme nullable mais l'initialiser dans calculateDepositAmounts()
+  String paymentMethod = 'Espèces'; // Valeur par défaut pour le moyen de paiement
 
   // Dates de réservation
   DateTime? checkInDate;
@@ -191,7 +197,7 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
 
       if (snapshot.docs.isEmpty) {
         setState(() {
-          reservationsList =[];
+          reservationsList = [];
         });
         return;
       }
@@ -230,6 +236,12 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
             numberOfNights: data['numberOfNights'] as int?, // Retrieve number of nights
             pricePerNight: data['pricePerNight'] as double?, // Retrieve price per night
             totalPrice: data['totalPrice'] as double?, // Retrieve total price
+
+            // Nouveaux champs d'acompte
+            depositPercentage: data['depositPercentage'] as int?,
+            depositAmount: data['depositAmount'] as double?,
+            paymentMethod: data['paymentMethod'] as String?,
+            depositPaid: data['depositPaid'] as bool? ?? false,
           );
         }).whereType<Reservation>().toList(); // Utiliser whereType<Reservation>() pour filtrer et caster correctement
       });
@@ -243,17 +255,42 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
   // Création d'une nouvelle réservation
   Future<void> makeReservation() async {
     if (!_clientFormKey.currentState!.validate()) return;
-    _clientFormKey.currentState!.save(); // Correction: underscore manquant
+    _clientFormKey.currentState!.save();
 
     if (selectedRoom == null || checkInDate == null || checkOutDate == null) {
-      _showErrorSnackBar('Informations de réservation incomplètes'); // Correction: underscore manquant
+      _showErrorSnackBar('Informations de réservation incomplètes');
+      return;
+    }
+    if (selectedDepositPercentage == null || depositAmount == null) {
+      // Afficher une erreur ou définir des valeurs par défaut
       return;
     }
 
     try {
+      // Définir l'état de chargement à true avant de commencer les opérations
       setState(() {
         isLoadingRooms = true;
       });
+
+      // Afficher un dialogue de chargement
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false, // L'utilisateur ne peut pas fermer le dialogue en cliquant à l'extérieur
+          builder: (BuildContext context) {
+            return AlertDialog(
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 20),
+                  Text('Création de la réservation en cours...')
+                ],
+              ),
+            );
+          },
+        );
+      }
 
       // Récupérer les paramètres de l'hôtel
       final settingsService = HotelSettingsService();
@@ -300,6 +337,9 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
         'numberOfNights': numberOfNightsCorrected,
         'pricePerNight': pricePerNight,
         'totalPrice': totalPrice,
+        'depositPercentage': selectedDepositPercentage,
+        'depositAmount': depositAmount,
+        'paymentMethod': paymentMethod,
       };
 
       // Utilisation d'un batch pour effectuer toutes les opérations atomiquement
@@ -325,6 +365,14 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
         'numberOfNights': numberOfNightsCorrected,
         'pricePerNight': pricePerNight,
         'totalPrice': totalPrice,
+        'paymentMethod': paymentMethod,
+
+        // Ajout des informations d'acompte
+        'depositPercentage': selectedDepositPercentage,
+        'depositAmount': depositAmount,
+        'balanceDue': totalPrice - depositAmount!, // Solde restant à payer
+        'depositPaid': true, // Indique que l'acompte a été payé
+        'depositDate': FieldValue.serverTimestamp(), // Date du paiement de l'acompte
       });
 
       // Mise à jour du statut de la chambre à 'occupée'
@@ -333,11 +381,34 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
 
       await batch.commit();
 
-      setState(() {
-        isLoadingRooms = false;
-      });
+      //Création d'une transaction pour la réservation
+      // Date du paiement
+      final paymentDate = Timestamp.now();
+      final transactionCode = await CodeGenerator.generateTransactionCode();
+      // Créer la transaction pour le paiement en espèces
+      if (depositAmount! > 0) {
+        await FirebaseFirestore.instance.collection('transactions').add({
+          'transactionCode': transactionCode,
+          'bookingId': reservationRef.id,
+          'roomId': selectedRoom!.id,
+          'customerId': userId,
+          'customerName': customerName,
+          'amount': depositAmount,
+          'discountRate': 0,
+          'discountAmount': 0,
+          'date': paymentDate,
+          'type': 'payment',
+          'paymentMethod': paymentMethod,
+          'description': 'Acompte pour la réservation $generatedReservationCode',
+          'createdAt': paymentDate,
+          'createdBy': FirebaseAuth.instance.currentUser?.uid ?? 'unknown',
+        });
+      }
 
-      _showSuccessSnackBar('Réservation effectuée avec succès! Code: $generatedReservationCode'); // Correction: underscore manquant
+      // Fermer le dialogue de chargement
+      if (mounted && Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      }
 
       final printerService = PrinterService();
       await printerService.printReservationReceipt(
@@ -346,17 +417,29 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
         hotelSettings: settings,
       );
 
+      // Désactiver l'état de chargement
+      setState(() {
+        isLoadingRooms = false;
+      });
+
+      _showSuccessSnackBar('Réservation effectuée avec succès! Code: $generatedReservationCode');
+
       // Rafraîchir les données
       fetchReservations();
 
       // Réinitialiser le formulaire et retourner à la première étape
-      _resetReservationForm(); // Correction: underscore manquant
+      _resetReservationForm();
 
     } catch (e) {
+      // Fermer le dialogue de chargement en cas d'erreur
+      if (mounted && Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      }
+
       setState(() {
         isLoadingRooms = false;
       });
-      _showErrorSnackBar('Erreur lors de la création de la réservation: ${e.toString()}'); // Correction: underscore ajouté
+      _showErrorSnackBar('Erreur lors de la création de la réservation: ${e.toString()}');
     }
   }
 
@@ -462,6 +545,10 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
           numberOfNights: data['numberOfNights'] as int?, // Retrieve number of nights
           pricePerNight: data['pricePerNight'] as double?, // Retrieve price per night
           totalPrice: data['totalPrice'] as double?, // Retrieve total price
+          depositPercentage: data['depositPercentage'] as int?,
+          depositAmount: data['depositAmount'] as double?,
+          paymentMethod: data['paymentMethod'] as String?,
+          depositPaid: data['depositPaid'] as bool? ?? false,
         ),
       );
     } catch (e) {
@@ -601,41 +688,50 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
     return Stepper(
       type: StepperType.horizontal,
       currentStep: _currentStep,
-        controlsBuilder: (context, details) {
-          return Row(
-            children: [
-              if (_currentStep < _totalSteps - 1)
-                ElevatedButton(
-                  onPressed: details.onStepContinue,
-                  child: Text(_currentStep == 0
-                      ? 'Vérifier disponibilité'
-                      : 'Continuer'),
+      controlsBuilder: (context, details) {
+        return Row(
+          children: [
+            if (_currentStep < _totalSteps - 1)
+              ElevatedButton(
+                onPressed: details.onStepContinue,
+                child: Text(_currentStep == 0
+                    ? 'Vérifier disponibilité'
+                    : 'Continuer'),
+              ),
+            if (_currentStep == _totalSteps - 1) // Dernière étape
+              ElevatedButton(
+                onPressed: makeReservation,
+                child: const Text('Réserver'),
+              ),
+            if (_currentStep > 0)
+              Padding(
+                padding: const EdgeInsets.only(left: 8.0),
+                child: TextButton(
+                  onPressed: details.onStepCancel,
+                  child: const Text('Retour'),
                 ),
-              if (_currentStep == _totalSteps - 1) // Dernière étape
-                ElevatedButton(
-                  onPressed: makeReservation,
-                  child: const Text('Réserver'),
-                ),
-              if (_currentStep > 0)
-                Padding(
-                  padding: const EdgeInsets.only(left: 8.0),
-                  child: TextButton(
-                    onPressed: details.onStepCancel,
-                    child: const Text('Retour'),
-                  ),
-                ),
-            ],
-          );
-        },
-        onStepContinue: () {
+              ),
+          ],
+        );
+      },
+      onStepContinue: () {
         if (_currentStep == 0) {
           getAvailableRooms();
         } else if (_currentStep == 1 && selectedRoom != null) {
           setState(() {
             _currentStep = 2;
           });
-        } else if (_currentStep == 2) {  // Vérifier si on est à la dernière étape
-          makeReservation();  // Appeler directement la réservation
+        } else if (_currentStep == 2) {
+          if (_clientFormKey.currentState!.validate()) {
+            _clientFormKey.currentState!.save();
+            setState(() {
+              _currentStep = 3;
+              // Calculer le montant total de la réservation
+              calculateDepositAmounts();
+            });
+          }
+        } else if (_currentStep == 3) {  // Étape acompte
+          makeReservation();  // Appeler la réservation
         }
       },
       onStepCancel: () {
@@ -663,6 +759,12 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
           content: _buildCustomerInfoStep(),
           isActive: _currentStep >= 2,
           state: _currentStep > 2 ? StepState.complete : StepState.indexed,
+        ),
+        Step(
+          title: const Text('Acompte'),
+          content: _buildDepositStep(),
+          isActive: _currentStep >= 3,
+          state: _currentStep > 3 ? StepState.complete : StepState.indexed,
         ),
       ],
     );
@@ -953,6 +1055,195 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
     );
   }
 
+  void calculateDepositAmounts() {
+    if (selectedRoom != null && checkInDate != null && checkOutDate != null) {
+      // Calculer le nombre de nuits
+      final nights = checkOutDate!.difference(checkInDate!).inDays;
+      if (nights <= 0) {
+        // Gérer le cas où les dates sont invalides
+        depositAmount = 0.0;
+        return;
+      }
+
+      // Calculer le montant total
+      final totalAmount = selectedRoom!.price * nights;
+
+      // Calculer le montant de l'acompte
+      depositAmount = (totalAmount * selectedDepositPercentage / 100).roundToDouble();
+    } else {
+      // Initialiser à 0 si des données sont manquantes
+      depositAmount = 0.0;
+    }
+  }
+  //Etape 4
+  Widget _buildDepositStep() {
+    if (selectedRoom == null || checkInDate == null || checkOutDate == null) {
+      return const Center(
+        child: Text('Données insuffisantes pour calculer l\'acompte. Veuillez revenir aux étapes précédentes.'),
+      );
+    }
+
+    // Calculer le montant total si pas encore fait
+    if (depositAmount == null) {
+      calculateDepositAmounts();
+    }
+
+    // Calculer le nombre de nuits
+    final nights = checkOutDate!.difference(checkInDate!).inDays;
+    if (nights <= 0) {
+      return const Center(
+        child: Text('Dates de séjour invalides. Veuillez revenir à l\'étape des dates.'),
+      );
+    }
+
+    final totalAmount = selectedRoom!.price * nights;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Card(
+          elevation: 2,
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Récapitulatif de la réservation',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text('Chambre: ${selectedRoom!.number} - ${selectedRoom!.type}'),
+                    ),
+                    Text('${selectedRoom!.price.toStringAsFixed(2)} FCFA/Nuit'),
+                  ],
+                ),
+                Divider(),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text('Durée du séjour:'),
+                    ),
+                    Text('$nights nuit(s)'),
+                  ],
+                ),
+                Divider(),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text('Montant total:', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                    Text('${totalAmount.toStringAsFixed(2)} FCFA', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        SizedBox(height: 20),
+        Text(
+          'Sélectionner le pourcentage d\'acompte',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        SizedBox(height: 12),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [0,10, 20, 30, 40,50].map((percentage) {
+            return OutlinedButton(
+              onPressed: () {
+                setState(() {
+                  selectedDepositPercentage = percentage;
+                  depositAmount = (totalAmount * percentage / 100).roundToDouble();
+                });
+              },
+              style: OutlinedButton.styleFrom(
+                backgroundColor: selectedDepositPercentage == percentage
+                    ? Theme.of(context).primaryColor.withOpacity(0.1)
+                    : null,
+                side: BorderSide(
+                  color: selectedDepositPercentage == percentage
+                      ? Theme.of(context).primaryColor
+                      : Colors.grey,
+                  width: selectedDepositPercentage == percentage ? 2 : 1,
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
+                child: Text('$percentage%'),
+              ),
+            );
+          }).toList(),
+        ),
+        SizedBox(height: 20),
+        Card(
+          color: Colors.blue.shade50,
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Montant de l\'acompte:', style: TextStyle(fontSize: 16)),
+                    SizedBox(height: 4),
+                    Text(
+                      '${depositAmount?.toStringAsFixed(2) ?? "0.00"} FCFA',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).primaryColor,
+                      ),
+                    ),
+                  ],
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Restant à payer:', style: TextStyle(fontSize: 16)),
+                    SizedBox(height: 4),
+                    Text(
+                      '${(totalAmount - (depositAmount ?? 0)).toStringAsFixed(2)} FCFA',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        SizedBox(height: 16),
+        DropdownButtonFormField<String>(
+          decoration: InputDecoration(
+            labelText: 'Moyen de paiement',
+            border: OutlineInputBorder(),
+          ),
+          value: 'Espèces',
+          items: [
+            DropdownMenuItem(value: 'Espèces', child: Text('Espèces')),
+            DropdownMenuItem(value: 'Card', child: Text('Carte bancaire')),
+            DropdownMenuItem(value: 'Virement', child: Text('Virement')),
+            DropdownMenuItem(value: 'Mobile Money', child: Text('Mobile Money')),
+          ],
+          onChanged: (value) {
+            // Gérer le changement du moyen de paiement
+          },
+        ),
+      ],
+    );
+  }
   // Section de recherche de réservation
   Widget _buildSearchSection() {
     return Column(
@@ -1057,6 +1348,10 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
                       _infoRow('Prix/nuit', '${_foundReservation!.pricePerNight?.toStringAsFixed(2)} FCFA'),
                     if (_foundReservation!.totalPrice != null)
                       _infoRow('Total', '${_foundReservation!.totalPrice?.toStringAsFixed(2)} FCFA'),
+                    if (_foundReservation!.depositAmount != 0)
+                      _infoRow('Acompte', '${_foundReservation!.depositAmount?.toStringAsFixed(2)} FCFA'),
+                    if (_foundReservation!.depositAmount != 0)
+                      _infoRow('Reste à payer', '${(_foundReservation!.totalPrice! - _foundReservation!.depositAmount!).toStringAsFixed(2)} FCFA'),
                     if (_foundReservation!.specialRequests.isNotEmpty)
                       _infoRow('Demandes', _foundReservation!.specialRequests),
                     if (_foundReservation!.customerEmail.isNotEmpty)
@@ -1252,6 +1547,7 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
     final numberOfGuestsController = TextEditingController(text: reservation.numberOfGuests.toString());
     final specialRequestsController = TextEditingController(text: reservation.specialRequests ?? '');
     final pricePerNightController = TextEditingController(text: reservation.pricePerNight?.toString() ?? '0');
+    final depositPercentageController = TextEditingController(text: reservation.depositPercentage.toString());
 
     final settingsService = HotelSettingsService();
     final settings = await settingsService.getHotelSettings();
@@ -1298,6 +1594,9 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
           builder: (context, setState) {
             int numberOfNights = _checkOutDate.difference(_checkInDate).inDays + 1;
             double totalAmount = numberOfNights * (double.tryParse(pricePerNightController.text) ?? 0);
+            double depositPercentage = double.tryParse(depositPercentageController.text) ?? 0;
+            double depositAmount = (depositPercentage / 100) * totalAmount;
+            double balanceDue = totalAmount - depositAmount;
 
             Future<void> _selectCheckInDate(BuildContext context) async {
               final DateTime? picked = await showDatePicker(
@@ -1345,11 +1644,22 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
                     ],
                   ),
                   const SizedBox(height: 10),
-                  TextField(controller: customerNameController, decoration: const InputDecoration(labelText: 'Nom du client', border: OutlineInputBorder())),
+                  TextField(
+                      controller: customerNameController,
+                      decoration: const InputDecoration(labelText: 'Nom du client', border: OutlineInputBorder())
+                  ),
                   const SizedBox(height: 10),
-                  TextField(controller: customerPhoneController, decoration: const InputDecoration(labelText: 'Téléphone du client', border: OutlineInputBorder()), keyboardType: TextInputType.phone),
+                  TextField(
+                    controller: customerPhoneController,
+                    decoration: const InputDecoration(labelText: 'Téléphone du client', border: OutlineInputBorder()),
+                    keyboardType: TextInputType.phone,
+                  ),
                   const SizedBox(height: 10),
-                  TextField(controller: numberOfGuestsController, decoration: const InputDecoration(labelText: 'Nombre de personnes', border: OutlineInputBorder()), keyboardType: TextInputType.number),
+                  TextField(
+                    controller: numberOfGuestsController,
+                    decoration: const InputDecoration(labelText: 'Nombre de personnes', border: OutlineInputBorder()),
+                    keyboardType: TextInputType.number,
+                  ),
                   const SizedBox(height: 10),
                   InkWell(
                     onTap: () => _selectCheckInDate(context),
@@ -1383,37 +1693,58 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
                     controller: pricePerNightController,
                     decoration: const InputDecoration(labelText: 'Prix par nuit', border: OutlineInputBorder()),
                     keyboardType: TextInputType.number,
-                    onChanged: (value) {
-                      setState(() {
-                        // Recalculate totalAmount when price changes
-                      });
-                    },
+                    onChanged: (value) => setState(() {}),
+                  ),
+                  const SizedBox(height: 10),
+                  TextFormField(
+                    controller: depositPercentageController,
+                    decoration: const InputDecoration(
+                      labelText: 'Pourcentage d\'acompte (%)',
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.number,
+                    onChanged: (value) => setState(() {}),
                   ),
                   const SizedBox(height: 10),
                   Text('Nombre de nuits: $numberOfNights', style: const TextStyle(fontWeight: FontWeight.bold)),
-                  Text('Montant total: $totalAmount', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  Text('Montant total: ${totalAmount.toStringAsFixed(2)} FCFA', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  Text('Acompte: ${depositAmount.toStringAsFixed(2)} FCFA', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  Text('Solde dû: ${balanceDue.toStringAsFixed(2)} FCFA', style: const TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 10),
                   ElevatedButton(
                     onPressed: () async {
-                      final finalCheckInDate = DateTime(_checkInDate.year, _checkInDate.month, _checkInDate.day, checkInHour, checkInMinute);
-                      final finalCheckOutDate = DateTime(_checkOutDate.year, _checkOutDate.month, _checkOutDate.day, checkOutHour, checkOutMinute);
+                      final finalCheckInDate = DateTime(
+                          _checkInDate.year, _checkInDate.month, _checkInDate.day,
+                          checkInHour, checkInMinute
+                      );
+                      final finalCheckOutDate = DateTime(
+                          _checkOutDate.year, _checkOutDate.month, _checkOutDate.day,
+                          checkOutHour, checkOutMinute
+                      );
 
-                      bool isAvailable = await _isRoomAvailable(reservation.roomId, finalCheckInDate, finalCheckOutDate, reservation.id);
+                      bool isAvailable = await _isRoomAvailable(
+                          reservation.roomId,
+                          finalCheckInDate,
+                          finalCheckOutDate,
+                          reservation.id
+                      );
+
                       if (!isAvailable) {
                         if (context.mounted) {
                           showDialog(
                             context: context,
                             builder: (BuildContext context) {
                               return AlertDialog(
-                                title: const Text('Chambre non disponible'),
-                                content: const Text('Cette chambre est déjà réservée pour les dates sélectionnées. Veuillez choisir d’autres dates.'),
-                                actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
+                                  title: const Text('Chambre non disponible'),
+                                  content: Text('Cette chambre est déjà réservée pour les dates sélectionnées. Veuillez choisir d\'autres dates.'),
+                                  actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
                               );
                             },
                           );
                         }
                         return;
                       }
+
                       await FirebaseFirestore.instance.collection('reservations').doc(reservation.id).update({
                         'customerName': customerNameController.text,
                         'customerPhone': customerPhoneController.text,
@@ -1424,10 +1755,19 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
                         'pricePerNight': double.tryParse(pricePerNightController.text) ?? 0,
                         'numberOfNights': numberOfNights,
                         'totalPrice': totalAmount,
+                        'depositPercentage': depositPercentage,
+                        'depositAmount': depositAmount,
+                        'balanceDue': balanceDue,
                         'updatedAt': DateTime.now(),
                       });
+
                       if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Réservation mise à jour avec succès!'), backgroundColor: Colors.green));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Réservation mise à jour avec succès!'),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
                       }
                       Navigator.pop(context);
                       fetchReservations();
@@ -1590,6 +1930,8 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
         'numberOfNights': reservation.numberOfNights,
         'pricePerNight': reservation.pricePerNight,
         'totalPrice': reservation.totalPrice,
+        'depositPercentage': reservation.depositPercentage,
+        'depositAmount': reservation.depositAmount,
       };
 
       // Fermer le dialogue de chargement
@@ -1693,9 +2035,15 @@ class Reservation {
   late final String customerPhone;
   late final int numberOfGuests;
   late final String specialRequests;
-  final int? numberOfNights; // Add this field
-  final double? pricePerNight; // Add this field
-  final double? totalPrice; // Add this field
+  final int? numberOfNights;
+  final double? pricePerNight;
+  final double? totalPrice;
+
+  // Nouveaux champs pour l'acompte
+  final int? depositPercentage;
+  final double? depositAmount;
+  final String? paymentMethod;
+  final bool? depositPaid;
 
   Reservation({
     required this.id,
@@ -1714,5 +2062,18 @@ class Reservation {
     this.numberOfNights,
     this.pricePerNight,
     this.totalPrice,
+    // Nouveaux paramètres pour l'acompte
+    this.depositPercentage,
+    this.depositAmount,
+    this.paymentMethod,
+    this.depositPaid = false,
   });
+
+  // Calculer le montant restant à payer
+  double? get remainingAmount {
+    if (totalPrice != null && depositAmount != null) {
+      return totalPrice! - depositAmount!;
+    }
+    return null;
+  }
 }

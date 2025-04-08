@@ -106,7 +106,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     Text(
-                      ' v1.2.2',
+                      ' v1.2.3',
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.grey[400],

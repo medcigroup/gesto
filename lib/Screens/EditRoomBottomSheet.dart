@@ -23,6 +23,7 @@ class _EditRoomBottomSheetState extends State<EditRoomBottomSheet> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _numberController;
   late TextEditingController _priceController;
+  late TextEditingController _priceHourController;
   late TextEditingController _capacityController;
   late TextEditingController _floorController;
   late TextEditingController _imageController;
@@ -31,14 +32,21 @@ class _EditRoomBottomSheetState extends State<EditRoomBottomSheet> {
   String _selectedStatus = 'disponible';
   List<String> _selectedAmenities = [];
 
+  // Nouveau paramètre booléen pour le passage
+  bool _passage = false;
+
   bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
+
+    // Initialiser le passage avec la valeur existante ou false par défaut
+    _passage = widget.room.passage;
     // Initialiser les contrôleurs avec les valeurs existantes de la chambre
     _numberController = TextEditingController(text: widget.room.number);
     _priceController = TextEditingController(text: widget.room.price.toString());
+    _priceHourController = TextEditingController(text: widget.room.priceHour.toString());
     _capacityController = TextEditingController(text: widget.room.capacity.toString());
     _floorController = TextEditingController(text: widget.room.floor.toString());
     _imageController = TextEditingController(text: widget.room.image);
@@ -46,12 +54,15 @@ class _EditRoomBottomSheetState extends State<EditRoomBottomSheet> {
     _selectedType = widget.room.type;
     _selectedStatus = widget.room.status;
     _selectedAmenities = List<String>.from(widget.room.amenities);
+
+
   }
 
   @override
   void dispose() {
     _numberController.dispose();
     _priceController.dispose();
+    _priceHourController.dispose();
     _capacityController.dispose();
     _floorController.dispose();
     _imageController.dispose();
@@ -65,12 +76,14 @@ class _EditRoomBottomSheetState extends State<EditRoomBottomSheet> {
       });
 
       try {
-        // Mettre à jour la chambre dans Firestore
+        // Mettre à jour la chambre dans Firestore avec les nouveaux paramètres
         await FirebaseFirestore.instance.collection('rooms').doc(widget.room.id).update({
           'number': _numberController.text,
           'type': _selectedType,
           'status': _selectedStatus,
           'price': double.parse(_priceController.text),
+          'pricehour': int.parse(_priceHourController.text),
+          'passage': _passage,
           'capacity': int.parse(_capacityController.text),
           'floor': int.parse(_floorController.text),
           'amenities': _selectedAmenities,
@@ -211,11 +224,11 @@ class _EditRoomBottomSheetState extends State<EditRoomBottomSheet> {
               ),
               SizedBox(height: 16),
 
-              // Prix
+              // Prix par nuit
               TextFormField(
                 controller: _priceController,
                 decoration: InputDecoration(
-                  labelText: 'Prix par nuit (€)',
+                  labelText: 'Prix par nuit (FCFA)',
                   border: OutlineInputBorder(),
                 ),
                 keyboardType: TextInputType.number,
@@ -230,6 +243,41 @@ class _EditRoomBottomSheetState extends State<EditRoomBottomSheet> {
                 },
               ),
               SizedBox(height: 16),
+
+              // Option de passage
+              SwitchListTile(
+                title: Text('Disponible en passage'),
+                subtitle: Text('La chambre peut être réservé à l\'heure'),
+                value: _passage,
+                onChanged: (value) {
+                  setState(() {
+                    _passage = value;
+                  });
+                },
+                activeColor: Colors.green,
+              ),
+              SizedBox(height: 16),
+
+              // Prix par heure (seulement visible si passage est activé)
+              if (_passage)
+                TextFormField(
+                  controller: _priceHourController,
+                  decoration: InputDecoration(
+                    labelText: 'Prix par heure (FCFA)',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.number,
+                  validator: (value) {
+                    if (_passage && (value == null || value.isEmpty)) {
+                      return 'Veuillez entrer un prix par heure';
+                    }
+                    if (value != null && value.isNotEmpty && int.tryParse(value) == null) {
+                      return 'Veuillez entrer un nombre entier';
+                    }
+                    return null;
+                  },
+                ),
+              if (_passage) SizedBox(height: 16),
 
               // Capacité
               TextFormField(

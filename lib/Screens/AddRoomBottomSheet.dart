@@ -28,11 +28,13 @@ class _AddRoomBottomSheetState extends State<AddRoomBottomSheet> {
   final TextEditingController _capacityController = TextEditingController();
   final TextEditingController _floorController = TextEditingController();
   final TextEditingController _imageController = TextEditingController();
+  final TextEditingController _priceHourController = TextEditingController(); // Nouveau controller pour le prix horaire
 
   String _type = 'simple';
   String _status = 'disponible';
   List<String> _amenities = [];
   bool _isLoading = false;
+  bool _passage = false; // Nouveau paramètre pour le passage
 
   // Variables pour gérer l'image sur différentes plateformes
   File? _imageFile;
@@ -52,6 +54,7 @@ class _AddRoomBottomSheetState extends State<AddRoomBottomSheet> {
     _capacityController.dispose();
     _floorController.dispose();
     _imageController.dispose();
+    _priceHourController.dispose(); // Libérer le nouveau controller
     super.dispose();
   }
 
@@ -170,7 +173,10 @@ class _AddRoomBottomSheetState extends State<AddRoomBottomSheet> {
           image: imageName,
           imageUrl: imageUrl ?? '',
           description: '',
-          userId: userId, // Ajoutez l'ID de l'utilisateur
+          userId: userId,
+          passage: _passage, // Nouveau paramètre
+          priceHour: _passage ? int.parse(_priceHourController.text) : 0, // Nouveau paramètre
+
         );
 
         // Enregistrer dans Firestore
@@ -186,9 +192,11 @@ class _AddRoomBottomSheetState extends State<AddRoomBottomSheet> {
           'image': room.image,
           'imageUrl': room.imageUrl,
           'description': room.description,
-          'userId': room.userId, // Ajoutez l'ID de l'utilisateur ici aussi
+          'userId': room.userId,
           'createdAt': FieldValue.serverTimestamp(),
           'datedisponible': FieldValue.serverTimestamp(),
+          'passage': room.passage, // Nouveau champ
+          'pricehour': room.priceHour, // Nouveau champ
         });
 
         // Informer le parent qu'une chambre a été ajoutée
@@ -380,6 +388,42 @@ class _AddRoomBottomSheetState extends State<AddRoomBottomSheet> {
               },
             ),
             SizedBox(height: 15),
+
+            // Option passage
+            SwitchListTile(
+              title: Text('Autoriser le passage'),
+              subtitle: Text('Permettre la réservation de la chambre à l\'heure'),
+              value: _passage,
+              onChanged: (bool value) {
+                setState(() {
+                  _passage = value;
+                });
+              },
+              activeColor: Colors.green,
+            ),
+            SizedBox(height: 15),
+
+            // Prix horaire (visible uniquement si passage est activé)
+            if (_passage)
+              TextFormField(
+                controller: _priceHourController,
+                decoration: InputDecoration(
+                  labelText: 'Prix par heure (FCFA)',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(LucideIcons.clock),
+                ),
+                keyboardType: TextInputType.number,
+                validator: (value) {
+                  if (_passage && (value == null || value.isEmpty)) {
+                    return 'Veuillez entrer un prix horaire';
+                  }
+                  if (value != null && value.isNotEmpty && double.tryParse(value) == null) {
+                    return 'Veuillez entrer un nombre valide';
+                  }
+                  return null;
+                },
+              ),
+            if (_passage) SizedBox(height: 15),
 
             // Sélection d'image
             Row(

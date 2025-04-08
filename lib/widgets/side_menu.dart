@@ -182,9 +182,11 @@ class _SideMenuState extends State<SideMenu> {
 
           // Enregistrement
           _buildMenuItem(Icons.book_rounded, 'Enregistrement', AppRoutes.enregistrement, enabled: !_licenseExpired),
+          // Enregistrement passage
+          _buildMenuItem(Icons.bed, 'Passage', AppRoutes.hourlyCheckInPage, enabled: !_licenseExpired),
 
           // Départ
-          _buildMenuItem(Icons.library_add_check_outlined, 'Départ', AppRoutes.checkoutPage, enabled: !_licenseExpired),
+          _buildMenuItem(Icons.library_add_check_outlined, 'Départ', AppRoutes.occupiedrooms, enabled: !_licenseExpired),
 
           // Chambres
           _buildMenuItem(Icons.checkroom_outlined, 'Chambres', AppRoutes.roomsPage, enabled: !_licenseExpired),

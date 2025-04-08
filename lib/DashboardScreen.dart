@@ -1,20 +1,14 @@
-
-
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:gesto/widgets/side_menu.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/date_symbol_data_file.dart';
 import 'package:intl/intl.dart';
+import 'package:intl/date_symbol_data_local.dart'; // Ajout de l'import
 
 // Composants importés
-import '../components/dashboard/occupancy_chart.dart';
 import '../components/dashboard/revenue_chart.dart';
 import '../components/dashboard/recent_bookings.dart';
 import '../components/dashboard/tasks_list.dart';
-import 'Screens/RoomsPage.dart';
-import 'components/dashboard/StatCard.dart';
 import 'config/AuthService.dart';
 import 'config/UserModel.dart';
 import 'config/calculerOccupationChambres.dart';
@@ -33,16 +27,22 @@ class _DashboardState extends State<Dashboard> {
   final AuthService _authService = AuthService();
   bool _isLoading = true;
   double _tauxOccupationActuel = 0.0;
-  double _revenuJournalier = 0.0; // Ajout d'une variable pour stocker le revenu du jour
+  double _revenuJournalier = 0.0;
   bool _isLoadingStats = true;
+  int _selectedIndex = 0;
 
   @override
   void initState() {
     super.initState();
-    _loadUserData();
-    _loadStatistiques();
+    // Initialiser les données de localisation françaises
+    initializeDateFormatting('fr_FR', null).then((_) {
+      _loadUserData();
+      _loadStatistiques();
+    });
   }
+
   final User? user = FirebaseAuth.instance.currentUser;
+
   Future<void> _loadUserData() async {
     setState(() {
       _isLoading = true;
@@ -86,7 +86,6 @@ class _DashboardState extends State<Dashboard> {
     }
   }
 
-  // Nouvelle méthode pour calculer le revenu du jour
   Future<double> _calculerRevenuJour(DateTime jour) async {
     try {
       // Définir la plage horaire pour aujourd'hui
@@ -96,7 +95,7 @@ class _DashboardState extends State<Dashboard> {
       // Récupérer les transactions de type 'payment' pour aujourd'hui
       final snapshotTransactions = await FirebaseFirestore.instance
           .collection('transactions')
-          .where('customerId', isEqualTo: user?.uid) // Utiliser user.uid pour l'I
+          .where('customerId', isEqualTo: user?.uid)
           .where('date', isGreaterThanOrEqualTo: dateDebut)
           .where('date', isLessThanOrEqualTo: dateFin)
           .where('type', isEqualTo: 'payment')
@@ -121,7 +120,7 @@ class _DashboardState extends State<Dashboard> {
       // Récupérer le nombre total de chambres
       final snapshotChambres = await FirebaseFirestore.instance
           .collection('rooms')
-          .where('userId', isEqualTo: user?.uid) // Utiliser user.uid pour l'I
+          .where('userId', isEqualTo: user?.uid)
           .get();
 
       final nombreTotalChambres = snapshotChambres.docs.length;
@@ -136,7 +135,7 @@ class _DashboardState extends State<Dashboard> {
 
       final snapshotReservations = await FirebaseFirestore.instance
           .collection('bookings')
-          .where('userId', isEqualTo: user?.uid) // Utiliser user.uid pour l'I
+          .where('userId', isEqualTo: user?.uid)
           .where('checkInDate', isLessThanOrEqualTo: dateFin)
           .where('checkOutDate', isGreaterThanOrEqualTo: dateDebut)
           .get();
@@ -153,230 +152,656 @@ class _DashboardState extends State<Dashboard> {
 
   @override
   Widget build(BuildContext context) {
-    // Formater le revenu avec séparateur de milliers et devise FCFA
     final formattedRevenu = NumberFormat.currency(
       locale: 'fr_FR',
       symbol: '',
       decimalDigits: 0,
     ).format(_revenuJournalier);
 
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final primaryColor = const Color(0xFF3F51B5); // Indigo
+    final secondaryColor = const Color(0xFF03A9F4); // Light Blue
+    final accentColor = const Color(0xFFFF9800); // Orange
+    final successColor = const Color(0xFF4CAF50); // Green
+    final warningColor = const Color(0xFFFFEB3B); // Yellow
+    final dangerColor = const Color(0xFFF44336); // Red
+
+    // Format de date avec gestion des erreurs
+    String formattedDate;
+    try {
+      formattedDate = DateFormat('EEEE d MMMM yyyy', 'fr_FR').format(DateTime.now());
+    } catch (e) {
+      formattedDate = DateTime.now().toString().substring(0, 10); // Fallback au format simple
+    }
+
     return Scaffold(
+      backgroundColor: isDark ? const Color(0xFF121212) : const Color(0xFFF5F7FA),
       appBar: AppBar(
+        elevation: 0,
+        backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
         title: Row(
           children: [
-            const Text('Tableau de bord'),
-            const SizedBox(width: 8),
-            Text(
-              'v1.2.2',
+            const Text(
+              'Gesto',
               style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[400],
+                fontWeight: FontWeight.bold,
+                fontSize: 22,
+              ),
+            ),
+            Container(
+              margin: const EdgeInsets.only(left: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: primaryColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                'v1.2.3',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: primaryColor,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
           ],
         ),
         actions: <Widget>[
           IconButton(
-            icon: const Icon(Icons.notifications),
+            icon: Badge(
+              label: Text('3'),
+              child: Icon(Icons.notifications_outlined, color: isDark ? Colors.white70 : Colors.black54),
+            ),
             onPressed: () {
               // Actions pour les notifications
             },
           ),
           IconButton(
-            icon: const Icon(Icons.message),
+            icon: Badge(
+              label: Text('5'),
+              child: Icon(Icons.message_outlined, color: isDark ? Colors.white70 : Colors.black54),
+            ),
             onPressed: () {
               // Actions pour les messages
             },
           ),
           IconButton(
-            icon: Icon(_isDarkMode ? Icons.light_mode : Icons.dark_mode),
+            icon: Icon(
+              _isDarkMode ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+              color: isDark ? Colors.white70 : Colors.black54,
+            ),
             onPressed: () {
               setState(() {
                 _isDarkMode = !_isDarkMode;
               });
             },
           ),
+          const SizedBox(width: 8),
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: CircleAvatar(
+              radius: 16,
+              backgroundColor: primaryColor,
+              child: Text(
+                _userModel?.fullName?.substring(0, 1).toUpperCase() ?? 'U',
+                style: const TextStyle(color: Colors.white),
+              ),
+            ),
+          ),
         ],
       ),
       drawer: const SideMenu(),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: MediaQuery.of(context).size.width > 1200
-                  ? 4
-                  : (MediaQuery.of(context).size.width > 800 ? 2 : 1),
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-              childAspectRatio: 3 / 2,
-              children: [
-                StatCard(
-                  title: "Taux d'occupation",
-                  value: _isLoadingStats
-                      ? "Chargement..."
-                      : "${_tauxOccupationActuel.toStringAsFixed(1)}%",
-                  icon: Icons.bed,
-                  change: {"value": 12, "isPositive": true},
-                  color: const Color(0xFF000080),
-                ),
-                StatCard(
-                  title: "Commandes du restaurant",
-                  value: "42",
-                  icon: Icons.restaurant,
-                  change: {"value": 8, "isPositive": true},
-                  color: const Color(0xFFFFD700),
-                ),
-                StatCard(
-                  title: "Nouveaux clients",
-                  value: "18",
-                  icon: Icons.people,
-                  change: {"value": 5, "isPositive": true},
-                  color: Colors.green,
-                ),
-                StatCard(
-                  title: "Revenus du jour",
-                  value: _isLoadingStats
-                      ? "Chargement..."
-                      : "$formattedRevenu FCFA",
-                  icon: Icons.attach_money,
-                  change: {"value": 15, "isPositive": true},
-                  color: const Color(0xFF000080),
+          ? Center(
+        child: CircularProgressIndicator(
+          color: primaryColor,
+        ),
+      )
+          : Row(
+        children: [
+          // Navigation latérale (pour les écrans larges)
+          if (MediaQuery.of(context).size.width > 1200)
+            NavigationRail(
+              selectedIndex: _selectedIndex,
+              onDestinationSelected: (int index) {
+                setState(() {
+                  _selectedIndex = index;
+                });
+              },
+              labelType: NavigationRailLabelType.all,
+              backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+              selectedLabelTextStyle: TextStyle(
+                color: primaryColor,
+                fontWeight: FontWeight.bold,
+              ),
+              unselectedLabelTextStyle: TextStyle(
+                color: isDark ? Colors.white60 : Colors.black54,
+              ),
+              selectedIconTheme: IconThemeData(
+                color: primaryColor,
+              ),
+              unselectedIconTheme: IconThemeData(
+                color: isDark ? Colors.white60 : Colors.black54,
+              ),
+              destinations: const [
+                NavigationRailDestination(
+                  icon: Icon(Icons.dashboard_outlined),
+                  selectedIcon: Icon(Icons.dashboard),
+                  label: Text(''),
                 ),
               ],
             ),
-            const SizedBox(height: 24),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                return constraints.maxWidth > 800
-                    ? Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                        child: OccupancyChartAvecDonnees()
+          Expanded(
+            child: CustomScrollView(
+              slivers: [
+                SliverAppBar(
+                  automaticallyImplyLeading: false,
+                  backgroundColor: isDark ? const Color(0xFF121212) : const Color(0xFFF5F7FA),
+                  pinned: false,
+                  floating: true,
+                  elevation: 0,
+                  expandedHeight: 120,
+                  flexibleSpace: FlexibleSpaceBar(
+                    background: Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Bonjour, ${_userModel?.fullName ?? "Utilisateur"}',
+                                    style: TextStyle(
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.bold,
+                                      color: isDark ? Colors.white : Colors.black87,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    formattedDate,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: isDark ? Colors.white60 : Colors.black54,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.start,
+                                children: [
+                              OutlinedButton.icon(
+                                icon: Icon(Icons.add, size: 18, color: primaryColor),
+                                label: Text(
+                                  'Nouvelle réservation',
+                                  style: TextStyle(color: primaryColor),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  side: BorderSide(color: primaryColor),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                ),
+                                onPressed: () {
+                                  Navigator.pushNamed(context, AppRoutes.reservationPage);
+                                },
+                              ),
+                              const SizedBox(width: 5),
+                              OutlinedButton.icon(
+                                icon: Icon(Icons.add, size: 18, color: primaryColor),
+                                label: Text(
+                                  'Nouvel enregistrement',
+                                  style: TextStyle(color: primaryColor),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  side: BorderSide(color: primaryColor),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                ),
+                                onPressed: () {
+                                  Navigator.pushNamed(context, AppRoutes.enregistrement);
+                                },
+                              ),
+                                  ])
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(child: RevenueChart()),
-                  ],
-                )
-                    : Column(
-                  children: [
-                    OccupancyChartAvecDonnees(),
-                    const SizedBox(height: 16),
-                    RevenueChart(),
-                  ],
-                );
-              },
-            ),
-            const SizedBox(height: 24),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                return constraints.maxWidth > 800
-                    ? Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(child: RecentBookings()),
-                    const SizedBox(width: 16),
-                    Expanded(child: TasksList()),
-                  ],
-                )
-                    : Column(
-                  children: [
-                    RecentBookings(),
-                    const SizedBox(height: 16),
-                    TasksList(),
-                  ],
-                );
-              },
-            ),
-            const SizedBox(height: 24),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? Colors.grey[800]
-                    : Colors.white,
-                borderRadius: BorderRadius.circular(8),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
                   ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Actions rapides",
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: Theme.of(context).brightness == Brightness.dark
-                          ? Colors.white
-                          : Colors.grey[800],
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.all(24),
+                  sliver: SliverToBoxAdapter(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Cards de statistiques
+                        SizedBox(
+                          height: 160,
+                          child: ListView(
+                            scrollDirection: Axis.horizontal,
+                            children: [
+                              _buildStatCard(
+                                icon: Icons.bed,
+                                iconColor: primaryColor,
+                                title: "Taux d'occupation",
+                                value: _isLoadingStats
+                                    ? "Chargement..."
+                                    : "${_tauxOccupationActuel.toStringAsFixed(1)}%",
+                                change: "+12%",
+                                changePositive: true,
+                                color: isDark ? const Color(0xFF263238) : Colors.white,
+                                width: 240,
+                              ),
+                              const SizedBox(width: 16),
+                              _buildStatCard(
+                                icon: Icons.payments_outlined,
+                                iconColor: secondaryColor,
+                                title: "Revenus du jour",
+                                value: _isLoadingStats
+                                    ? "Chargement..."
+                                    : "$formattedRevenu FCFA",
+                                change: "+15%",
+                                changePositive: true,
+                                color: isDark ? const Color(0xFF263238) : Colors.white,
+                                width: 240,
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 32),
+                        Text(
+                          'Performance',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        // Graphiques
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            return constraints.maxWidth > 800
+                                ? Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: _buildCard(
+                                    child: OccupancyChartAvecDonnees(),
+                                    title: "Taux d'occupation",
+                                    actions: [
+                                      _buildDropdownFilter(),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: _buildCard(
+                                    child: RevenueChart(),
+                                    title: "Revenus",
+                                    actions: [
+                                      _buildDropdownFilter(),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            )
+                                : Column(
+                              children: [
+                                _buildCard(
+                                  child: OccupancyChartAvecDonnees(),
+                                  title: "Taux d'occupation",
+                                  actions: [
+                                    _buildDropdownFilter(),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                                _buildCard(
+                                  child: RevenueChart(),
+                                  title: "Revenus",
+                                  actions: [
+                                    _buildDropdownFilter(),
+                                  ],
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+
+                        const SizedBox(height: 32),
+                        Text(
+                          'Activités',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        // Activités récentes
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            return constraints.maxWidth > 800
+                                ? Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: _buildCard(
+                                    child: RecentBookings(),
+                                    title: "Réservations récentes",
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () {},
+                                        child: Text(
+                                          'Voir tout',
+                                          style: TextStyle(color: primaryColor),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: _buildCard(
+                                    child: TasksList(),
+                                    title: "Tâches",
+                                    actions: [
+                                      IconButton(
+                                        icon: Icon(Icons.add, color: primaryColor),
+                                        onPressed: () {},
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            )
+                                : Column(
+                              children: [
+                                _buildCard(
+                                  child: RecentBookings(),
+                                  title: "Réservations récentes",
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () {},
+                                      child: Text(
+                                        'Voir tout',
+                                        style: TextStyle(color: primaryColor),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                                _buildCard(
+                                  child: TasksList(),
+                                  title: "Tâches",
+                                  actions: [
+                                    IconButton(
+                                      icon: Icon(Icons.add, color: primaryColor),
+                                      onPressed: () {},
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+
+                        const SizedBox(height: 32),
+                        _buildCard(
+                          title: "Actions rapides",
+                          child: GridView.count(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            crossAxisCount: MediaQuery.of(context).size.width > 600 ? 4 : 2,
+                            crossAxisSpacing: 16,
+                            mainAxisSpacing: 16,
+                            childAspectRatio: 1.2,
+                            children: [
+                              _buildActionButton(
+                                context: context,
+                                icon: Icons.bed,
+                                label: "Nouvelle réservation",
+                                color: primaryColor,
+                                onTap: () {
+                                  Navigator.pushNamed(context, AppRoutes.reservationPage);
+                                },
+                              ),
+                              _buildActionButton(
+                                context: context,
+                                icon: Icons.login,
+                                label: "Enregistrement",
+                                color: successColor,
+                                onTap: () {
+                                  Navigator.pushNamed(context, AppRoutes.enregistrement);
+                                },
+                              ),
+                              _buildActionButton(
+                                context: context,
+                                icon: Icons.logout,
+                                label: "Départ",
+                                color: dangerColor,
+                                onTap: () {
+                                  Navigator.pushNamed(context, AppRoutes.occupiedrooms);
+                                },
+                              ),
+                              _buildActionButton(
+                                context: context,
+                                icon: Icons.assignment_outlined,
+                                label: "Nouvelle tâche",
+                                color: secondaryColor,
+                                onTap: () {
+                                  Navigator.pushNamed(context, AppRoutes.comingSoonPage);
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  GridView.count(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    crossAxisCount: MediaQuery.of(context).size.width > 600
-                        ? 4
-                        : 2,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
-                    childAspectRatio: 1,
-                    children: [
-                      _buildActionButton(
-                          context: context,
-                          icon: Icons.bed,
-                          label: "Nouvelle réservation",
-                          color: const Color(0xFF000080),
-                          onTap: () {
-                            Navigator.pushNamed(context, AppRoutes.reservationPage);
-                          }
-                      ),
-                      _buildActionButton(
-                          context: context,
-                          icon: Icons.event_available,
-                          label: "Enregistrement",
-                          color: Colors.green,
-                          onTap: () {
-                            Navigator.pushNamed(context, AppRoutes.enregistrement);
-                          }
-                      ),
-                      _buildActionButton(
-                          context: context,
-                          icon: Icons.library_add_check_outlined,
-                          label: "Départ",
-                          color: Colors.red,
-                          onTap: () {
-                            Navigator.pushNamed(context, AppRoutes.checkoutPage);
-                          }
-                      ),
-                      _buildActionButton(
-                          context: context,
-                          icon: Icons.assignment_turned_in,
-                          label: "Nouvelle tâche",
-                          color: const Color(0xFF000080),
-                          onTap: () {
-                            Navigator.pushNamed(context, AppRoutes.reservationPage);
-                          }
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+                )
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
+      ),
+      // Bottom navigation pour les écrans mobiles
+      bottomNavigationBar: MediaQuery.of(context).size.width <= 1200
+          ? NavigationBar(
+        onDestinationSelected: (int index) {
+          setState(() {
+            _selectedIndex = index;
+          });
+        },
+        selectedIndex: _selectedIndex,
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.dashboard_outlined),
+            selectedIcon: Icon(Icons.dashboard),
+            label: '',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.dashboard_outlined),
+            selectedIcon: Icon(Icons.dashboard),
+            label: '',
+          ),
+        ],
+      )
+          : null,
+    );
+  }
+
+  Widget _buildDropdownFilter() {
+    return DropdownButton<String>(
+      value: 'mois',
+      underline: Container(),
+      icon: const Icon(Icons.keyboard_arrow_down),
+      items: <String>['jour', 'semaine', 'mois', 'année']
+          .map<DropdownMenuItem<String>>((String value) {
+        return DropdownMenuItem<String>(
+          value: value,
+          child: Text(
+            value.substring(0, 1).toUpperCase() + value.substring(1),
+            style: TextStyle(fontSize: 14),
+          ),
+        );
+      }).toList(),
+      onChanged: (String? newValue) {},
+    );
+  }
+
+  Widget _buildCard({
+    required Widget child,
+    required String title,
+    List<Widget>? actions,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF263238) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                ),
+                if (actions != null)
+                  Row(
+                    children: actions,
+                  ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: child,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatCard({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String value,
+    required String change,
+    required bool changePositive,
+    required Color color,
+    required double width,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      width: width,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: iconColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: iconColor, size: 24),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: changePositive
+                      ? Colors.green.withOpacity(0.1)
+                      : Colors.red.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      changePositive
+                          ? Icons.arrow_upward
+                          : Icons.arrow_downward,
+                      color: changePositive ? Colors.green : Colors.red,
+                      size: 12,
+                    ),
+                    const SizedBox(width: 2),
+                    Text(
+                      change,
+                      style: TextStyle(
+                        color: changePositive ? Colors.green : Colors.red,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: isDark ? Colors.white : Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 14,
+              color: isDark ? Colors.white60 : Colors.black54,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -388,30 +813,35 @@ class _DashboardState extends State<Dashboard> {
     required Color color,
     required VoidCallback onTap,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Material(
-      color: Theme.of(context).brightness == Brightness.dark
-          ? Colors.grey[700]
-          : Colors.grey[50],
-      borderRadius: BorderRadius.circular(8),
+      color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+      borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         child: Container(
           padding: const EdgeInsets.all(16),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, color: color, size: 24),
-              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: color, size: 24),
+              ),
+              const SizedBox(height: 12),
               Text(
                 label,
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
-                  color: Theme.of(context).brightness == Brightness.dark
-                      ? Colors.grey[300]
-                      : Colors.grey[700],
+                  color: isDark ? Colors.white70 : Colors.black87,
                 ),
               ),
             ],
@@ -421,5 +851,3 @@ class _DashboardState extends State<Dashboard> {
     );
   }
 }
-
-

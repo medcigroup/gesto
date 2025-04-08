@@ -10,6 +10,8 @@ import '../Screens/ChoosePlanUpgrade.dart';
 import '../Screens/ComingSoonPage.dart';
 import '../Screens/FinancePage.dart';
 import '../Screens/GestionPersonnelPage.dart';
+import '../Screens/HourlyCheckInPage.dart';
+import '../Screens/OccupiedRoomsPage.dart';
 import '../Screens/PaymentPage.dart';
 
 import '../Screens/RoomsPage.dart';
@@ -48,12 +50,16 @@ class AppRoutes {
   static const String contactpage = '/contactpage';
   static const String comingSoonPage = '/comingSoonPage';
   static const String paiement = '/paiement';
+  static const String occupiedrooms = '/occupiedrooms';
+  static const String hourlyCheckInPage = '/hourlyCheckInPage';
 
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
     switch (settings.name) {
       case home:
         return MaterialPageRoute(builder: (_) => GestoLandingPage());
+      case hourlyCheckInPage:
+        return MaterialPageRoute(builder: (_) => HourlyCheckInPage());
       case comingSoonPage:
         return MaterialPageRoute(builder: (_) => ComingSoonPage());
       case settingspage:
@@ -78,6 +84,8 @@ class AppRoutes {
         return MaterialPageRoute(builder: (_) => RenewLicencePage());
       case checkoutPage:
         return MaterialPageRoute(builder: (_) => CheckoutPage());
+      case occupiedrooms:
+        return MaterialPageRoute(builder: (_) => OccupiedRoomsPage());
       case thankYou:
         return MaterialPageRoute(builder: (_) => ThankYouScreen());
       case choosePlan:

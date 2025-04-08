@@ -13,7 +13,9 @@ class Room {
   final String imageUrl;
   final String description;
   final String datedisponible;
-  final String userId;  // Ajout du champ userId
+  final String userId;
+  final bool passage;
+  final int priceHour;
 
   Room({
     required this.id,
@@ -28,7 +30,9 @@ class Room {
     this.imageUrl = '',
     this.description = '',
     this.datedisponible = '',
-    required this.userId,  // Assurez-vous d'inclure userId dans le constructeur
+    required this.userId,
+    this.passage = false,
+    this.priceHour = 0,
   });
 
   // Méthode factory pour créer une Room depuis Firestore
@@ -46,7 +50,9 @@ class Room {
       imageUrl: data['imageUrl'] ?? '',
       description: data['description'] ?? '',
       datedisponible: data['datedisponible'] ?? '',
-      userId: data['userId'] ?? '',  // Assurez-vous que userId est récupéré depuis Firestore
+      userId: data['userId'] ?? '',
+      passage: data['passage'] ?? false,
+      priceHour: data['pricehour'] ?? 0,  // Utilisation de 'pricehour' en minuscules
     );
   }
 
@@ -65,7 +71,9 @@ class Room {
       'imageUrl': imageUrl,
       'description': description,
       'datedisponible': datedisponible,
-      'userId': userId,  // Assurez-vous que userId est inclus dans les données Firestore
+      'userId': userId,
+      'passage': passage,
+      'pricehour': priceHour,  // Utilisation de 'pricehour' en minuscules
     };
   }
 }

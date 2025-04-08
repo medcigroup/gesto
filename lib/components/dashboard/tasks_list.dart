@@ -222,21 +222,6 @@ class _TasksListState extends State<TasksList> {
               );
             },
           ),
-          const SizedBox(height: 16),
-          Center(
-            child: ElevatedButton(
-              onPressed: () {},
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF000080), // navy
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              child: const Text("Ajouter une tâche"),
-            ),
-          ),
         ],
       ),
     );

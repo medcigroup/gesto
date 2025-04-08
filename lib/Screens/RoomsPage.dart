@@ -93,6 +93,8 @@ class _RoomsPageState extends State<RoomsPage> {
           imageUrl: '',
           description: '',
           userId: '',
+          passage: data['passage'] ?? false,
+          priceHour: data['pricehour'] ?? 0,
         );
       }).toList();
 

@@ -143,10 +143,17 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
         .where('status', whereIn: ['réservée','enregistré'])
         .get();
 
-    // Attendre les deux requêtes
-    final results = await Future.wait([reservationsFuture, bookingsFuture]);
+    final bookingsHOURFuture = FirebaseFirestore.instance
+        .collection('bookingshours')
+        .where('roomId', isEqualTo: roomId)
+        .where('status', whereIn: ['réservée','hourly'])
+        .get();
+
+    // Attendre les trois requêtes
+    final results = await Future.wait([reservationsFuture, bookingsFuture,bookingsHOURFuture]);
     final reservationsSnapshot = results[0];
     final bookingsSnapshot = results[1];
+    final bookingshoursSnapshot = results[2];
 
     // Fonction pour vérifier les chevauchements dans une liste de documents
     bool hasOverlap(List<QueryDocumentSnapshot> docs) {
@@ -156,7 +163,7 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
         DateTime resCheckOut = (data['checkOutDate'] as Timestamp).toDate();
 
         // Vérification de chevauchement
-        bool overlap = !(checkOut.isBefore(resCheckIn.subtract(const Duration(days: 0))) || checkIn.isAfter(resCheckOut.subtract(const Duration(days: 1))));
+        bool overlap = !(checkOut.isBefore(resCheckIn.subtract(const Duration(days: 0))) || checkIn.isAfter(resCheckOut.subtract(const Duration(days: 0))));
 
         if (overlap) {
           return true; // Il y a chevauchement
@@ -166,7 +173,7 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
     }
 
     // Vérifier les chevauchements dans les deux collections
-    if (hasOverlap(reservationsSnapshot.docs) || hasOverlap(bookingsSnapshot.docs)) {
+    if (hasOverlap(reservationsSnapshot.docs) || hasOverlap(bookingsSnapshot.docs) || hasOverlap(bookingshoursSnapshot.docs)) {
       return false; // La chambre n'est pas disponible
     }
 

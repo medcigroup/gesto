@@ -198,7 +198,7 @@ class _DashboardState extends State<Dashboard> {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
-                'v1.2.3',
+                'v1.2.4',
                 style: TextStyle(
                   fontSize: 12,
                   color: primaryColor,

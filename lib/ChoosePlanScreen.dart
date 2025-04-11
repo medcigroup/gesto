@@ -210,38 +210,7 @@ class _ChoosePlanScreenState extends State<ChoosePlanScreen> {
         planId: PlanId.basic,
         isRecommended: false,
       ),
-      Plan(
-        title: 'Starter',
-        price: '20000 FCFA',
-        duration: '/mois',
-        features: [
-          'Module de réservation',
-          '20 chambres max',
-          'Gestion resto',
-          '10 tables resto',
-          'Support prioritaire',
-          'Rapports quotidiens'
-        ],
-        planId: PlanId.starter,
-        isRecommended: true,
-      ),
-      Plan(
-        title: 'Pro',
-        price: '50000 FCFA',
-        duration: '/mois',
-        features: [
-          'Module de réservation',
-          'Chambres illimitées',
-          'Gestion resto',
-          'Tables resto illimitées',
-          'Support 24/7',
-          'Analyses temps réel',
-          'Marketing tools',
-          'Formation incluse'
-        ],
-        planId: PlanId.pro,
-        isRecommended: false,
-      ),
+
     ];
 
     return Scaffold(

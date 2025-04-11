@@ -432,7 +432,7 @@ class _RenewLicencePageState extends State<RenewLicencePage> {
                                         TextButton(
                                           onPressed: () {
                                             Navigator.pop(context);
-                                            _renewLicence(); // Appeler la méthode de renouvellement
+                                            //_renewLicence(); // Appeler la méthode de renouvellement
                                           },
                                           child: Text('Renouveler ma licence'),
                                           style: TextButton.styleFrom(
@@ -482,7 +482,7 @@ class _RenewLicencePageState extends State<RenewLicencePage> {
                           // Option 1: Naviguer vers la page de choix de plan et attendre le résultat
                           final result = await Navigator.pushNamed(
                             context,
-                            AppRoutes.chooseplanUpgrade,
+                            AppRoutes.comingSoonPage,
                             arguments: _userModel?.plan, // Passer le plan actuel pour référence
                           );
 

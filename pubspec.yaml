@@ -92,6 +92,7 @@ dependencies:
 
     # Pour accéder au système de fichiers (si vous souhaitez sauvegarder les PDFs)
   path_provider: ^2.1.5
+  cloud_functions: ^5.4.0
 
 
 

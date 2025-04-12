@@ -47,7 +47,7 @@ class _AuthCheckerState extends State<AuthChecker> {
         Future.microtask(() {
           if (user != null) {
             // Redirige vers le dashboard si connecté
-            Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
+            Navigator.pushReplacementNamed(context, AppRoutes.choosePlan);
           } else {
             // Redirige vers la page d'accueil si non connecté
             Navigator.pushReplacementNamed(context, AppRoutes.home);

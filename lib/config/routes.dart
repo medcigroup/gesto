@@ -3,6 +3,7 @@ import '../ChoosePlanScreen.dart';
 import '../DashboardScreen.dart';
 import '../GestoLandingPage.dart';
 import '../GestoPricingPage.dart';
+import '../PaiementPlan.dart';
 import '../Screens/ActivateLicencePage.dart';
 import '../Screens/CheckInPage.dart';
 import '../Screens/CheckoutPage.dart';
@@ -89,7 +90,7 @@ class AppRoutes {
       case thankYou:
         return MaterialPageRoute(builder: (_) => ThankYouScreen());
       case choosePlan:
-        return MaterialPageRoute(builder: (_) => ChoosePlanScreen());
+        return MaterialPageRoute(builder: (_) => paiementplan());
       case login:
         return MaterialPageRoute(builder: (_) => const LoginScreen());
       case register:

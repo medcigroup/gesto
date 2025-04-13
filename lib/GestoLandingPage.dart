@@ -64,7 +64,7 @@ class _GestoLandingPageState extends State<GestoLandingPage> {
             controller: _scrollController,
             physics: BouncingScrollPhysics(),
             slivers: [
-              _buildHeaderSliver(context, headlineFont, bodyFont, primaryColor, secondaryColor),
+              buildHeaderSliver(context, headlineFont, bodyFont, primaryColor, secondaryColor),
               _buildHeroSectionSliver(context, headlineFont, bodyFont, primaryColor),
               _buildFeaturesSectionSliver(headlineFont, bodyFont, primaryColor, secondaryColor, accentColor),
               _buildTestimonialsSliver(headlineFont, bodyFont, primaryColor),
@@ -129,7 +129,7 @@ class _GestoLandingPageState extends State<GestoLandingPage> {
   }
 
   // Modification de la signature de la méthode pour accepter BuildContext en premier paramètre
-  SliverToBoxAdapter _buildHeaderSliver(BuildContext context, TextStyle headlineFont, TextStyle bodyFont, Color primaryColor, Color secondaryColor) {
+  SliverToBoxAdapter buildHeaderSliver(BuildContext context, TextStyle headlineFont, TextStyle bodyFont, Color primaryColor, Color secondaryColor) {
     return SliverToBoxAdapter(
       child: Container(
         height: 700,
@@ -159,15 +159,16 @@ class _GestoLandingPageState extends State<GestoLandingPage> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.hotel_rounded, size: 60, color: Colors.white),
-                        SizedBox(width: 15),
-                        Text('Gesto',
-                          style: headlineFont.copyWith(fontSize: 64, color: Colors.white),
+                        Image.asset(
+                          'assets/images/gesto_logo.png',
+                          width: 250,
+                          height: 250,
                         ),
+                        // Le SizedBox et le Text ont été supprimés ici
                       ],
                     ),
                   ),
-                  SizedBox(height: 30),
+                  SizedBox(height: 10),
                   FadeInUp(
                     delay: Duration(milliseconds: 200),
                     child: Container(
@@ -191,7 +192,6 @@ class _GestoLandingPageState extends State<GestoLandingPage> {
                           borderRadius: BorderRadius.circular(50),
                         ),
                       ),
-                      // Correction ici - utilisation du BuildContext passé en paramètre
                       onPressed: () => Navigator.pushNamed(context, AppRoutes.register),
                       child: Text('Commencer votre essai gratuit',
                           style: bodyFont.copyWith(
@@ -672,17 +672,19 @@ class _GestoLandingPageState extends State<GestoLandingPage> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Icon(Icons.hotel_rounded, color: Colors.white, size: 24),
-                        SizedBox(width: 10),
-                        Text('Gesto',
-                            style: GoogleFonts.poppins(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white)),
-                      ],
-                    ),
+                          ElasticIn(
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Image.asset(
+                                  'assets/images/gesto_logo.png',
+                                  width: 100,
+                                  height: 100,
+                                ),
+                                // Le SizedBox et le Text ont été supprimés ici
+                              ],
+                            ),
+                          ),
                     SizedBox(height: 15),
                     Container(
                       width: 300,

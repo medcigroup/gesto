@@ -1,3 +1,4 @@
+import 'package:animate_do/animate_do.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // Ajouter cette importation
 import '../../../../../config/routes.dart';
@@ -90,12 +91,20 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(
-                      Icons.home_work,
-                      size: 120,
-                      color: GestoTheme.gold,
+                    ElasticIn(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Image.asset(
+                            'assets/images/gesto_logo2.png',
+                            width: 250,
+                            height: 250,
+                          ),
+                          // Le SizedBox et le Text ont été supprimés ici
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 2),
                   Row(mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(

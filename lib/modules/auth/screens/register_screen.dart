@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:ui';
+import 'package:animate_do/animate_do.dart';
 import 'package:flutter/animation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -555,18 +556,37 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(
-                          Icons.home_work,
-                          size: 120,
-                          color: GestoTheme.gold,
-                        ),
-                        const SizedBox(height: 24),
-                        Text(
-                          'GESTO',
-                          style: theme.textTheme.displaySmall?.copyWith(
-                            color: GestoTheme.white,
-                            fontWeight: FontWeight.bold,
+                        ElasticIn(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Image.asset(
+                                'assets/images/gesto_logo2.png',
+                                width: 250,
+                                height: 250,
+                              ),
+                              // Le SizedBox et le Text ont été supprimés ici
+                            ],
                           ),
+                        ),
+                        const SizedBox(height: 2),
+                        Row(mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                'GESTO',
+                                style: theme.textTheme.displaySmall?.copyWith(
+                                  color: GestoTheme.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                ' v1.2.5',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[400],
+                                ),
+                              ),
+                            ]
                         ),
                         const SizedBox(height: 16),
                         Padding(

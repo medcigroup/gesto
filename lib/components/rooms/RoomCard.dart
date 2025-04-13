@@ -1,17 +1,31 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../config/room_models.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 
 class RoomCard extends StatelessWidget {
   final Room room;
   final Function(String) onEdit;
   final Function(String) onDelete;
 
+  // Transparent placeholder image bytes
+  static final Uint8List kTransparentImage = Uint8List.fromList([
+    0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49,
+    0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06,
+    0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, 0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44,
+    0x41, 0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00, 0x05, 0x00, 0x01, 0x0D,
+    0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42,
+    0x60, 0x82,
+  ]);
+
   RoomCard({
+    Key? key,
     required this.room,
     required this.onEdit,
     required this.onDelete,
-  });
+  }) : super(key: key);
 
   Color _getStatusColor(String status) {
     switch (status) {
@@ -80,11 +94,109 @@ class RoomCard extends StatelessWidget {
             color: Colors.blue[800],
           ),
         ),
-        padding: EdgeInsets.symmetric(horizontal: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 4),
         visualDensity: VisualDensity.compact,
         backgroundColor: Colors.blue.withOpacity(0.1),
       );
     }).toList();
+  }
+
+  // Widget for the default/error image
+  Widget _buildPlaceholderImage({bool isError = false}) {
+    return Container(
+      height: 180,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.grey[200],
+        borderRadius: BorderRadius.circular(8.0),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            isError ? LucideIcons.triangleAlert : LucideIcons.image,
+            size: 40,
+            color: isError ? Colors.orange[400] : Colors.grey[400],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            isError ? 'Impossible de charger l\'image' : 'Image non disponible',
+            style: TextStyle(color: Colors.grey[700]),
+            textAlign: TextAlign.center,
+          ),
+          if (isError && kDebugMode)
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Text(
+                'Vérifiez l\'URL et les paramètres',
+                style: TextStyle(color: Colors.grey[600], fontSize: 12),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // Méthode pour corriger les URL Firebase si nécessaire
+  String _sanitizeFirebaseUrl(String url) {
+    if (url.isEmpty) return url;
+
+    // Si l'URL ne contient pas encore ces paramètres, les ajouter
+    if (!url.contains('alt=media')) {
+      final separator = url.contains('?') ? '&' : '?';
+      return '$url${separator}alt=media';
+    }
+    return url;
+  }
+
+  Widget _buildRoomImage() {
+    if (room.imageUrl.isEmpty) {
+      print('Aucune URL d\'image pour la chambre ${room.number}');
+      return _buildPlaceholderImage();
+    }
+
+    // Ajout d'un timestamp pour éviter les problèmes de cache
+    final String imageUrl = _sanitizeFirebaseUrl(room.imageUrl);
+    final String imageUrlWithTimestamp = '$imageUrl&_t=${DateTime.now().millisecondsSinceEpoch}';
+
+    print('Tentative de chargement de l\'image: $imageUrlWithTimestamp');
+
+    // Utiliser CachedNetworkImage pour une meilleure gestion du cache
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8.0),
+      child: CachedNetworkImage(
+        imageUrl: imageUrlWithTimestamp,
+        height: 180,
+        width: double.infinity,
+        fit: BoxFit.cover,
+        fadeInDuration: const Duration(milliseconds: 300),
+        fadeOutDuration: const Duration(milliseconds: 300),
+        // Placeholder pendant le chargement
+        placeholder: (context, url) => Container(
+          color: Colors.grey[200],
+          child: const Center(
+            child: CircularProgressIndicator(),
+          ),
+        ),
+        // Gestion des erreurs
+        errorWidget: (context, url, error) {
+          print('Erreur de chargement d\'image: $error');
+          return _buildPlaceholderImage(isError: true);
+        },
+        // Headers pour gérer les problèmes CORS (même si vous les avez résolus au niveau du serveur)
+        httpHeaders: kIsWeb ? {
+          'Access-Control-Allow-Origin': '*',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        } : null,
+        // Configurer le cache local (uniquement pour les applications mobiles)
+        cacheManager: kIsWeb ? null : DefaultCacheManager(),
+        cacheKey: 'room_${room.id}_image',
+        // Empêcher le cache du navigateur en mode web
+        useOldImageOnUrlChange: false,
+      ),
+    );
   }
 
   @override
@@ -93,29 +205,28 @@ class RoomCard extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       elevation: 6,
       clipBehavior: Clip.antiAlias,
-      margin: EdgeInsets.symmetric(vertical: 5, horizontal: 16),
+      margin: const EdgeInsets.symmetric(vertical: 5, horizontal: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Stack(
             children: [
-              SizedBox(
-                height: 180,
-                width: double.infinity,
-                child: _buildRoomImage(context),
-              ),
+              // Image de la chambre
+              _buildRoomImage(),
+
+              // Statut de la chambre
               Positioned(
                 top: 8,
                 right: 8,
                 child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: _getStatusColor(room.status),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
                     room.status.toUpperCase(),
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
@@ -123,22 +234,57 @@ class RoomCard extends StatelessWidget {
                   ),
                 ),
               ),
-              // Icons for Edit and Delete next to Status
+
+              // Type de chambre
               Positioned(
-                top: 8,
-                left: 8,
+                top: 10,
+                left: 10,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.7),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    room.type,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold
+                    ),
+                  ),
+                ),
+              ),
+
+              // Boutons d'édition et de suppression
+              Positioned(
+                bottom: 8,
+                right: 8,
                 child: Row(
                   children: [
                     IconButton(
-                      icon: Icon(LucideIcons.pencil, size: 20, color: Colors.grey),
+                      icon: const Icon(
+                          LucideIcons.pencil,
+                          size: 20,
+                          color: Colors.white
+                      ),
                       onPressed: () => onEdit(room.id),
                       tooltip: 'Modifier',
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.black54,
+                      ),
                     ),
-                    SizedBox(width: 8),
+                    const SizedBox(width: 8),
                     IconButton(
-                      icon: Icon(LucideIcons.trash, size: 20, color: Colors.grey),
+                      icon: const Icon(
+                          LucideIcons.trash,
+                          size: 20,
+                          color: Colors.white
+                      ),
                       onPressed: () => onDelete(room.id),
                       tooltip: 'Supprimer',
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.black54,
+                      ),
                     ),
                   ],
                 ),
@@ -150,20 +296,20 @@ class RoomCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Room Name and Price in the Same Row
+                // Numéro de chambre et prix
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
                       'Chambre ${room.number}',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                         color: Colors.black87,
                       ),
                     ),
                     Text(
-                      '\FCFA ${room.price}/nuit',
+                      'FCFA ${room.price}/nuit',
                       style: TextStyle(
                         fontSize: 16,
                         color: Colors.grey[600],
@@ -171,13 +317,13 @@ class RoomCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                SizedBox(height: 5),
+                const SizedBox(height: 5),
 
-                // Room Type and Capacity with Icons
+                // Type de chambre et capacité avec icônes
                 Row(
                   children: [
                     Icon(LucideIcons.hotel, size: 16, color: Colors.grey[700]),
-                    SizedBox(width: 6),
+                    const SizedBox(width: 6),
                     Text(
                       '${room.type} chambre',
                       style: TextStyle(
@@ -185,9 +331,9 @@ class RoomCard extends StatelessWidget {
                         color: Colors.grey[700],
                       ),
                     ),
-                    SizedBox(width: 20),
+                    const SizedBox(width: 20),
                     Icon(LucideIcons.users, size: 16, color: Colors.grey[700]),
-                    SizedBox(width: 6),
+                    const SizedBox(width: 6),
                     Text(
                       'Capacité : ${room.capacity} personne${room.capacity > 1 ? 's' : ''}',
                       style: TextStyle(
@@ -197,29 +343,25 @@ class RoomCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                SizedBox(height: 12),
+                const SizedBox(height: 12),
 
-                // Section title for amenities
-                SizedBox(width: 6),
-                Text(
-                  'Commodités ',
+                // Titre de la section des commodités
+                const Text(
+                  'Commodités',
                   style: TextStyle(
                     fontSize: 14,
+                    fontWeight: FontWeight.bold,
                     color: Colors.black87,
                   ),
                 ),
-                SizedBox(height: 8),
+                const SizedBox(height: 8),
 
-                // Amenities with icons
-                SizedBox(
-                  width: MediaQuery.of(context).size.width * 0.9,
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: _buildAmenityChips(room.amenities),
-                  ),
+                // Liste des commodités avec icônes
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _buildAmenityChips(room.amenities),
                 ),
-                SizedBox(height: 16),
               ],
             ),
           ),
@@ -227,47 +369,4 @@ class RoomCard extends StatelessWidget {
       ),
     );
   }
-
-  // Improved method to handle image loading with robust error handling
-  Widget _buildRoomImage(BuildContext context) {
-    // Check if image URL is empty, null, or invalid
-    if (room.image == null || room.image.isEmpty) {
-      return _buildDefaultImage();
-    }
-
-    // Use network image with complete error handling
-    return FadeInImage.assetNetwork(
-      placeholder: 'assets/images/placeholder.png', // Light placeholder while loading
-      image: room.image,
-      fit: BoxFit.cover,
-      imageErrorBuilder: (context, error, stackTrace) {
-        // Handle all network image errors by showing default image
-        return _buildDefaultImage();
-      },
-    );
-  }
-
-  // Extract default image to a separate method
-  Widget _buildDefaultImage() {
-    try {
-      // Primary option: use asset image
-      return Image.asset(
-        'assets/images/default_room.jpg',
-        fit: BoxFit.cover,
-      );
-    } catch (e) {
-      // Fallback option if asset loading fails: use a colored container with an icon
-      return Container(
-        color: Colors.grey[200],
-        child: Center(
-          child: Icon(
-            LucideIcons.hotel,
-            size: 60,
-            color: Colors.grey[600],
-          ),
-        ),
-      );
-    }
-  }
 }
-

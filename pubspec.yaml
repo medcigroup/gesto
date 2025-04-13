@@ -97,6 +97,9 @@ dependencies:
 
 
 
+
+
+
 dependency_overrides: # <-- Section correctement placée
   syncfusion_flutter_core: 23.1.43 # Version spécifique
 

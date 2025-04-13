@@ -43,17 +43,16 @@ class GestoPricingPage extends StatelessWidget {
       features: [
         'Module de réservation',
         '20 chambres max',
-        'Gestion resto',
-        '10 tables resto',
-        'Support prioritaire',
-        'Rapports quotidiens'
+        'Module de facturation',
+        'Support standard',
+        'Rapports journaliers'
       ],
       planId: PlanId.starter,
       isRecommended: true,
     ),
     Plan(
       title: 'Starter Pro',
-      price: '50000 FCFA',
+      price: '35000 FCFA',
       duration: '/mois',
       features: [
         'Module de réservation',
@@ -63,7 +62,6 @@ class GestoPricingPage extends StatelessWidget {
         'Support 24/7',
         'Analyses temps réel',
         'Marketing tools',
-        'Formation incluse'
       ],
       planId: PlanId.pro,
       isRecommended: false,

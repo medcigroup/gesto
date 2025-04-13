@@ -80,6 +80,23 @@ class _RoomsPageState extends State<RoomsPage> {
 
       final fetchedRooms = snapshot.docs.map((doc) {
         final data = doc.data();
+
+        // Gestion des deux formats d'image (nouveau et ancien)
+        String imagePath = '';
+        String imageUrl = '';
+
+        // Si image est un Map (nouveau format)
+        if (data['image'] is Map) {
+          Map<String, dynamic> imageData = Map<String, dynamic>.from(data['image']);
+          imagePath = imageData['path'] ?? '';
+          imageUrl = imageData['url'] ?? '';
+        }
+        // Si image est une String (ancien format)
+        else if (data['image'] is String) {
+          imagePath = data['image'];
+          imageUrl = data['imageUrl'] ?? '';
+        }
+
         return Room(
           id: doc.id,
           number: data['number'], // On garde 'number' comme String pour l'affichage
@@ -89,10 +106,10 @@ class _RoomsPageState extends State<RoomsPage> {
           capacity: data['capacity'],
           amenities: List<String>.from(data['amenities']),
           floor: data['floor'],
-          image: data['image'],
-          imageUrl: '',
-          description: '',
-          userId: '',
+          image: imagePath,
+          imageUrl: imageUrl,
+          description: data['description'] ?? '',
+          userId: data['userId'] ?? '',
           passage: data['passage'] ?? false,
           priceHour: data['pricehour'] ?? 0,
         );
@@ -124,7 +141,7 @@ class _RoomsPageState extends State<RoomsPage> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur lors du chargement des chambres')),
+        SnackBar(content: Text('Erreur lors du chargement des chambres: $e')),
       );
     }
   }

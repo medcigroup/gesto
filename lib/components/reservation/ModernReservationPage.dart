@@ -7,6 +7,7 @@ import '../../Screens/CheckInForm.dart';
 import '../../config/HotelSettingsService.dart';
 import '../../config/generationcode.dart';
 import '../../config/printReservationReceipt.dart';
+import '../../config/room_models.dart';
 import '../../widgets/side_menu.dart';
 
 
@@ -88,6 +89,16 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
 
       List<Room> allRooms = roomsSnapshot.docs.map((doc) {
         final data = doc.data();
+        String imageValue = '';
+
+        // Gestion des différents formats d'image
+        if (data['image'] is Map) {
+          final imageMap = data['image'] as Map<String, dynamic>;
+          imageValue = imageMap['path'] ?? '';
+        } else if (data['image'] is String) {
+          imageValue = data['image'];
+        }
+
         return Room(
           id: doc.id,
           number: data['number'],
@@ -97,7 +108,9 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
           capacity: data['capacity'],
           amenities: List<String>.from(data['amenities']),
           floor: data['floor'],
-          image: data['image'],
+          image: imageValue,
+          imageUrl: data['imageUrl'] ?? '',
+          userId: userId,
         );
       }).toList();
 
@@ -2000,31 +2013,7 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
   }}
 
 // Modèle pour une chambre
-class Room {
-  final String id;
-  final String number;
-  final String type;
-  final String status;
-  final double price;
-  final int capacity;
-  final List<String> amenities;
-  final int floor;
-  final String image;
-  final DateTime? datedisponible; // Ajouter le champ datedisponible
 
-  Room({
-    required this.id,
-    required this.number,
-    required this.type,
-    required this.status,
-    required this.price,
-    required this.capacity,
-    required this.amenities,
-    required this.floor,
-    required this.image,
-    this.datedisponible,
-  });
-}
 
 // Modèle pour une réservation
 // Modèle pour une réservation

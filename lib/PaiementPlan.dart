@@ -10,6 +10,8 @@ import 'config/LicenceGenerator.dart';
 
 enum PlanId { basic, starter, pro, entreprise }
 
+enum PaymentMethod { cinetpay, stripe }
+
 class Plan {
   final String title;
   final String price;
@@ -45,7 +47,7 @@ class _ChoosePlanScreenState extends State<paiementplan> {
   String? _currentTransactionId;
   final FirebaseFunctions _functions = FirebaseFunctions.instance;
 
-  Future<void> _selectPlan(Plan plan) async {
+  Future<void> _selectPlan(Plan plan, {PaymentMethod? paymentMethod}) async {
     setState(() {
       _isLoading = true;
       _selectedPlan = plan.planId;
@@ -58,11 +60,16 @@ class _ChoosePlanScreenState extends State<paiementplan> {
       }
 
       if (plan.isFree) {
-        // Processus pour un plan gratuit (comme votre code existant)
+        // Processus pour un plan gratuit
         await _processFreeSubscription(plan.planId);
       } else {
-        // Processus pour un plan payant avec CinetPay
-        await _processPaymentWithCinetPay(plan.planId.name);
+        // Processus pour un plan payant selon la méthode choisie
+        if (paymentMethod == PaymentMethod.stripe) {
+          await _processPaymentWithStripe(plan.planId.name);
+        } else {
+          // Par défaut ou si cinetpay explicitement choisi
+          await _processPaymentWithCinetPay(plan.planId.name);
+        }
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -115,38 +122,80 @@ class _ChoosePlanScreenState extends State<paiementplan> {
 
   Future<void> _processPaymentWithCinetPay(String planId) async {
     try {
-      // Vérifier si l'utilisateur est authentifié
-      final User? user = FirebaseAuth.instance.currentUser;
-
+      final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        throw Exception('L\'utilisateur doit être connecté.');
+        throw Exception("L'utilisateur doit être connecté.");
       }
 
-      // Appeler la Cloud Function pour initialiser le paiement
-      final result = await FirebaseFunctions.instance.httpsCallable('initializePayment').call({
+      // Récupère le token d'ID de l'utilisateur
+      String? idToken = await user.getIdToken();
+
+      final functions = FirebaseFunctions.instanceFor(region: 'us-central1');
+      final callable = functions.httpsCallable('initializePayment');
+
+      // Inclure le token dans les données
+      final result = await callable.call({
         'planId': planId,
+        'idToken': idToken, // Passe l'ID token dans les données
       });
 
-      // Extraire les données de la réponse
+      if (result.data is! Map) {
+        throw Exception("Réponse inattendue du serveur.");
+      }
+
       final data = result.data as Map<String, dynamic>;
 
-      // Vérifier si la réponse contient une URL de paiement valide
-      if (data['success'] == true && data.containsKey('paymentUrl') && data['paymentUrl'] != null) {
-        // Stocker l'ID de transaction pour vérification ultérieure
+      if (data['success'] == true && data['paymentUrl'] != null) {
         _currentTransactionId = data['transactionId'];
-
-        // Ouvrir l'URL de paiement CinetPay dans le navigateur
         await _launchPaymentUrl(data['paymentUrl']);
-
-        // Afficher un dialogue pour demander à l'utilisateur de confirmer le paiement
         if (mounted) {
-          _showPaymentConfirmationDialog();
+          _showPaymentConfirmationDialog(isStripe: false);
         }
       } else {
-        throw Exception('Erreur lors de l\'initialisation du paiement. Détails : ${data['message'] ?? 'Aucune description'}');
+        throw Exception("Erreur lors de l'initialisation du paiement. Détails : ${data['message'] ?? 'Aucune description'}");
       }
     } catch (e) {
-      // En cas d'erreur, réafficher l'exception
+      print('❌ Erreur pendant le paiement CinetPay : $e');
+      rethrow;
+    }
+  }
+
+  Future<void> _processPaymentWithStripe(String planId) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception("L'utilisateur doit être connecté.");
+      }
+
+      // Récupération du token d'ID de l'utilisateur
+      String? idToken = await user.getIdToken();
+
+      // Appel de la Cloud Function pour initialiser le paiement Stripe
+      final functions = FirebaseFunctions.instanceFor(region: 'us-central1');
+      final callable = functions.httpsCallable('initializeStripePayment');
+
+      final result = await callable.call({
+        'planId': planId,
+        'idToken': idToken,
+      });
+
+      if (result.data is! Map) {
+        throw Exception("Réponse inattendue du serveur.");
+      }
+
+      final data = result.data as Map<String, dynamic>;
+
+      if (data['success'] == true && data['paymentUrl'] != null) {
+        _currentTransactionId = data['transactionId'];
+        await _launchPaymentUrl(data['paymentUrl']);
+        if (mounted) {
+          _showPaymentConfirmationDialog(isStripe: true);
+        }
+      } else {
+        throw Exception("Erreur lors de l'initialisation du paiement. Détails : ${data['message'] ?? 'Aucune description'}");
+      }
+    } catch (e) {
+      print('❌ Erreur pendant le paiement Stripe : $e');
       rethrow;
     }
   }
@@ -159,12 +208,31 @@ class _ChoosePlanScreenState extends State<paiementplan> {
     }
   }
 
-  void _showPaymentConfirmationDialog() {
+  void _showErrorDialog(String errorMessage) {
+    // Affiche un dialog d'erreur si l'utilisateur rencontre un problème
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Erreur de paiement'),
+          content: Text(errorMessage),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showPaymentConfirmationDialog({required bool isStripe}) {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text('Paiement en cours'),
+        title: Text('Paiement en cours ${isStripe ? 'via Stripe' : 'via CinetPay'}'),
         content: const Text(
             'Une fenêtre de paiement a été ouverte. Une fois votre paiement effectué, '
                 'cliquez sur "J\'ai payé" pour vérifier le statut de votre transaction.'
@@ -173,7 +241,7 @@ class _ChoosePlanScreenState extends State<paiementplan> {
           TextButton(
             onPressed: () {
               Navigator.of(context).pop();
-              _checkPaymentStatus();
+              isStripe ? _checkStripePaymentStatus() : _checkPaymentStatus();
             },
             child: const Text('J\'ai payé'),
           ),
@@ -244,6 +312,62 @@ class _ChoosePlanScreenState extends State<paiementplan> {
     }
   }
 
+  Future<void> _checkStripePaymentStatus() async {
+    if (_currentTransactionId == null) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      // Appeler la Cloud Function pour vérifier le statut du paiement
+      final result = await _functions.httpsCallable('checkStripePaymentStatus').call({
+        'transactionId': _currentTransactionId,
+      });
+
+      final data = result.data as Map<String, dynamic>;
+
+      if (data['success'] == true) {
+        if (data['status'] == 'completed') {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Paiement Stripe confirmé! Votre abonnement a été activé.'),
+              backgroundColor: Colors.green,
+            ),
+          );
+
+          // Rediriger vers le tableau de bord ou la page de remerciement
+          if (data['planId'] == 'entreprise') {
+            Navigator.pushReplacementNamed(context, AppRoutes.thankYou);
+          } else {
+            Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
+          }
+        } else if (data['status'] == 'pending') {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Votre paiement Stripe est en cours de traitement. Veuillez réessayer dans quelques instants.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Le paiement Stripe a échoué ou a été annulé. Veuillez réessayer.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   Timestamp _getExpiryDate(PlanId planId) {
     final durations = {
       PlanId.basic: 30,
@@ -253,6 +377,37 @@ class _ChoosePlanScreenState extends State<paiementplan> {
     };
     final now = DateTime.now();
     return Timestamp.fromDate(now.add(Duration(days: durations[planId]!)));
+  }
+
+  void _showPaymentMethodDialog(Plan plan) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Choisir le mode de paiement'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(Icons.phone_android, color: GestoTheme.green),
+              title: const Text('Mobile Money (CinetPay)'),
+              onTap: () {
+                Navigator.pop(context);
+                _selectPlan(plan, paymentMethod: PaymentMethod.cinetpay);
+              },
+            ),
+            const Divider(),
+            ListTile(
+              leading: Icon(Icons.credit_card, color: Colors.blue),
+              title: const Text('Carte bancaire (Stripe)'),
+              onTap: () {
+                Navigator.pop(context);
+                _selectPlan(plan, paymentMethod: PaymentMethod.stripe);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildPlanCard(BuildContext context, Plan plan) {
@@ -323,8 +478,21 @@ class _ChoosePlanScreenState extends State<paiementplan> {
                 },
               ),
             ),
-            ElevatedButton(
+            // Bouton de choix de plan
+            plan.isFree
+                ? ElevatedButton(
               onPressed: () => _selectPlan(plan),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: isSelected ? Colors.green : Colors.blueAccent,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: Text(
+                  isSelected ? 'Plan actuel' : 'Choisir ce plan',
+                  style: const TextStyle(color: Colors.white)
+              ),
+            )
+                : ElevatedButton(
+              onPressed: () => _showPaymentMethodDialog(plan),
               style: ElevatedButton.styleFrom(
                 backgroundColor: isSelected ? Colors.green : Colors.blueAccent,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -343,28 +511,28 @@ class _ChoosePlanScreenState extends State<paiementplan> {
   @override
   Widget build(BuildContext context) {
     final plans = [
-    Plan(
-      title: 'Basic (Essai Gratuit 30J)',
-      price: '0 FCFA',
-      oldPrice: '15000 FCFA',
-      duration: '30 jours',
-      features: [
-        'Module de réservation',
-        '14 chambres max',
-        'Support de base',
-        'Rapports hebdo'
-      ],
-      planId: PlanId.basic,
-      isRecommended: false,
-      isFree: true, // Plan gratuit
-    ),
+      Plan(
+        title: 'Basic (Essai Gratuit 30J)',
+        price: '0 FCFA',
+        oldPrice: '15000 FCFA',
+        duration: '30 jours',
+        features: [
+          'Module de réservation',
+          '14 chambres max',
+          'Support de base',
+          'Rapports hebdo'
+        ],
+        planId: PlanId.basic,
+        isRecommended: false,
+        isFree: true, // Plan gratuit
+      ),
       Plan(
         title: 'Starter',
         price: '20 000 FCFA',
         duration: 'par mois',
         features: [
           'Module de réservation',
-          '25 chambres max',
+          '20 chambres max',
           'Module de facturation',
           'Support standard',
           'Rapports journaliers'
@@ -389,7 +557,6 @@ class _ChoosePlanScreenState extends State<paiementplan> {
         isRecommended: false,
         isFree: false, // Plan payant
       ),
-
     ];
 
     return Scaffold(
@@ -430,7 +597,7 @@ class _ChoosePlanScreenState extends State<paiementplan> {
                               children: plans.map((plan) => Padding(
                                 padding: const EdgeInsets.symmetric(horizontal: 10),
                                 child: SizedBox(
-                                  width: 280, // Légèrement réduit pour tenir les 4 plans
+                                  width: 280, // Légèrement réduit pour tenir les plans
                                   height: MediaQuery.of(context).size.height * 0.7,
                                   child: _buildPlanCard(context, plan),
                                 ),
@@ -470,14 +637,6 @@ class _ChoosePlanScreenState extends State<paiementplan> {
                                         width: 300,
                                         height: MediaQuery.of(context).size.height * 0.7,
                                         child: _buildPlanCard(context, plans[2]),
-                                      ),
-                                    ),
-                                    Padding(
-                                      padding: const EdgeInsets.all(10),
-                                      child: SizedBox(
-                                        width: 300,
-                                        height: MediaQuery.of(context).size.height * 0.7,
-                                        child: _buildPlanCard(context, plans[3]),
                                       ),
                                     ),
                                   ],

@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -5,6 +6,7 @@ import 'package:intl/date_symbol_data_file.dart';
 import '../../../config/routes.dart';
 import 'FirebaseOptions.dart';
 import 'package:flutter_web_plugins/flutter_web_plugins.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -44,10 +46,18 @@ class _AuthCheckerState extends State<AuthChecker> {
     super.initState();
     FirebaseAuth.instance.authStateChanges().listen((User? user) {
       if (mounted) {
-        Future.microtask(() {
+        Future.microtask(() async {
           if (user != null) {
-            // Redirige vers le dashboard si connecté
-            Navigator.pushReplacementNamed(context, AppRoutes.choosePlan);
+            // Utilisateur connecté, vérifier s'il a une licence
+            bool hasLicence = await checkUserLicence(user.uid);
+
+            if (hasLicence) {
+              // Redirige vers le dashboard si connecté avec licence
+              Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
+            } else {
+              // Redirige vers la page de choix de licence si pas de licence
+              Navigator.pushReplacementNamed(context, AppRoutes.choosePlan);
+            }
           } else {
             // Redirige vers la page d'accueil si non connecté
             Navigator.pushReplacementNamed(context, AppRoutes.home);
@@ -55,6 +65,32 @@ class _AuthCheckerState extends State<AuthChecker> {
         });
       }
     });
+  }
+
+  // Fonction pour vérifier si l'utilisateur a une licence
+  Future<bool> checkUserLicence(String userId) async {
+    try {
+      // Récupérer les données de l'utilisateur depuis Firestore
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
+
+      if (!userDoc.exists) {
+        return false;
+      }
+
+      final userData = userDoc.data();
+
+      // Vérifier si l'utilisateur a une licence
+      if (userData == null || userData['licence'] == null) {
+        return false;
+      }
+
+      // L'utilisateur a une licence
+      return true;
+    } catch (e) {
+      print('Erreur lors de la vérification de la licence: $e');
+      // En cas d'erreur, on suppose que l'utilisateur n'a pas de licence
+      return false;
+    }
   }
 
   @override

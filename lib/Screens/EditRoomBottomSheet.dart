@@ -1,6 +1,13 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:uuid/uuid.dart';
+import 'package:path/path.dart' as path;
 
 import '../config/HotelSettingsService.dart';
 import '../config/room_models.dart';
@@ -26,36 +33,74 @@ class _EditRoomBottomSheetState extends State<EditRoomBottomSheet> {
   late TextEditingController _priceHourController;
   late TextEditingController _capacityController;
   late TextEditingController _floorController;
-  late TextEditingController _imageController;
 
   String _selectedType = 'simple';
   String _selectedStatus = 'disponible';
   List<String> _selectedAmenities = [];
+
+  // Définir la liste exacte des commodités disponibles comme dans votre base de données
+  final List<Map<String, dynamic>> _availableAmenities = [
+    {'name': 'WIFI', 'icon': LucideIcons.wifi},
+    {'name': 'TV', 'icon': LucideIcons.tv},
+    {'name': 'Climatisation', 'icon': LucideIcons.thermometer},
+    {'name': 'Balcon', 'icon': LucideIcons.tent},
+    {'name': 'Service en chambre', 'icon': LucideIcons.bellRing},
+    {'name': 'Petit-dejeuner', 'icon': Icons.free_breakfast_outlined},
+    {'name': 'Parking', 'icon': LucideIcons.car},
+    {'name': 'Piscine', 'icon': Icons.pool},
+    {'name': 'Jaccuzy', 'icon': Icons.bathtub},
+    {'name': 'Minibar', 'icon': Icons.wine_bar},
+    {'name': 'Coffre-fort', 'icon': LucideIcons.lock},
+    {'name': 'Cuisine', 'icon': Icons.kitchen_outlined},
+    {'name': 'Frigo', 'icon': LucideIcons.refrigerator},
+    {'name': 'Vue sur mer', 'icon': LucideIcons.mountain},
+    {'name': 'Salle de bain privée', 'icon': Icons.shower},
+  ];
+
+  // Variables pour l'image
+  String _imageUrl = '';
+  String _imagePath = '';
+  Map<String, dynamic>? _imageMetadata;
+  bool _imageChanged = false;
+  File? _imageFile;
+  Uint8List? _webImage;
+  bool _isUploadingImage = false;
+  double _uploadProgress = 0.0;
 
   // Nouveau paramètre booléen pour le passage
   bool _passage = false;
 
   bool _isLoading = false;
 
+  final ImagePicker _picker = ImagePicker();
+
   @override
   void initState() {
     super.initState();
 
+    // Debug: afficher les commodités de la chambre
+    print('Commodités chargées depuis la chambre: ${widget.room.amenities}');
+
     // Initialiser le passage avec la valeur existante ou false par défaut
     _passage = widget.room.passage;
+
     // Initialiser les contrôleurs avec les valeurs existantes de la chambre
     _numberController = TextEditingController(text: widget.room.number);
     _priceController = TextEditingController(text: widget.room.price.toString());
     _priceHourController = TextEditingController(text: widget.room.priceHour.toString());
     _capacityController = TextEditingController(text: widget.room.capacity.toString());
     _floorController = TextEditingController(text: widget.room.floor.toString());
-    _imageController = TextEditingController(text: widget.room.image);
 
     _selectedType = widget.room.type;
     _selectedStatus = widget.room.status;
+
+    // Initialiser la liste des commodités avec celles existantes
     _selectedAmenities = List<String>.from(widget.room.amenities);
 
-
+    // Initialiser les informations d'image
+    _imageUrl = widget.room.imageUrl;
+    _imagePath = widget.room.image;
+    _imageMetadata = widget.room.imageMetadata;
   }
 
   @override
@@ -65,8 +110,131 @@ class _EditRoomBottomSheetState extends State<EditRoomBottomSheet> {
     _priceHourController.dispose();
     _capacityController.dispose();
     _floorController.dispose();
-    _imageController.dispose();
     super.dispose();
+  }
+
+  // Sélection d'image depuis la galerie
+  Future<void> _pickImage() async {
+    try {
+      final XFile? pickedFile = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1200,
+        maxHeight: 800,
+        imageQuality: 85,
+      );
+
+      if (pickedFile == null) {
+        return;
+      }
+
+      if (kIsWeb) {
+        // Pour le web, on récupère les bytes de l'image
+        _webImage = await pickedFile.readAsBytes();
+        setState(() {
+          _imageChanged = true;
+        });
+      } else {
+        // Pour mobile, on utilise le fichier
+        setState(() {
+          _imageFile = File(pickedFile.path);
+          _imageChanged = true;
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur lors de la sélection d\'image: $e')),
+      );
+      print('Erreur lors de la sélection d\'image: $e');
+    }
+  }
+
+  // Téléchargement de l'image vers Firebase Storage
+  Future<bool> _uploadImage() async {
+    if ((_imageFile == null && _webImage == null) || _isUploadingImage) {
+      return true; // Pas d'image à télécharger ou téléchargement en cours
+    }
+
+    setState(() {
+      _isUploadingImage = true;
+      _uploadProgress = 0.0;
+    });
+
+    try {
+      // Créer une référence unique pour l'image
+      final String fileName = 'room_${const Uuid().v4()}_${DateTime.now().millisecondsSinceEpoch}${kIsWeb ? '.jpg' : path.extension(_imageFile!.path)}';
+      final String filePath = 'users/${widget.room.userId}/rooms/$fileName';
+
+      // Référence Firebase Storage
+      final storageRef = FirebaseStorage.instance.ref().child(filePath);
+
+      // Télécharger l'image
+      UploadTask uploadTask;
+
+      if (kIsWeb) {
+        // Pour le web
+        final metadata = SettableMetadata(
+          contentType: 'image/jpeg',
+          customMetadata: {
+            'roomId': widget.room.id,
+            'uploadedFrom': 'web',
+          },
+        );
+        uploadTask = storageRef.putData(_webImage!, metadata);
+      } else {
+        // Pour mobile
+        final metadata = SettableMetadata(
+          contentType: 'image/${path.extension(_imageFile!.path).replaceFirst('.', '')}',
+          customMetadata: {
+            'roomId': widget.room.id,
+            'uploadedFrom': 'mobile',
+          },
+        );
+        uploadTask = storageRef.putFile(_imageFile!, metadata);
+      }
+
+      // Écouter la progression
+      uploadTask.snapshotEvents.listen((TaskSnapshot snapshot) {
+        setState(() {
+          _uploadProgress = snapshot.bytesTransferred / snapshot.totalBytes;
+        });
+      });
+
+      // Attendre la fin du téléchargement
+      await uploadTask;
+
+      // Récupérer l'URL de téléchargement
+      final String downloadUrl = await storageRef.getDownloadURL();
+
+      // Créer les métadonnées d'image
+      _imageMetadata = {
+        'url': downloadUrl,
+        'path': filePath,
+        'isDefault': false,
+        'fileName': fileName,
+        'uploadedAt': DateTime.now().toIso8601String(),
+        'size': kIsWeb ? _webImage!.length : await _imageFile!.length(),
+      };
+
+      // Mettre à jour les variables
+      _imageUrl = downloadUrl;
+      _imagePath = filePath;
+
+      setState(() {
+        _isUploadingImage = false;
+      });
+
+      return true;
+    } catch (e) {
+      setState(() {
+        _isUploadingImage = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur lors du téléchargement de l\'image: $e')),
+      );
+      print('Erreur de téléchargement d\'image: $e');
+      return false;
+    }
   }
 
   Future<void> _updateRoom() async {
@@ -76,8 +244,24 @@ class _EditRoomBottomSheetState extends State<EditRoomBottomSheet> {
       });
 
       try {
-        // Mettre à jour la chambre dans Firestore avec les nouveaux paramètres
-        await FirebaseFirestore.instance.collection('rooms').doc(widget.room.id).update({
+        // Si une nouvelle image a été sélectionnée, la télécharger d'abord
+        bool imageUploadSuccess = true;
+        if (_imageChanged) {
+          imageUploadSuccess = await _uploadImage();
+        }
+
+        if (!imageUploadSuccess) {
+          setState(() {
+            _isLoading = false;
+          });
+          return;
+        }
+
+        // Débogage des commodités avant sauvegarde
+        print('Commodités à sauvegarder: $_selectedAmenities');
+
+        // Préparer les données de la chambre mise à jour
+        Map<String, dynamic> roomData = {
           'number': _numberController.text,
           'type': _selectedType,
           'status': _selectedStatus,
@@ -87,14 +271,23 @@ class _EditRoomBottomSheetState extends State<EditRoomBottomSheet> {
           'capacity': int.parse(_capacityController.text),
           'floor': int.parse(_floorController.text),
           'amenities': _selectedAmenities,
-          'image': _imageController.text,
-        });
+          'updatedAt': FieldValue.serverTimestamp(),
+        };
 
-        // Notifier que la mise à jour est terminée
-        widget.onRoomEdited();
+        // Si l'image a été modifiée, inclure les nouvelles données d'image
+        if (_imageChanged) {
+          roomData['image'] = _imageMetadata;
+          roomData['imageUrl'] = _imageUrl;
+        }
+
+        // Mettre à jour la chambre dans Firestore
+        await FirebaseFirestore.instance.collection('rooms').doc(widget.room.id).update(roomData);
 
         // Fermer le bottom sheet
         Navigator.pop(context);
+
+        // Notifier que la mise à jour est terminée pour actualiser la liste
+        widget.onRoomEdited();
 
         // Afficher un message de succès
         ScaffoldMessenger.of(context).showSnackBar(
@@ -103,7 +296,7 @@ class _EditRoomBottomSheetState extends State<EditRoomBottomSheet> {
       } catch (e) {
         print('Erreur lors de la mise à jour de la chambre: $e');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur lors de la mise à jour de la chambre')),
+          SnackBar(content: Text('Erreur lors de la mise à jour de la chambre: $e')),
         );
       } finally {
         setState(() {
@@ -145,6 +338,16 @@ class _EditRoomBottomSheetState extends State<EditRoomBottomSheet> {
                   ),
                 ],
               ),
+              SizedBox(height: 20),
+
+              // Section d'image
+              Text(
+                'Image de la chambre',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 10),
+
+              _buildImageSection(),
               SizedBox(height: 20),
 
               // Numéro de chambre
@@ -247,7 +450,7 @@ class _EditRoomBottomSheetState extends State<EditRoomBottomSheet> {
               // Option de passage
               SwitchListTile(
                 title: Text('Disponible en passage'),
-                subtitle: Text('La chambre peut être réservé à l\'heure'),
+                subtitle: Text('La chambre peut être réservée à l\'heure'),
                 value: _passage,
                 onChanged: (value) {
                   setState(() {
@@ -317,22 +520,6 @@ class _EditRoomBottomSheetState extends State<EditRoomBottomSheet> {
                   return null;
                 },
               ),
-              SizedBox(height: 16),
-
-              // URL de l'image
-              TextFormField(
-                controller: _imageController,
-                decoration: InputDecoration(
-                  labelText: 'URL de l\'image',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Veuillez entrer une URL d\'image';
-                  }
-                  return null;
-                },
-              ),
               SizedBox(height: 20),
 
               // Commodités
@@ -342,23 +529,13 @@ class _EditRoomBottomSheetState extends State<EditRoomBottomSheet> {
               ),
               SizedBox(height: 10),
 
+              // Affichage des commodités
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: [
-                  _buildAmenityChip('WIFI', LucideIcons.wifi),
-                  _buildAmenityChip('Petit-dejeuner', Icons.free_breakfast_outlined),
-                  _buildAmenityChip('TV', LucideIcons.tv),
-                  _buildAmenityChip('Climatisation', LucideIcons.thermometer),
-                  _buildAmenityChip('Cuisine', Icons.kitchen_outlined),
-                  _buildAmenityChip('Frigo', Icons.kitchen_outlined),
-                  _buildAmenityChip('Minibar', Icons.wine_bar),
-                  _buildAmenityChip('Coffre-fort', LucideIcons.lock),
-                  _buildAmenityChip('Vue sur mer', LucideIcons.mountain),
-                  _buildAmenityChip('Piscine', Icons.pool),
-                  _buildAmenityChip('Jaccuzy', Icons.bathtub),
-                  _buildAmenityChip('Parking', LucideIcons.car),
-                ],
+                children: _availableAmenities.map((amenity) {
+                  return _buildAmenityChip(amenity['name'], amenity['icon']);
+                }).toList(),
               ),
 
               SizedBox(height: 30),
@@ -368,7 +545,7 @@ class _EditRoomBottomSheetState extends State<EditRoomBottomSheet> {
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
-                  onPressed: _isLoading ? null : _updateRoom,
+                  onPressed: _isLoading || _isUploadingImage ? null : _updateRoom,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green,
                     foregroundColor: Colors.white,
@@ -386,7 +563,162 @@ class _EditRoomBottomSheetState extends State<EditRoomBottomSheet> {
     );
   }
 
+  Widget _buildImageSection() {
+    return Column(
+      children: [
+        Container(
+          height: 200,
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors.grey[200],
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey[300]!),
+          ),
+          child: _buildImagePreview(),
+        ),
+
+        // Barre de progression pour le téléchargement d'image
+        if (_isUploadingImage)
+          Padding(
+            padding: const EdgeInsets.only(top: 8.0),
+            child: Column(
+              children: [
+                LinearProgressIndicator(value: _uploadProgress),
+                Padding(
+                  padding: const EdgeInsets.only(top: 4.0),
+                  child: Text('Téléchargement: ${(_uploadProgress * 100).toStringAsFixed(0)}%'),
+                ),
+              ],
+            ),
+          ),
+
+        // Bouton pour sélectionner une image
+        Padding(
+          padding: const EdgeInsets.only(top: 12.0),
+          child: ElevatedButton.icon(
+            onPressed: _isUploadingImage || _isLoading ? null : _pickImage,
+            icon: Icon(Icons.photo_library),
+            label: Text('Choisir une image'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue[700],
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildImagePreview() {
+    // Si une nouvelle image est sélectionnée
+    if (_webImage != null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Image.memory(
+          _webImage!,
+          fit: BoxFit.cover,
+        ),
+      );
+    } else if (_imageFile != null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Image.file(
+          _imageFile!,
+          fit: BoxFit.cover,
+        ),
+      );
+    }
+
+    // Si la chambre a déjà une image
+    if (_imageUrl.isNotEmpty) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.network(
+              _imageUrl,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return _buildErrorImage();
+              },
+            ),
+          ),
+          Positioned(
+            top: 8,
+            right: 8,
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: Colors.black54,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Text(
+                'Image actuelle',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Si aucune image n'est disponible
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(
+          Icons.image_outlined,
+          size: 50,
+          color: Colors.grey[400],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Aucune image sélectionnée',
+          style: TextStyle(color: Colors.grey[600]),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Cliquez sur "Choisir une image" pour ajouter une image',
+          style: TextStyle(color: Colors.grey[500], fontSize: 12),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  // Widget pour afficher une erreur d'image
+  Widget _buildErrorImage() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey[200],
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.error_outline,
+            size: 40,
+            color: Colors.red[400],
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Impossible de charger l\'image',
+            style: TextStyle(color: Colors.red),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Widget pour construire une puce de commodité avec vérification exacte
   Widget _buildAmenityChip(String amenity, IconData icon) {
+    // Vérification exacte des commodités (correspondance stricte dans la liste)
     final isSelected = _selectedAmenities.contains(amenity);
 
     return FilterChip(
@@ -402,11 +734,19 @@ class _EditRoomBottomSheetState extends State<EditRoomBottomSheet> {
       onSelected: (selected) {
         setState(() {
           if (selected) {
-            _selectedAmenities.add(amenity);
+            // Ajouter la commodité avec le nom exact tel qu'affiché
+            if (!_selectedAmenities.contains(amenity)) {
+              _selectedAmenities.add(amenity);
+            }
           } else {
+            // Supprimer la commodité avec une correspondance exacte
             _selectedAmenities.remove(amenity);
           }
         });
+
+        // Débogage
+        print('Commodité $amenity est maintenant ${selected ? 'sélectionnée' : 'désélectionnée'}');
+        print('Liste des commodités: $_selectedAmenities');
       },
       selectedColor: Colors.green,
       checkmarkColor: Colors.white,

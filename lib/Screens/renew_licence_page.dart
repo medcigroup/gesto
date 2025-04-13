@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../config/LicenceGenerator.dart';
 import '../config/UserModel.dart';
 import '../config/routes.dart';
@@ -20,6 +22,7 @@ class RenewLicencePage extends StatefulWidget {
 class _RenewLicencePageState extends State<RenewLicencePage> {
   UserModel? _userModel;
   bool _isLoading = true;
+  bool _isProcessingPayment = false;
 
   @override
   void initState() {
@@ -68,73 +71,295 @@ class _RenewLicencePageState extends State<RenewLicencePage> {
     return parts.join('-');
   }
 
-  Future<void> _renewLicence() async {
+  // Fonction pour afficher le dialogue de sélection de méthode de paiement
+  Future<void> _showPaymentMethodSelector() async {
+    final selectedMethod = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Sélectionner une méthode de paiement'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(Icons.credit_card),
+              title: Text('Payer par carte bancaire'),
+              subtitle: Text('Via Stripe'),
+              onTap: () => Navigator.pop(context, 'stripe'),
+            ),
+            ListTile(
+              leading: Icon(Icons.phone_android),
+              title: Text('Payer par Mobile Money'),
+              subtitle: Text('Via CinetPay'),
+              onTap: () => Navigator.pop(context, 'cinetpay'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Annuler'),
+          ),
+        ],
+      ),
+    );
+
+    if (selectedMethod != null) {
+      if (selectedMethod == 'stripe') {
+        await _processStripePayment('renew');
+      } else if (selectedMethod == 'cinetpay') {
+        await _processCinetPayPayment('renew');
+      }
+    }
+  }
+
+  // Fonction pour traiter le paiement via Stripe
+  Future<void> _processStripePayment(String action, [String? newPlan]) async {
     setState(() {
-      _isLoading = true;
+      _isProcessingPayment = true;
     });
 
     try {
-      // Déterminer la durée en fonction du plan actuel
-      int durationDays = 30; // Par défaut, 1 an
-
-      if (_userModel?.plan == 'basic') {
-        durationDays = 30;
-      } else if (_userModel?.plan == 'Starter') {
-        durationDays = 30;
-      } else if (_userModel?.plan == 'Pro') {
-        durationDays = 30;
-      } else if (_userModel?.plan == 'entreprise') {
-        durationDays = 365;
-      }
-
-      // Générer une nouvelle licence
-      final licenceData = await LicenceGenerator.generateUniqueLicence(
-          durationDays,
-          _userModel?.plan ?? 'gratuit','month'
-      );
-
-      // Récupérer l'utilisateur actuel
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) throw Exception('Utilisateur non connecté');
-
-      // Mettre à jour les informations de licence dans Firestore
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
-        'licence': licenceData['code'],
-        'licenceGenerationDate': licenceData['generationDate'],
-        'licenceExpiryDate': licenceData['expiryDate'],
-        // Ne pas mettre à jour le type de licence/plan ici car on renouvelle avec le même type
+      // Appeler la fonction d'initialisation du paiement Stripe
+      final callable = FirebaseFunctions.instance.httpsCallable('initializeStripePayment');
+      final result = await callable.call({
+        'planId': action == 'upgrade' ? newPlan : _userModel?.plan,
       });
 
-      // Recharger les données utilisateur
-      await _loadUserData();
+      if (result.data['success'] == true) {
+        final paymentUrl = result.data['paymentUrl'];
+        final transactionId = result.data['transactionId'];
 
-      // Afficher un message de confirmation
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Votre licence a été renouvelée avec succès'),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 3),
-        ),
-      );
+        // Ouvrir l'URL de paiement
+        if (await canLaunch(paymentUrl)) {
+          await launch(paymentUrl);
+
+          // Afficher une notification à l'utilisateur
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Redirection vers la page de paiement...'),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: Colors.blue,
+            ),
+          );
+
+          // Attendre quelques secondes avant de vérifier le statut
+          await Future.delayed(const Duration(seconds: 5));
+
+          // Définir un intervalle pour vérifier le statut
+          bool paymentCompleted = false;
+          int attempts = 0;
+
+          while (!paymentCompleted && attempts < 10) {
+            attempts++;
+
+            try {
+              final checkStatus = FirebaseFunctions.instance.httpsCallable('checkStripePaymentStatus');
+              final statusResult = await checkStatus.call({
+                'transactionId': transactionId
+              });
+
+              if (statusResult.data['status'] == 'completed') {
+                paymentCompleted = true;
+
+                // Recharger les données utilisateur pour afficher la nouvelle licence
+                await _loadUserData();
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(action == 'renew'
+                        ? 'Votre licence a été renouvelée avec succès'
+                        : 'Votre licence a été mise à niveau avec succès'),
+                    behavior: SnackBarBehavior.floating,
+                    backgroundColor: Colors.green,
+                  ),
+                );
+
+                break;
+              }
+
+              // Attendre avant de vérifier à nouveau
+              await Future.delayed(const Duration(seconds: 3));
+            } catch (e) {
+              print('Erreur lors de la vérification du statut: $e');
+            }
+          }
+
+          if (!paymentCompleted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Veuillez vérifier votre email pour confirmer le statut de votre paiement'),
+                behavior: SnackBarBehavior.floating,
+                duration: Duration(seconds: 8),
+              ),
+            );
+          }
+        } else {
+          throw Exception('Impossible d\'ouvrir l\'URL de paiement');
+        }
+      } else {
+        throw Exception(result.data['message'] ?? 'Échec de l\'initialisation du paiement');
+      }
     } catch (e) {
-      // Afficher une erreur en cas d'échec
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Erreur lors du renouvellement: ${e.toString()}'),
+          content: Text('Erreur lors du paiement: ${e.toString()}'),
           behavior: SnackBarBehavior.floating,
           backgroundColor: Colors.red,
-          duration: Duration(seconds: 3),
+          duration: Duration(seconds: 5),
         ),
       );
     } finally {
       setState(() {
-        _isLoading = false;
+        _isProcessingPayment = false;
       });
     }
   }
 
-// Méthode pour mettre à niveau la licence (à appeler après la sélection d'un nouveau plan)
+  // Fonction pour traiter le paiement via CinetPay
+  Future<void> _processCinetPayPayment(String action, [String? newPlan]) async {
+    setState(() {
+      _isProcessingPayment = true;
+    });
+
+    try {
+      // Appeler la fonction d'initialisation du paiement CinetPay
+      final callable = FirebaseFunctions.instance.httpsCallable('initializePayment');
+      final result = await callable.call({
+        'planId': action == 'upgrade' ? newPlan : _userModel?.plan,
+      });
+
+      if (result.data['success'] == true) {
+        final paymentUrl = result.data['paymentUrl'];
+        final transactionId = result.data['transactionId'];
+
+        // Ouvrir l'URL de paiement
+        if (await canLaunch(paymentUrl)) {
+          await launch(paymentUrl);
+
+          // Afficher une notification à l'utilisateur
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Redirection vers la page de paiement Mobile Money...'),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: Colors.blue,
+            ),
+          );
+
+          // Attendre quelques secondes avant de vérifier le statut
+          await Future.delayed(const Duration(seconds: 5));
+
+          // Définir un intervalle pour vérifier le statut
+          bool paymentCompleted = false;
+          int attempts = 0;
+
+          while (!paymentCompleted && attempts < 10) {
+            attempts++;
+
+            try {
+              final checkStatus = FirebaseFunctions.instance.httpsCallable('checkPaymentStatus');
+              final statusResult = await checkStatus.call({
+                'transactionId': transactionId
+              });
+
+              if (statusResult.data['status'] == 'completed') {
+                paymentCompleted = true;
+
+                // Recharger les données utilisateur pour afficher la nouvelle licence
+                await _loadUserData();
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(action == 'renew'
+                        ? 'Votre licence a été renouvelée avec succès'
+                        : 'Votre licence a été mise à niveau avec succès'),
+                    behavior: SnackBarBehavior.floating,
+                    backgroundColor: Colors.green,
+                  ),
+                );
+
+                break;
+              }
+
+              // Attendre avant de vérifier à nouveau
+              await Future.delayed(const Duration(seconds: 3));
+            } catch (e) {
+              print('Erreur lors de la vérification du statut: $e');
+            }
+          }
+
+          if (!paymentCompleted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Veuillez vérifier votre téléphone pour confirmer le paiement Mobile Money'),
+                behavior: SnackBarBehavior.floating,
+                duration: Duration(seconds: 8),
+              ),
+            );
+          }
+        } else {
+          throw Exception('Impossible d\'ouvrir l\'URL de paiement');
+        }
+      } else {
+        throw Exception(result.data['message'] ?? 'Échec de l\'initialisation du paiement');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur lors du paiement: ${e.toString()}'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 5),
+        ),
+      );
+    } finally {
+      setState(() {
+        _isProcessingPayment = false;
+      });
+    }
+  }
+
+  // Fonction pour afficher le dialogue de sélection de méthode de paiement pour la mise à niveau
+  Future<void> _showUpgradePaymentMethodSelector(String newPlan) async {
+    final selectedMethod = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Sélectionner une méthode de paiement'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(Icons.credit_card),
+              title: Text('Payer par carte bancaire'),
+              subtitle: Text('Via Stripe'),
+              onTap: () => Navigator.pop(context, 'stripe'),
+            ),
+            ListTile(
+              leading: Icon(Icons.phone_android),
+              title: Text('Payer par Mobile Money'),
+              subtitle: Text('Via CinetPay'),
+              onTap: () => Navigator.pop(context, 'cinetpay'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Annuler'),
+          ),
+        ],
+      ),
+    );
+
+    if (selectedMethod != null) {
+      if (selectedMethod == 'stripe') {
+        await _processStripePayment('upgrade', newPlan);
+      } else if (selectedMethod == 'cinetpay') {
+        await _processCinetPayPayment('upgrade', newPlan);
+      }
+    }
+  }
+
+  // Méthode pour mettre à niveau la licence (à appeler après la sélection d'un nouveau plan)
   Future<void> _upgradeLicence(String newPlan) async {
     setState(() {
       _isLoading = true;
@@ -142,22 +367,25 @@ class _RenewLicencePageState extends State<RenewLicencePage> {
 
     try {
       // Déterminer la durée en fonction du nouveau plan
-      int durationDays = 30; // Par défaut, 1 an
+      int durationDays = 30; // Par défaut, 1 mois
+      String durationType = 'month';
 
       if (newPlan == 'basic') {
         durationDays = 30;
       } else if (newPlan == 'Starter') {
+        durationDays = 30; // Ajout de la valeur manquante
       } else if (newPlan == 'Pro') {
         durationDays = 30;
       } else if (newPlan == 'entreprise') {
         durationDays = 365;
+        durationType = 'year'; // Ajustement pour l'année
       }
 
       // Générer une nouvelle licence
       final licenceData = await LicenceGenerator.generateUniqueLicence(
           durationDays,
           newPlan,
-        'month'
+          durationType
       );
 
       // Récupérer l'utilisateur actuel
@@ -202,8 +430,7 @@ class _RenewLicencePageState extends State<RenewLicencePage> {
   }
 
   void _copyToClipboard(String text) {
-    final formattedText = _formatLicenceCode(text);
-    Clipboard.setData(ClipboardData(text: formattedText));
+    Clipboard.setData(ClipboardData(text: text));
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Code de licence copié'),
@@ -401,7 +628,7 @@ class _RenewLicencePageState extends State<RenewLicencePage> {
                                 child: Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: const [
-                                    Icon(Icons.key,color: Colors.white,),
+                                    Icon(Icons.key, color: Colors.white),
                                     SizedBox(width: 12),
                                     Text(
                                       'Activer une licence',
@@ -417,13 +644,15 @@ class _RenewLicencePageState extends State<RenewLicencePage> {
                             const SizedBox(width: 16), // Espace entre les boutons
                             Expanded(
                               child: ElevatedButton(
-                                onPressed: () {
+                                onPressed: _isProcessingPayment ? null : () {
                                   // Afficher une boîte de dialogue de confirmation
                                   showDialog(
                                     context: context,
                                     builder: (context) => AlertDialog(
                                       title: Text('Renouveler la licence'),
-                                      content: Text('Êtes-vous sûr de vouloir renouveler votre licence ${_userModel?.plan} pour un mois supplémentaire ?'),
+                                      content: Text(
+                                          'Êtes-vous sûr de vouloir renouveler votre licence ${_userModel?.plan} pour ${_userModel?.plan == "entreprise" ? "une année" : "un mois"} supplémentaire?'
+                                      ),
                                       actions: [
                                         TextButton(
                                           onPressed: () => Navigator.pop(context),
@@ -432,9 +661,9 @@ class _RenewLicencePageState extends State<RenewLicencePage> {
                                         TextButton(
                                           onPressed: () {
                                             Navigator.pop(context);
-                                            //_renewLicence(); // Appeler la méthode de renouvellement
+                                            _showPaymentMethodSelector(); // Afficher le sélecteur de méthode de paiement
                                           },
-                                          child: Text('Renouveler ma licence'),
+                                          child: Text('Confirmer'),
                                           style: TextButton.styleFrom(
                                             foregroundColor: theme.primaryColor,
                                           ),
@@ -453,10 +682,19 @@ class _RenewLicencePageState extends State<RenewLicencePage> {
                                   elevation: 0,
                                   minimumSize: const Size(double.infinity, 56),
                                 ),
-                                child: Row(
+                                child: _isProcessingPayment
+                                    ? SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2,
+                                    )
+                                )
+                                    : Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: const [
-                                    Icon(Icons.refresh,color: Colors.white),
+                                    Icon(Icons.refresh, color: Colors.white),
                                     SizedBox(width: 12),
                                     Text(
                                       'Renouveler ma licence',
@@ -482,48 +720,15 @@ class _RenewLicencePageState extends State<RenewLicencePage> {
                           // Option 1: Naviguer vers la page de choix de plan et attendre le résultat
                           final result = await Navigator.pushNamed(
                             context,
-                            AppRoutes.comingSoonPage,
+                            AppRoutes.chooseplanUpgrade,
                             arguments: _userModel?.plan, // Passer le plan actuel pour référence
                           );
 
                           // Si un nouveau plan a été sélectionné
                           if (result != null && result is String && result != _userModel?.plan) {
-                            _upgradeLicence(result); // Mettre à niveau avec le nouveau plan
+                            // Afficher le sélecteur de paiement pour mise à niveau
+                            _showUpgradePaymentMethodSelector(result);
                           }
-
-                          // Option 2 (alternative) : Utiliser une boîte de dialogue simple
-                          /*
-                          // Liste des plans disponibles
-                          final plans = ['Standard', 'Premium', 'Pro', 'Business'];
-                          // Retirer le plan actuel de la liste
-                          plans.remove(_userModel?.plan);
-
-                          // Afficher une boîte de dialogue de sélection
-                          showDialog(
-                            context: context,
-                            builder: (context) => AlertDialog(
-                              title: Text('Choisir un nouveau plan'),
-                              content: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: plans.map((plan) =>
-                                  ListTile(
-                                    title: Text(plan),
-                                    onTap: () {
-                                      Navigator.pop(context);
-                                      _upgradeLicence(plan);
-                                    },
-                                  )
-                                ).toList(),
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  child: Text('Annuler'),
-                                ),
-                              ],
-                            ),
-                          );
-                          */
                         },
                         style: ElevatedButton.styleFrom(
                           foregroundColor: _canRenewLicence ? theme.primaryColor : Colors.white,
@@ -568,80 +773,79 @@ class _RenewLicencePageState extends State<RenewLicencePage> {
     final formattedLicence = _formatLicenceCode(_userModel?.licence);
 
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
         Icon(
-          Icons.vpn_key,
-          size: 24,
-          color: Colors.grey[600],
-        ),
-        const SizedBox(width: 24),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Code de licence',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[600],
-                ),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey[300]!),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: formattedLicence.split('-').map((block) {
-                          return Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 4),
-                            child: Text(
-                              block,
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 1,
-                                color: Colors.grey[800],
-                                fontFamily: 'Courier',
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.copy, size: 20),
-                      color: Theme.of(context).primaryColor,
-                      onPressed: () => _copyToClipboard(_userModel?.licence ?? ''),
-                      tooltip: 'Copier le code',
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
+        Icons.vpn_key,
+        size: 24,
+        color: Colors.grey[600],
+    ),
+    const SizedBox(width: 24),
+    Expanded(
+    child: Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+    Text(
+    'Code de licence',
+    style: TextStyle(
+    fontSize: 14,
+    color: Colors.grey[600],
+    ),
+    ),
+    const SizedBox(height: 8),
+    Container(
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    decoration: BoxDecoration(
+    color: Colors.grey[100],
+    borderRadius: BorderRadius.circular(8),
+    border: Border.all(color: Colors.grey[300]!),
+    ),
+    child: Row(
+    children: [
+    Expanded(
+    child: Row(
+    mainAxisAlignment: MainAxisAlignment.center,
+    children: formattedLicence.split('-').map((block) {
+    return Container(
+    margin: const EdgeInsets.symmetric(horizontal: 4),
+    child: Text(
+    block,
+    style: TextStyle(
+    fontSize: 16,
+    fontWeight: FontWeight.w600,
+    letterSpacing: 1,
+    color: Colors.grey[800],
+    fontFamily: 'Courier',
+    ),
+    ),
+    );
+    }).toList(),
+    ),
+    ),
+    IconButton(
+    icon: const Icon(Icons.copy, size: 20),
+    color: Theme.of(context).primaryColor,
+    onPressed: () => _copyToClipboard(_userModel?.licence ?? ''),
+    tooltip: 'Copier le code',
+    ),
+    ],
+    ),
+    ),
+    ],
+    ),
+    ),
+        ],
     );
   }
 
-  Widget _buildInfoRow(
-      BuildContext context, {
-        required String title,
-        required String value,
-        required IconData icon,
-        Color? valueColor,
-      }) {
+  Widget _buildInfoRow(BuildContext context, {
+    required String title,
+    required String value,
+    required IconData icon,
+    Color? valueColor,
+  }) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Icon(
           icon,
@@ -665,7 +869,7 @@ class _RenewLicencePageState extends State<RenewLicencePage> {
                 value,
                 style: TextStyle(
                   fontSize: 16,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w600,
                   color: valueColor ?? Colors.grey[800],
                 ),
               ),

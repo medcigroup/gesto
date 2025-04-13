@@ -5,6 +5,8 @@ import 'package:gesto/widgets/LoadingOverlay.dart';
 import '../../../../../config/routes.dart';
 import '../../../../../config/theme.dart';
 import '../config/LicenceGenerator.dart';
+import 'package:cloud_functions/cloud_functions.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 
 enum PlanId { basic, starter, pro, entreprise,}
@@ -91,7 +93,7 @@ class _ChoosePlanUpgradeState extends State<ChoosePlanUpgrade> {
     }
   }
 
-  
+
 
 
   Future<void> _upgradePlan(PlanId planId) async {
@@ -135,63 +137,274 @@ class _ChoosePlanUpgradeState extends State<ChoosePlanUpgrade> {
         }
       }
 
-      await Future.delayed(const Duration(seconds: 1)); // Simule un délai
-
-      // Définir la durée de validité en jours et le type de licence en fonction du plan
-      int durationDays = 30; // Durée par défaut
-      String licenceType = planId.name; // Type de licence par défaut
-      if (planId == PlanId.entreprise) {
-        durationDays = 365;
+      // Demander à l'utilisateur de choisir la méthode de paiement
+      final paymentMethod = await _showPaymentMethodDialog();
+      if (paymentMethod == null) {
+        setState(() => _isLoading = false);
+        return;
       }
 
-      // Calcul de la durée ajustée si un plan est en cours
-      if (_currentPlanExpiryDate != null && _remainingDays > 0) {
-        // Ajouter les jours restants du plan actuel si upgrading
-        if (!isDowngrade) {
-          durationDays += _remainingDays;
-        }
-      }
-
-      // Générer la nouvelle licence avec les dates et le type
-      final licenceData = await LicenceGenerator.generateUniqueLicence(durationDays, licenceType,'month');
-
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .update({
-        'plan': planId.name,
-        'planPreviousType': _currentPlan?.name,
-        'planUpgradeDate': FieldValue.serverTimestamp(),
-        'planStartDate': FieldValue.serverTimestamp(),
-        'planExpiryDate': Timestamp.fromDate(licenceData['expiryDate']),
-        'licence': licenceData['code'],
-        'licenceGenerationDate': Timestamp.fromDate(licenceData['generationDate']),
-        'licenceExpiryDate': Timestamp.fromDate(licenceData['expiryDate']),
-        'licenceType': licenceData['licenceType'],
-      });
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(isDowngrade
-              ? 'Plan rétrogradé avec succès!'
-              : 'Plan mis à niveau avec succès!'),
-          backgroundColor: Colors.green,
-        ),
-      );
-
-      if (planId == PlanId.entreprise) {
-        Navigator.pushReplacementNamed(context, AppRoutes.thankYou);
+      // Initialiser le paiement en fonction de la méthode choisie
+      if (paymentMethod == 'stripe') {
+        await _processPaymentWithStripe(planId.name);
+      } else if (paymentMethod == 'cinetpay') {
+        await _processPaymentWithCinetPay(planId.name);
       } else {
-        Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
+        throw Exception('Méthode de paiement non prise en charge');
       }
+
+      // Note: La mise à jour du plan est maintenant gérée par les fonctions Cloud après confirmation du paiement
+
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erreur: ${e.toString()}'), backgroundColor: Colors.red),
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+// Afficher une boîte de dialogue pour choisir la méthode de paiement
+  Future<String?> _showPaymentMethodDialog() async {
+    return await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Choisir une méthode de paiement'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.purple.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.credit_card, color: Colors.deepPurple, size: 24),
+              ),
+              title: const Text('Payer avec Carte Bancaire'),
+              subtitle: const Text('Visa, Mastercard, etc.'),
+              onTap: () => Navigator.of(context).pop('stripe'),
+            ),
+            const Divider(),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.smartphone, color: Colors.orange, size: 24),
+              ),
+              title: const Text('Payer avec Mobile Money'),
+              subtitle: const Text('Orange Money, MTN, Wave, etc.'),
+              onTap: () => Navigator.of(context).pop('cinetpay'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(null),
+            child: const Text('Annuler'),
+          ),
+        ],
+      ),
+    );
+  }
+
+// Traiter le paiement avec Stripe
+  Future<void> _processPaymentWithStripe(String planId) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception("L'utilisateur doit être connecté.");
+      }
+
+      // Récupération du token d'ID de l'utilisateur
+      String? idToken = await user.getIdToken();
+
+      // Appel de la Cloud Function pour initialiser le paiement Stripe
+      final functions = FirebaseFunctions.instanceFor(region: 'us-central1');
+      final callable = functions.httpsCallable('initializeStripePayment');
+
+      final result = await callable.call({
+        'planId': planId,
+        'idToken': idToken,
+      });
+
+      if (result.data is! Map) {
+        throw Exception("Réponse inattendue du serveur.");
+      }
+
+      final data = result.data as Map<String, dynamic>;
+
+      if (data['success'] == true && data['paymentUrl'] != null) {
+        final transactionId = data['transactionId'];
+
+        // Lancer l'URL de paiement dans un navigateur ou WebView
+        await _launchPaymentUrl(data['paymentUrl']);
+
+        // Montrer un dialogue de confirmation de paiement
+        if (mounted) {
+          _showPaymentConfirmationDialog(transactionId: transactionId, isStripe: true);
+        }
+      } else {
+        throw Exception("Erreur lors de l'initialisation du paiement. Détails : ${data['message'] ?? 'Aucune description'}");
+      }
+    } catch (e) {
+      print('❌ Erreur pendant le paiement Stripe : $e');
+      rethrow;
+    }
+  }
+
+// Traiter le paiement avec CinetPay
+  Future<void> _processPaymentWithCinetPay(String planId) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception("L'utilisateur doit être connecté.");
+      }
+
+      // Récupération du token d'ID de l'utilisateur
+      String? idToken = await user.getIdToken();
+
+      // Appel de la Cloud Function pour initialiser le paiement CinetPay
+      final functions = FirebaseFunctions.instanceFor(region: 'us-central1');
+      final callable = functions.httpsCallable('initializePayment');
+
+      final result = await callable.call({
+        'planId': planId,
+        'idToken': idToken,
+      });
+
+      if (result.data is! Map) {
+        throw Exception("Réponse inattendue du serveur.");
+      }
+
+      final data = result.data as Map<String, dynamic>;
+
+      if (data['success'] == true && data['paymentUrl'] != null) {
+        final transactionId = data['transactionId'];
+
+        // Lancer l'URL de paiement dans un navigateur ou WebView
+        await _launchPaymentUrl(data['paymentUrl']);
+
+        // Montrer un dialogue de confirmation de paiement
+        if (mounted) {
+          _showPaymentConfirmationDialog(transactionId: transactionId, isStripe: false);
+        }
+      } else {
+        throw Exception("Erreur lors de l'initialisation du paiement. Détails : ${data['message'] ?? 'Aucune description'}");
+      }
+    } catch (e) {
+      print('❌ Erreur pendant le paiement CinetPay : $e');
+      rethrow;
+    }
+  }
+
+// Lancer l'URL de paiement
+  Future<void> _launchPaymentUrl(String url) async {
+    if (await canLaunch(url)) {
+      await launch(url, forceSafariVC: true, forceWebView: true);
+    } else {
+      throw Exception('Impossible d\'ouvrir l\'URL de paiement');
+    }
+  }
+
+// Montrer un dialogue de confirmation de paiement
+  void _showPaymentConfirmationDialog({required String transactionId, required bool isStripe}) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Paiement en cours'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Veuillez compléter le paiement dans la fenêtre ouverte. Une fois terminé, cliquez sur "Vérifier le statut".',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            const CircularProgressIndicator(),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _verifyPaymentStatus(transactionId, isStripe);
+            },
+            child: const Text('Vérifier le statut'),
+          ),
+        ],
+      ),
+    );
+  }
+
+// Vérifier le statut du paiement
+  Future<void> _verifyPaymentStatus(String transactionId, bool isStripe) async {
+    setState(() => _isLoading = true);
+
+    try {
+      final functions = FirebaseFunctions.instanceFor(region: 'us-central1');
+      final callable = functions.httpsCallable(
+          isStripe ? 'checkStripePaymentStatus' : 'checkPaymentStatus'
+      );
+
+      final result = await callable.call({
+        'transactionId': transactionId,
+      });
+
+      if (result.data is! Map) {
+        throw Exception("Réponse inattendue du serveur.");
+      }
+
+      final data = result.data as Map<String, dynamic>;
+
+      if (data['success'] == true) {
+        if (data['status'] == 'completed') {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Paiement confirmé! Votre plan a été mis à jour.'),
+              backgroundColor: Colors.green,
+            ),
+          );
+
+          // Rediriger vers la page appropriée
+          final planId = data['planId'];
+          if (planId == 'entreprise') {
+            Navigator.pushReplacementNamed(context, AppRoutes.thankYou);
+          } else {
+            Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
+          }
+        } else if (data['status'] == 'pending') {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Paiement en attente de confirmation. Veuillez réessayer dans quelques instants.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Le paiement a échoué. Veuillez réessayer.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } else {
+        throw Exception(data['message'] ?? 'Erreur lors de la vérification du paiement');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() => _isLoading = false);
     }
   }
 
@@ -323,16 +536,16 @@ class _ChoosePlanUpgradeState extends State<ChoosePlanUpgrade> {
         title: 'Starter',
         price: '20000 FCFA',
         duration: '/mois',
-        features: ['Module de réservation', '20 chambres max', 'Gestion resto', '10 tables resto', 'Support prioritaire', 'Rapports quotidiens'],
+        features: ['Module de réservation', '20 chambres max','Module de facturation', 'Support prioritaire', 'Rapports quotidiens'],
         planId: PlanId.starter,
         isRecommended: _currentPlan == PlanId.basic,
         isDisabled: _currentPlan == PlanId.starter,
       ),
       Plan(
         title: 'Pro',
-        price: '50000 FCFA',
+        price: '35000 FCFA',
         duration: '/mois',
-        features: ['Module de réservation', 'Chambres illimitées', 'Gestion resto', 'Tables resto illimitées', 'Support 24/7', 'Analyses temps réel', 'Marketing tools', 'Formation incluse'],
+        features: ['Module de réservation', 'Chambres illimitées','Module de facturation', 'Gestion resto', 'Tables resto illimitées', 'Support 24/7', 'Analyses temps réel', 'Marketing tools'],
         planId: PlanId.pro,
         isRecommended: _currentPlan == PlanId.starter,
         isDisabled: _currentPlan == PlanId.pro,

@@ -115,6 +115,16 @@ class _HourlyCheckInPageState extends State<HourlyCheckInPage> {
       // Transformer les documents en objets Room
       final allRooms = snapshot.docs.map((doc) {
         final data = doc.data();
+        String imageValue = '';
+
+        // Gestion des différents formats d'image
+        if (data['image'] is Map) {
+          final imageMap = data['image'] as Map<String, dynamic>;
+          imageValue = imageMap['path'] ?? '';
+        } else if (data['image'] is String) {
+          imageValue = data['image'];
+        }
+
         return Room(
           id: doc.id,
           number: data['number'],
@@ -124,7 +134,8 @@ class _HourlyCheckInPageState extends State<HourlyCheckInPage> {
           capacity: data['capacity'],
           amenities: List<String>.from(data['amenities']),
           floor: data['floor'],
-          image: data['image'],
+          image: imageValue,
+          imageUrl: data['imageUrl'] ?? '',
           userId: userId,
         );
       }).toList();

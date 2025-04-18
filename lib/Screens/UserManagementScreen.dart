@@ -2,8 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import 'package:cloud_functions/cloud_functions.dart';
+import 'package:provider/provider.dart';
+
+import '../components/messagerie/NotificationProvider.dart';
 import '../widgets/side_menu.dart';
 import 'LicenceManagerPage.dart';
+import 'messagerie.dart';
+
+
 
 class UserManagementScreen extends StatefulWidget {
   const UserManagementScreen({Key? key}) : super(key: key);
@@ -80,15 +87,16 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Confirmer la suppression'),
+          title: Text('Confirmer la suppression'),
           content: Text('Êtes-vous sûr de vouloir supprimer l\'utilisateur $userEmail ?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
               child: const Text('Annuler'),
             ),
-            TextButton(
+            ElevatedButton(
               onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
               child: const Text('Supprimer'),
             ),
           ],
@@ -102,19 +110,18 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       });
 
       try {
-        // Obtenir une instance admin de Firebase Auth (nécessite une fonction Cloud)
-        // Cette partie devrait être implémentée en tant que fonction Firebase Cloud
-        // car la suppression d'un utilisateur Auth nécessite des privilèges admin
+        // Appeler la fonction Cloud pour supprimer l'utilisateur
+        final callable = FirebaseFunctions.instance.httpsCallable('deleteUser');
+        final result = await callable.call({'uid': userId});
 
-        // 1. Supprimer le document Firestore de l'utilisateur
-        await _firestore.collection('users').doc(userId).delete();
-
-        // 2. Rafraîchir la liste des utilisateurs
-        await _fetchUsers();
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Utilisateur $userEmail supprimé avec succès')),
-        );
+        if (result.data['success']) {
+          await _fetchUsers();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Utilisateur $userEmail supprimé avec succès')),
+          );
+        } else {
+          throw Exception('Échec de la suppression: ${result.data['message']}');
+        }
       } catch (e) {
         setState(() {
           _isLoading = false;
@@ -127,20 +134,22 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   }
 
   Future<void> _toggleUserStatus(String userId, String userEmail, bool isActive) async {
-    String action = isActive ? 'désactiver' : 'activer';
     bool confirmToggle = await showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('Confirmer l\'action'),
-          content: Text('Êtes-vous sûr de vouloir $action l\'utilisateur $userEmail ?'),
+          title: Text('Confirmer le changement de statut'),
+          content: Text('Êtes-vous sûr de vouloir ${isActive ? 'désactiver' : 'activer'} l\'utilisateur $userEmail ?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
               child: const Text('Annuler'),
             ),
-            TextButton(
+            ElevatedButton(
               onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: isActive ? Colors.orange : Colors.green,
+              ),
               child: Text(isActive ? 'Désactiver' : 'Activer'),
             ),
           ],
@@ -154,16 +163,21 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       });
 
       try {
-        // Mettre à jour le statut de l'utilisateur dans Firestore
-        await _firestore.collection('users').doc(userId).update({
-          'isActive': !isActive,
+        // Appeler la fonction Cloud pour modifier le statut
+        final callable = FirebaseFunctions.instance.httpsCallable('toggleUserStatus');
+        final result = await callable.call({
+          'uid': userId,
+          'disable': isActive,
         });
 
-        await _fetchUsers();
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Utilisateur $userEmail ${isActive ? 'désactivé' : 'activé'} avec succès')),
-        );
+        if (result.data['success']) {
+          await _fetchUsers();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Utilisateur $userEmail ${isActive ? 'désactivé' : 'activé'} avec succès')),
+          );
+        } else {
+          throw Exception('Échec de la mise à jour du statut: ${result.data['message']}');
+        }
       } catch (e) {
         setState(() {
           _isLoading = false;
@@ -175,6 +189,138 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     }
   }
 
+  // Nouvelle fonction pour définir un utilisateur comme admin
+  Future<void> _setUserAsAdmin(String userId, String userEmail, [bool isSuperAdmin = false]) async {
+    final roleTitle = isSuperAdmin ? 'super-administrateur' : 'administrateur';
+
+    bool confirmRole = await showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Confirmer le changement de rôle'),
+          content: Text('Êtes-vous sûr de vouloir définir $userEmail comme $roleTitle ?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Annuler'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+              ),
+              child: Text('Confirmer'),
+            ),
+          ],
+        );
+      },
+    ) ?? false;
+
+    if (confirmRole) {
+      setState(() {
+        _isLoading = true;
+      });
+
+      try {
+        // Appeler la fonction Cloud pour définir l'utilisateur comme admin
+        final callable = FirebaseFunctions.instance.httpsCallable('addAdmin');
+        final result = await callable.call({
+          'uid': userId,
+          'role': isSuperAdmin ? 'superAdmin' : 'admin',
+        });
+
+        if (result.data['success']) {
+          await _fetchUsers();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Utilisateur $userEmail défini comme $roleTitle avec succès')),
+          );
+        } else {
+          throw Exception('Échec de la mise à jour du rôle: ${result.data['message']}');
+        }
+      } catch (e) {
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur lors de la définition du rôle: $e')),
+        );
+      }
+    }
+  }
+  Future<void> removeUserAdmin(String userId, String userEmail) async {
+    bool confirmRole = await showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Confirmer le changement de rôle'),
+          content: Text('Êtes-vous sûr de vouloir supprimer les droits d\'administrateur de $userEmail ?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Annuler'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+              ),
+              child: Text('Confirmer'),
+            ),
+          ],
+        );
+      },
+    ) ?? false;
+
+    if (confirmRole) {
+      setState(() {
+        _isLoading = true;
+      });
+
+      try {
+        // Appeler la fonction Cloud pour révoquer les droits d'admin
+        final callable = FirebaseFunctions.instance.httpsCallable('removeAdmin');
+        final result = await callable.call({
+          'uid': userId,
+        });
+
+        if (result.data['success']) {
+          await _fetchUsers();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Droits d\'administrateur retirés pour $userEmail avec succès')),
+          );
+        } else {
+          throw Exception('Échec de la mise à jour du rôle: ${result.data['message']}');
+        }
+      } catch (e) {
+        setState(() {
+          _isLoading = false;
+        });
+
+        // Extraire le message d'erreur de la réponse Firebase
+        String errorMessage = e.toString();
+        if (e is FirebaseFunctionsException) {
+          // Pour les erreurs Firebase, on extrait le message plus proprement
+          errorMessage = e.message ?? 'Erreur inconnue';
+
+          // Vérifier si c'est une erreur de permission
+          if (errorMessage.contains('permission-denied')) {
+            errorMessage = 'Vous n\'avez pas les droits nécessaires pour effectuer cette action';
+          }
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur: $errorMessage')),
+        );
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
+    }
+  }
+
   void _navigateToLicenseManagement() {
     // Navigation vers l'espace licence en utilisant la page que nous avons créée
     Navigator.push(
@@ -182,13 +328,135 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       MaterialPageRoute(builder: (context) => const LicenceManagerPage()),
     );
   }
-
+  String userId = FirebaseAuth.instance.currentUser?.uid ?? '';
   void _navigateToMessageCenter() {
-    // Navigation vers l'espace message
+    // Récupérer le NotificationProvider existant
+    final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
+
+    // Navigation vers l'espace message avec les providers nécessaires
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => MessageCenterScreen()),
+      MaterialPageRoute(
+        builder: (context) => MultiProvider(
+          providers: [
+            ChangeNotifierProvider<MessageProvider>(
+              create: (context) => MessageProvider(),
+            ),
+            ChangeNotifierProvider<NotificationProvider>.value(
+              value: notificationProvider,
+            ),
+          ],
+          child: PageMessagerieComponent(
+            expediteurId: userId, // Remplacez par l'ID de l'utilisateur actuel
+          ),
+        ),
+      ),
     );
+  }
+
+  // Fonction pour afficher le dialogue de configuration du premier super-admin
+  Future<void> _showSetupFirstAdminDialog() async {
+    final _emailController = TextEditingController();
+    final _secretKeyController = TextEditingController();
+    final _formKey = GlobalKey<FormState>();
+
+    bool confirmed = await showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Configuration Premier Super-Admin'),
+          content: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: _emailController,
+                  decoration: const InputDecoration(
+                    labelText: 'Email',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.emailAddress,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Veuillez entrer un email';
+                    }
+                    if (!value.contains('@')) {
+                      return 'Veuillez entrer un email valide';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _secretKeyController,
+                  decoration: const InputDecoration(
+                    labelText: 'Clé secrète',
+                    border: OutlineInputBorder(),
+                  ),
+                  obscureText: true,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Veuillez entrer la clé secrète';
+                    }
+                    return null;
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Annuler'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (_formKey.currentState!.validate()) {
+                  Navigator.of(context).pop(true);
+                }
+              },
+              child: const Text('Configurer'),
+            ),
+          ],
+        );
+      },
+    ) ?? false;
+
+    if (confirmed && _emailController.text.isNotEmpty && _secretKeyController.text.isNotEmpty) {
+      try {
+        setState(() {
+          _isLoading = true;
+        });
+
+        // Appeler la fonction Cloud pour configurer le premier admin
+        final callable = FirebaseFunctions.instance.httpsCallable('setupFirstAdmin');
+        final result = await callable.call({
+          'email': _emailController.text,
+          'secretKey': _secretKeyController.text,
+        });
+
+        setState(() {
+          _isLoading = false;
+        });
+
+        if (result.data['success']) {
+          await _fetchUsers();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(result.data['message'] ?? 'Super-admin configuré avec succès')),
+          );
+        } else {
+          throw Exception('Échec de la configuration: ${result.data['message']}');
+        }
+      } catch (e) {
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur lors de la configuration: $e')),
+        );
+      }
+    }
   }
 
   Future<void> _updateUserLicense(String userId, String userEmail) async {
@@ -332,6 +600,20 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         ],
       ),
       drawer: const SideMenu(),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          // Bouton pour configurer le premier super-admin
+          FloatingActionButton.extended(
+            onPressed: _showSetupFirstAdminDialog,
+            icon: const Icon(Icons.security),
+            label: const Text('Configurer Super-Admin'),
+            heroTag: 'setupSuperAdmin',
+            backgroundColor: Colors.purple,
+          ),
+          const SizedBox(height: 12),
+        ],
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _users.isEmpty
@@ -356,6 +638,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             rows: _users.map((user) {
               bool isActive = user['isActive'] ?? true;
               bool isLicenseExpired = user['isLicenceExpired'] ?? true;
+              String userRole = user['userRole'] ?? 'user';
 
               return DataRow(
                 cells: [
@@ -364,7 +647,35 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   DataCell(Text(user['phone'] ?? 'N/A')),
                   DataCell(Text(user['establishmentName'] ?? 'N/A')),
                   DataCell(Text(user['establishmentType'] ?? 'N/A')),
-                  DataCell(Text(user['userRole'] ?? 'N/A')),
+                  DataCell(
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: userRole == 'superAdmin'
+                            ? Colors.purple[100]
+                            : userRole == 'admin'
+                            ? Colors.blue[100]
+                            : Colors.grey[100],
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        userRole == 'superAdmin'
+                            ? 'Super Admin'
+                            : userRole == 'admin'
+                            ? 'Admin'
+                            : userRole.isEmpty
+                            ? 'Utilisateur'
+                            : userRole,
+                        style: TextStyle(
+                          color: userRole == 'superAdmin'
+                              ? Colors.purple[800]
+                              : userRole == 'admin'
+                              ? Colors.blue[800]
+                              : Colors.grey[800],
+                        ),
+                      ),
+                    ),
+                  ),
                   DataCell(Text(user['createdAtFormatted'])),
                   DataCell(
                     user['licenceType'] != null
@@ -406,11 +717,35 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   ),
                   DataCell(Row(
                     children: [
+                      // Bouton pour modifier la licence
                       IconButton(
                         icon: const Icon(Icons.edit, color: Colors.blue),
                         onPressed: () => _updateUserLicense(user['id'], user['email']),
                         tooltip: 'Modifier la licence',
                       ),
+                      // Pour les utilisateurs qui ne sont ni admin ni super-admin, afficher le bouton pour définir comme admin
+                      if (userRole != 'admin' && userRole != 'superAdmin')
+                        IconButton(
+                          icon: const Icon(Icons.admin_panel_settings, color: Colors.blue),
+                          onPressed: () => _setUserAsAdmin(user['id'], user['email']),
+                          tooltip: 'Définir comme admin',
+                        ),
+
+                      // Pour les utilisateurs qui sont admin uniquement (et non super-admin), afficher le bouton pour révoquer
+                      if (userRole == 'admin')
+                        IconButton(
+                          icon: const Icon(Icons.remove_moderator, color: Colors.red),
+                          onPressed: () => removeUserAdmin(user['id'], user['email']),
+                          tooltip: 'Retirer les droits d\'admin',
+                        ),
+                      // Bouton pour définir comme super-admin
+                      if (userRole != 'superAdmin')
+                        IconButton(
+                          icon: const Icon(Icons.security, color: Colors.purple),
+                          onPressed: () => _setUserAsAdmin(user['id'], user['email'], true),
+                          tooltip: 'Définir comme super-admin',
+                        ),
+                      // Bouton pour activer/désactiver
                       IconButton(
                         icon: Icon(
                           isActive ? Icons.block : Icons.check_circle,
@@ -419,6 +754,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                         onPressed: () => _toggleUserStatus(user['id'], user['email'], isActive),
                         tooltip: isActive ? 'Désactiver' : 'Activer',
                       ),
+                      // Bouton pour supprimer
                       IconButton(
                         icon: const Icon(Icons.delete, color: Colors.red),
                         onPressed: () => _deleteUser(user['id'], user['email']),
@@ -437,6 +773,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 }
 
 class MessageCenterScreen extends StatelessWidget {
+  const MessageCenterScreen({Key? key}) : super(key: key);
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(

@@ -4,11 +4,15 @@ import 'package:gesto/widgets/side_menu.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart'; // Ajout de l'import
+import 'package:provider/provider.dart';
 
 // Composants importés
 import '../components/dashboard/revenue_chart.dart';
 import '../components/dashboard/recent_bookings.dart';
 import '../components/dashboard/tasks_list.dart';
+import 'Screens/messagerie.dart';
+import 'components/messagerie/NotificationPanel.dart';
+import 'components/messagerie/NotificationProvider.dart';
 import 'config/AuthService.dart';
 import 'config/UserModel.dart';
 import 'config/calculerOccupationChambres.dart';
@@ -38,6 +42,8 @@ class _DashboardState extends State<Dashboard> {
     initializeDateFormatting('fr_FR', null).then((_) {
       _loadUserData();
       _loadStatistiques();
+
+      Provider.of<NotificationProvider>(context, listen: false).initialiser();
     });
   }
 
@@ -198,7 +204,7 @@ class _DashboardState extends State<Dashboard> {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
-                'v1.2.5',
+                'v1.2.6',
                 style: TextStyle(
                   fontSize: 12,
                   color: primaryColor,
@@ -210,23 +216,33 @@ class _DashboardState extends State<Dashboard> {
         ),
         actions: <Widget>[
           IconButton(
-            icon: Badge(
-              label: Text('3'),
-              child: Icon(Icons.notifications_outlined, color: isDark ? Colors.white70 : Colors.black54),
+            icon: Consumer<NotificationProvider>(
+              builder: (context, notificationProvider, _) => Badge(
+                label: Text('${notificationProvider.nonLuesCount}'),
+                isLabelVisible: notificationProvider.nonLuesCount > 0,
+                child: Icon(Icons.notifications_outlined, color: isDark ? Colors.white70 : Colors.black54),
+              ),
             ),
             onPressed: () {
-              // Actions pour les notifications
+              // Afficher le panneau de notifications
+              showDialog(
+                context: context,
+                builder: (BuildContext context) {
+                  return Dialog(
+                    insetPadding: EdgeInsets.only(top: 0, bottom: 0, right: 0),
+                    alignment: Alignment.centerRight,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(0),
+                    ),
+                    elevation: 0,
+                    backgroundColor: Colors.transparent,
+                    child: NotificationPanel(),
+                  );
+                },
+              );
             },
           ),
-          IconButton(
-            icon: Badge(
-              label: Text('5'),
-              child: Icon(Icons.message_outlined, color: isDark ? Colors.white70 : Colors.black54),
-            ),
-            onPressed: () {
-              // Actions pour les messages
-            },
-          ),
+
           IconButton(
             icon: Icon(
               _isDarkMode ? Icons.light_mode_outlined : Icons.dark_mode_outlined,

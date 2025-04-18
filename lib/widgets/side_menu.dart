@@ -73,24 +73,37 @@ class _SideMenuState extends State<SideMenu> {
 
   // Fonction pour vérifier si l'utilisateur est un administrateur
   bool _isAdmin() {
-    return _userModel?.userRole == 'Admin';
+    return _userModel?.userRole == 'admin' || _userModel?.userRole == 'superAdmin';
   }
 
-  // Fonction pour vérifier si l'élément doit être affiché en fonction du type de licence
+
   bool _shouldDisplayMenuItem(String routeName) {
-    // Si la licence est payante, afficher tous les éléments
-    if (_userModel?.plan != 'basic') {
+    // Récupérer le plan de l'utilisateur
+    String userPlan = _userModel?.plan ?? 'basic';
+
+    // Si l'utilisateur a un plan premium, afficher tous les éléments
+    if (userPlan == 'pro') {
       return true;
     }
-    // Si la licence est gratuite, masquer uniquement les éléments payants
+    // Si l'utilisateur a un plan starter, afficher les statistiques et les éléments de base
+    else if (userPlan == 'starter') {
+      if (routeName == AppRoutes.restaurant ||
+          routeName == AppRoutes.clients ||
+          routeName == AppRoutes.statistiques ) {
+        return false; // Masquer les éléments premium uniquement
+      }
+      return true; // Afficher les statistiques et les éléments de base
+    }
+    // Si l'utilisateur a un plan basic, masquer les fonctionnalités payantes
     else {
       if (routeName == AppRoutes.restaurant ||
           routeName == AppRoutes.clients ||
-          routeName == AppRoutes.employees||
-          routeName == AppRoutes.statistiques) {
-        return false; // Masquer les éléments payants
+          routeName == AppRoutes.employees ||
+          routeName == AppRoutes.statistiques ||
+          routeName == AppRoutes.services) {
+        return false; // Masquer tous les éléments premium et statistiques
       }
-      return true; // Afficher les éléments gratuits
+      return true; // Afficher uniquement les éléments de base
     }
   }
 
@@ -216,6 +229,8 @@ class _SideMenuState extends State<SideMenu> {
           // Personnel
           if (_shouldDisplayMenuItem(AppRoutes.employees))
           _buildMenuItem(Icons.perm_contact_calendar_outlined, 'Personnel', AppRoutes.employees, enabled: !_licenseExpired,isPremium: isPremium,),
+          if (_shouldDisplayMenuItem(AppRoutes.employees))
+            _buildMenuItem(Icons.home_repair_service, 'Services', AppRoutes.services, enabled: !_licenseExpired,isPremium: isPremium,),
 
           // Finances
           _buildMenuItem(Icons.monetization_on_sharp, 'Finances', AppRoutes.finance, enabled: !_licenseExpired),

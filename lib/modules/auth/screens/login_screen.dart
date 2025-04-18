@@ -1,8 +1,9 @@
 import 'package:animate_do/animate_do.dart';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // Ajouter cette importation
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../../../../config/routes.dart';
 import '../../../../../config/theme.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -17,6 +18,9 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _isLoading = false;
   bool _obscurePassword = true;
+
+  // Ajout d'une variable pour suivre le mode de connexion sélectionné
+  String _loginMode = "admin"; // Par défaut: "admin" ou "employee"
 
   @override
   void dispose() {
@@ -37,9 +41,54 @@ class _LoginScreenState extends State<LoginScreen> {
         UserCredential userCredential = await FirebaseAuth.instance
             .signInWithEmailAndPassword(email: email, password: password);
 
-        // Navigation si réussite
-        if (!mounted) return;
-        Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
+        // Récupération de l'ID utilisateur authentifié
+        final String uid = userCredential.user!.uid;
+
+        // Vérification du type d'utilisateur dans Firestore
+        final firestore = FirebaseFirestore.instance;
+
+        if (_loginMode == "admin") {
+          // Vérifier si l'utilisateur existe dans la collection 'users' (admin/manager)
+          final userDoc = await firestore.collection('users').doc(uid).get();
+
+          if (!userDoc.exists) {
+            // L'utilisateur n'est pas un admin/manager
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("Vous n'avez pas les droits d'administrateur ou de manager"),
+                backgroundColor: Colors.red,
+              ),
+            );
+            await FirebaseAuth.instance.signOut(); // Déconnexion
+            setState(() => _isLoading = false);
+            return;
+          }
+
+          // Navigation vers le dashboard admin
+          if (!mounted) return;
+          Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
+
+        } else {
+          // Vérifier si l'utilisateur existe dans la collection 'staff' (employé)
+          final staffDoc = await firestore.collection('staff').doc(uid).get();
+
+          if (!staffDoc.exists) {
+            // L'utilisateur n'est pas un employé
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("Vous n'avez pas les droits d'employé"),
+                backgroundColor: Colors.red,
+              ),
+            );
+            await FirebaseAuth.instance.signOut(); // Déconnexion
+            setState(() => _isLoading = false);
+            return;
+          }
+
+          // Navigation vers le dashboard employé
+          if (!mounted) return;
+          Navigator.pushReplacementNamed(context, AppRoutes.employeeDashboard);
+        }
 
       } on FirebaseAuthException catch (e) {
         String errorMessage;
@@ -100,29 +149,29 @@ class _LoginScreenState extends State<LoginScreen> {
                             width: 250,
                             height: 250,
                           ),
-                          // Le SizedBox et le Text ont été supprimés ici
                         ],
                       ),
                     ),
                     const SizedBox(height: 2),
-                  Row(mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      'GESTO',
-                      style: theme.textTheme.displaySmall?.copyWith(
-                        color: GestoTheme.white,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'GESTO',
+                            style: theme.textTheme.displaySmall?.copyWith(
+                              color: GestoTheme.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            ' v1.2.6',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[400],
+                            ),
+                          ),
+                        ]
                     ),
-                    Text(
-                      ' v1.2.5',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[400],
-                      ),
-                    ),
-                    ]
-                  ),
                     const SizedBox(height: 16),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 48),
@@ -184,7 +233,56 @@ class _LoginScreenState extends State<LoginScreen> {
                           color: Colors.grey[600],
                         ),
                       ),
-                      const SizedBox(height: 32),
+                      const SizedBox(height: 24),
+
+                      // Sélection du mode de connexion
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () {
+                                setState(() {
+                                  _loginMode = "admin";
+                                });
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _loginMode == "admin" ? GestoTheme.navyBlue : Colors.grey[300],
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                              ),
+                              child: Text(
+                                'Administrateur / Manager',
+                                style: TextStyle(
+                                  color: _loginMode == "admin" ? Colors.white : Colors.black,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () {
+                                setState(() {
+                                  _loginMode = "employee";
+                                });
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _loginMode == "employee" ? GestoTheme.navyBlue : Colors.grey[300],
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                              ),
+                              child: Text(
+                                'Employé',
+                                style: TextStyle(
+                                  color: _loginMode == "employee" ? Colors.white : Colors.black,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 24),
                       Form(
                         key: _formKey,
                         child: Column(
@@ -252,13 +350,20 @@ class _LoginScreenState extends State<LoginScreen> {
                               height: 50,
                               child: ElevatedButton(
                                 onPressed: _isLoading ? null : _login,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: _loginMode == "admin"
+                                      ? GestoTheme.white
+                                      : Colors.white54,
+                                ),
                                 child: _isLoading
                                     ? const CircularProgressIndicator(
                                   color: Colors.white,
                                 )
-                                    : const Text(
-                                  'SE CONNECTER',
-                                  style: TextStyle(fontSize: 16),
+                                    : Text(
+                                  _loginMode == "admin"
+                                      ? 'CONNEXION ADMINISTRATEUR'
+                                      : 'CONNEXION EMPLOYÉ',
+                                  style: const TextStyle(fontSize: 16),
                                 ),
                               ),
                             ),
@@ -293,6 +398,7 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
+
   void _resetPassword() async {
     final email = _emailController.text.trim();
     if (email.isEmpty) {

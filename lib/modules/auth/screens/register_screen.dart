@@ -4,7 +4,9 @@ import 'package:animate_do/animate_do.dart';
 import 'package:flutter/animation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../../../config/routes.dart';
 import '../../../../../config/theme.dart';
 import '../../../config/CodeEntrepriseGenerator.dart';
@@ -55,6 +57,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
+  String _selectedCountryCode = '+225'; // Code par défaut pour la Côte d'Ivoire
+  final List<Map<String, String>> _countryCodes = [
+    {'code': '+225', 'name': 'Côte d\'Ivoire'},
+    {'code': '+221', 'name': 'Sénégal'},
+    {'code': '+237', 'name': 'Cameroun'},
+    {'code': '+241', 'name': 'Gabon'},
+    {'code': '+243', 'name': 'RD Congo'},
+    {'code': '+229', 'name': 'Bénin'},
+    {'code': '+226', 'name': 'Burkina Faso'},
+    {'code': '+227', 'name': 'Niger'},
+    {'code': '+223', 'name': 'Mali'},
+    // Ajoutez d'autres pays selon vos besoins
+  ];
+  // URLs pour les conditions et la politique
+  final String _termsUrl = 'https://app.gestoapp.cloud/conditions-utilisation';
+  final String _privacyUrl = 'https://app.gestoapp.cloud/politique-confidentialite';
+
+// Méthode pour ouvrir les URLs
+  Future<void> _launchUrl(String url) async {
+    final Uri uri = Uri.parse(url);
+    if (!await launchUrl(uri, webOnlyWindowName: '_blank')) {
+      throw Exception('Impossible d\'ouvrir $url');
+    }
+  }
+
   Future<void> _register() async {
     // Vérifiez uniquement les champs essentiels pour Firebase
     if (_emailController.text.isNotEmpty &&
@@ -70,6 +97,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         final password = _passwordController.text.trim();
         final userCredential = await FirebaseAuth.instance
             .createUserWithEmailAndPassword(email: email, password: password);
+        final fullPhoneNumber = _selectedCountryCode + _phoneController.text.trim();
 
         // Générer un code entreprise unique
         final entrepriseData = await CodeEntrepriseGenerator.generateUniqueCode(
@@ -85,7 +113,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             .set({
           'fullName': _fullNameController.text.trim(),
           'email': email,
-          'phone': _phoneController.text.trim(),
+          'phone': fullPhoneNumber,
           'establishmentName': _establishmentNameController.text.trim(),
           'establishmentAddress': _establishmentAddressController.text.trim(),
           'establishmentType': _establishmentType,
@@ -441,20 +469,51 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 },
               ),
               const SizedBox(height: 16),
-              TextFormField(
-                controller: _phoneController,
-                decoration: const InputDecoration(
-                  labelText: 'Téléphone',
-                  prefixIcon: Icon(Icons.phone_outlined),
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.phone,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Veuillez entrer votre numéro de téléphone';
-                  }
-                  return null;
-                },
+              Row(
+                children: [
+                  // Sélecteur d'indicatif
+                  Container(
+                    width: 120,
+                    child: DropdownButtonFormField<String>(
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Indicatif',
+                        border: OutlineInputBorder(),
+                      ),
+                      value: _selectedCountryCode,
+                      items: _countryCodes.map((country) {
+                        return DropdownMenuItem<String>(
+                          value: country['code'],
+                          child: Text('${country['code']}', overflow: TextOverflow.ellipsis),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() => _selectedCountryCode = value);
+                        }
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  // Champ pour le numéro
+                  Expanded(
+                    child: TextFormField(
+                      controller: _phoneController,
+                      decoration: const InputDecoration(
+                        labelText: 'Numéro de téléphone',
+                        prefixIcon: Icon(Icons.phone_outlined),
+                        border: OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.phone,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Veuillez entrer votre numéro de téléphone';
+                        }
+                        return null;
+                      },
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 16),
               TextFormField(
@@ -518,9 +577,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
               const SizedBox(height: 24),
               CheckboxListTile(
-                title: const Text(
-                  'J\'accepte les conditions générales d\'utilisation et la politique de confidentialité',
-                  style: TextStyle(fontSize: 14),
+                title: RichText(
+                  text: TextSpan(
+                    style: TextStyle(fontSize: 14, color: Colors.black87),
+                    children: [
+                      TextSpan(text: 'J\'accepte les '),
+                      TextSpan(
+                        text: 'conditions générales d\'utilisation',
+                        style: TextStyle(
+                          color: GestoTheme.navyBlue,
+                          fontWeight: FontWeight.bold,
+                          decoration: TextDecoration.underline,
+                        ),
+                        recognizer: TapGestureRecognizer()
+                          ..onTap = () => _launchUrl(_termsUrl),
+                      ),
+                      TextSpan(text: ' et la '),
+                      TextSpan(
+                        text: 'politique de confidentialité',
+                        style: TextStyle(
+                          color: GestoTheme.navyBlue,
+                          fontWeight: FontWeight.bold,
+                          decoration: TextDecoration.underline,
+                        ),
+                        recognizer: TapGestureRecognizer()
+                          ..onTap = () => _launchUrl(_privacyUrl),
+                      ),
+                    ],
+                  ),
                 ),
                 value: _acceptTerms,
                 contentPadding: EdgeInsets.zero,
@@ -580,7 +664,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 ),
                               ),
                               Text(
-                                ' v1.2.5',
+                                ' v1.2.6',
                                 style: TextStyle(
                                   fontSize: 14,
                                   color: Colors.grey[400],

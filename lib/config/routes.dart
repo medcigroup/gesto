@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../ChoosePlanScreen.dart';
 import '../DashboardScreen.dart';
+import '../EmployeeDashboard.dart';
 import '../GestoLandingPage.dart';
 import '../GestoPricingPage.dart';
 import '../PaiementPlan.dart';
@@ -53,6 +54,8 @@ class AppRoutes {
   static const String paiement = '/paiement';
   static const String occupiedrooms = '/occupiedrooms';
   static const String hourlyCheckInPage = '/hourlyCheckInPage';
+  static const String services = '/services';
+  static const String employeeDashboard = '/employeeDashboard';
 
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
@@ -103,6 +106,11 @@ class AppRoutes {
         return MaterialPageRoute(builder: (_) => CheckInPage());
       case administration:
         return MaterialPageRoute(builder: (_) => UserManagementScreen());
+      case services:
+        return MaterialPageRoute(builder: (_) => ComingSoonPage());
+      case employeeDashboard:
+        return MaterialPageRoute(builder: (_) => EmployeeDashboard());
+
 
       default:
         return MaterialPageRoute(

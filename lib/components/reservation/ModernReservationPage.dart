@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
-
-import '../../Screens/CheckInForm.dart';
+import '../../Screens/manager/CheckInForm.dart';
 import '../../config/HotelSettingsService.dart';
 import '../../config/generationcode.dart';
 import '../../config/printReservationReceipt.dart';
@@ -643,7 +642,6 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
         title: Text('Réservation de Chambres'),
         centerTitle: true,
       ),
-      drawer: const SideMenu(),
       body: Row(
         children: [
           // Main content area
@@ -709,29 +707,65 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
       type: StepperType.horizontal,
       currentStep: _currentStep,
       controlsBuilder: (context, details) {
-        return Row(
-          children: [
-            if (_currentStep < _totalSteps - 1)
-              ElevatedButton(
-                onPressed: details.onStepContinue,
-                child: Text(_currentStep == 0
-                    ? 'Vérifier disponibilité'
-                    : 'Continuer'),
-              ),
-            if (_currentStep == _totalSteps - 1) // Dernière étape
-              ElevatedButton(
-                onPressed: makeReservation,
-                child: const Text('Réserver'),
-              ),
-            if (_currentStep > 0)
-              Padding(
-                padding: const EdgeInsets.only(left: 8.0),
-                child: TextButton(
-                  onPressed: details.onStepCancel,
-                  child: const Text('Retour'),
+        return Padding(
+          padding: const EdgeInsets.only(top: 15.0), // Ajouter un espace de 15 pixels en haut
+          child: Row(
+            children: [
+              if (_currentStep < _totalSteps - 1)
+                ElevatedButton(
+                  onPressed: details.onStepContinue,
+                  // Définir un style avec des dimensions plus grandes
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                    textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    minimumSize: const Size(150, 50), // Largeur minimale et hauteur
+                    backgroundColor: Colors.deepPurple, // Couleur violette
+                    foregroundColor: Colors.white, // Texte en blanc
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(5), // Forme presque carrée (légèrement arrondie)
+                    ),
+                  ),
+                  child: Text(_currentStep == 0
+                      ? 'Vérifier disponibilité'
+                      : 'Continuer'),
                 ),
-              ),
-          ],
+              if (_currentStep == _totalSteps - 1) // Dernière étape
+                ElevatedButton(
+                  onPressed: makeReservation,
+                  // Style pour le bouton Réserver
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                    textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    minimumSize: const Size(150, 50), // Largeur minimale et hauteur
+                    backgroundColor: Colors.deepPurple, // Couleur violette
+                    foregroundColor: Colors.white, // Texte en blanc
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(5), // Forme presque carrée (légèrement arrondie)
+                    ),
+                  ),
+                  child: const Text('Réserver'),
+                ),
+              if (_currentStep > 0)
+                Padding(
+                  padding: const EdgeInsets.only(left: 16.0), // Augmenter l'espacement
+                  child: TextButton(
+                    onPressed: details.onStepCancel,
+                    // Style pour le bouton Retour
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                      textStyle: const TextStyle(fontSize: 16),
+                      minimumSize: const Size(100, 45), // Largeur minimale et hauteur
+                      backgroundColor: Colors.deepPurple[200], // Couleur violet clair pour le bouton retour
+                      foregroundColor: Colors.white, // Texte en blanc
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(5), // Forme presque carrée (légèrement arrondie)
+                      ),
+                    ),
+                    child: const Text('Retour'),
+                  ),
+                ),
+            ],
+          ),
         );
       },
       onStepContinue: () {
@@ -1287,17 +1321,35 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
                   prefixIcon: Icon(Icons.search),
                   border: OutlineInputBorder(),
                 ),
+                // Ajouter un gestionnaire pour la touche Entrée
+                onSubmitted: (value) {
+                  if (!_isSearching) {
+                    _searchReservation();
+                  }
+                },
               ),
             ),
             const SizedBox(width: 8),
             ElevatedButton(
               onPressed: _isSearching ? null : _searchReservation,
+              // Style pour le bouton Rechercher en violet et carré
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                backgroundColor: Colors.deepPurple, // Couleur violette
+                foregroundColor: Colors.white, // Texte en blanc
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(5), // Forme presque carrée
+                ),
+                minimumSize: const Size(120, 48), // Taille minimale pour assurer un aspect carré
+              ),
               child: _isSearching
                   ? const SizedBox(
                 width: 20,
                 height: 20,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white), // Pour que l'indicateur soit blanc
                 ),
               )
                   : const Text('Rechercher'),
@@ -1780,6 +1832,29 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
                         'balanceDue': balanceDue,
                         'updatedAt': DateTime.now(),
                       });
+
+                      // Mise à jour de la transaction associée
+                      try {
+                        // Rechercher la transaction liée à cette réservation
+                        final transactionSnapshot = await FirebaseFirestore.instance
+                            .collection('transactions')
+                            .where('bookingId', isEqualTo: reservation.id)
+                            .get();
+
+                        // Si une transaction existe, la mettre à jour
+                        if (transactionSnapshot.docs.isNotEmpty) {
+                          final transactionDoc = transactionSnapshot.docs.first;
+                          await FirebaseFirestore.instance.collection('transactions').doc(transactionDoc.id).update({
+                            'customerName': customerNameController.text,
+                            'amount': depositAmount,
+                            'description': 'Acompte mis à jour pour la réservation ${reservation.reservationCode}',
+                            'updatedAt': DateTime.now(),
+                          });
+                        }
+                      } catch (e) {
+                        print('Erreur lors de la mise à jour de la transaction: $e');
+                        // Continuer malgré l'erreur - la mise à jour de la réservation est déjà faite
+                      }
 
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(

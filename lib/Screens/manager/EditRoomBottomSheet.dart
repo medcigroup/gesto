@@ -9,8 +9,8 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:uuid/uuid.dart';
 import 'package:path/path.dart' as path;
 
-import '../config/HotelSettingsService.dart';
-import '../config/room_models.dart';
+import '../../config/HotelSettingsService.dart';
+import '../../config/room_models.dart';
 
 class EditRoomBottomSheet extends StatefulWidget {
   final Room room;

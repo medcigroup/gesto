@@ -1,25 +1,26 @@
 import 'package:flutter/material.dart';
 import '../ChoosePlanScreen.dart';
+import '../DashboardManager.dart';
 import '../DashboardScreen.dart';
 import '../EmployeeDashboard.dart';
 import '../GestoLandingPage.dart';
 import '../GestoPricingPage.dart';
 import '../PaiementPlan.dart';
-import '../Screens/ActivateLicencePage.dart';
-import '../Screens/CheckInPage.dart';
-import '../Screens/CheckoutPage.dart';
-import '../Screens/ChoosePlanUpgrade.dart';
-import '../Screens/ComingSoonPage.dart';
-import '../Screens/FinancePage.dart';
-import '../Screens/GestionPersonnelPage.dart';
-import '../Screens/HourlyCheckInPage.dart';
-import '../Screens/OccupiedRoomsPage.dart';
-import '../Screens/PaymentPage.dart';
-
-import '../Screens/RoomsPage.dart';
-import '../Screens/SettingsPage.dart';
-import '../Screens/UserManagementScreen.dart';
-import '../Screens/renew_licence_page.dart';
+import '../Screens/manager/ActivateLicencePage.dart';
+import '../Screens/manager/CheckInPage.dart';
+import '../Screens/manager/CheckoutPage.dart';
+import '../Screens/manager/ChoosePlanUpgrade.dart';
+import '../Screens/manager/ComingSoonPage.dart';
+import '../Screens/manager/FinancePage.dart';
+import '../Screens/manager/GestionPersonnelPage.dart';
+import '../Screens/manager/HourlyCheckInPage.dart';
+import '../Screens/manager/OccupiedRoomsPage.dart';
+import '../Screens/manager/PaymentPage.dart';
+import '../Screens/manager/RoomsPage.dart';
+import '../Screens/manager/SettingsPage.dart';
+import '../Screens/manager/TaskManagementPage.dart';
+import '../Screens/manager/UserManagementScreen.dart';
+import '../Screens/manager/renew_licence_page.dart';
 import '../components/reservation/ModernReservationPage.dart';
 import '../modules/auth/screens/ThankYouScreen.dart';
 import '../modules/auth/screens/login_screen.dart';
@@ -77,7 +78,7 @@ class AppRoutes {
       case contactpage:
         return MaterialPageRoute(builder: (_) => ContactPage());
       case dashboard:
-        return MaterialPageRoute(builder: (_) => Dashboard());
+        return MaterialPageRoute(builder: (_) => DashboardManager());
       case activatelicence:
         return MaterialPageRoute(builder: (_) => ActivateLicencePage());
       case employees:
@@ -107,7 +108,7 @@ class AppRoutes {
       case administration:
         return MaterialPageRoute(builder: (_) => UserManagementScreen());
       case services:
-        return MaterialPageRoute(builder: (_) => ComingSoonPage());
+        return MaterialPageRoute(builder: (_) => TaskManagementPage());
       case employeeDashboard:
         return MaterialPageRoute(builder: (_) => EmployeeDashboard());
 

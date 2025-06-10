@@ -1,10 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 class UserModelPersonnel {
   final String id;
+  final String idadmin;
   final String nom;
   final String prenom;
   final String email;
@@ -17,7 +19,7 @@ class UserModelPersonnel {
   final List<String>? competences;
   final List<String>? permissions;
 
-  UserModelPersonnel({
+  UserModelPersonnel( {
     required this.id,
     required this.nom,
     required this.prenom,
@@ -30,6 +32,7 @@ class UserModelPersonnel {
     this.competences,
     this.permissions,
     required this.entrepriseCode,
+    required this.idadmin,
   });
 
   factory UserModelPersonnel.fromJson(Map<String, dynamic> json) {
@@ -52,6 +55,7 @@ class UserModelPersonnel {
       permissions: json['permissions'] != null
           ? List<String>.from(json['permissions'])
           : [],
+      idadmin: json['idadmin'] ?? '',
     );
   }
 
@@ -69,6 +73,7 @@ class UserModelPersonnel {
       'competences': competences ?? [],
       'permissions': permissions ?? [],
       'entrepriseCode': entrepriseCode,
+      'idadmin': idadmin,
     };
   }
 
@@ -86,6 +91,7 @@ class UserModelPersonnel {
     List<String>? competences,
     List<String>? permissions,
     String? entrepriseCode,
+    String? idadmin,
   }) {
     return UserModelPersonnel(
       id: id ?? this.id,
@@ -100,6 +106,7 @@ class UserModelPersonnel {
       competences: competences ?? this.competences,
       permissions: permissions ?? this.permissions,
       entrepriseCode: entrepriseCode ?? this.entrepriseCode,
+      idadmin: idadmin ?? this.idadmin,
     );
   }
 }
@@ -273,6 +280,35 @@ class AuthService {
       return userCredential;
     } catch (e) {
       throw e;
+    }
+  }
+
+  Future<Map<String, dynamic>> createStaffAccountServeur(
+      String email, String password, UserModelPersonnel staffData) async {
+    try {
+      // Obtenir la référence à la fonction Cloud
+      final functions = FirebaseFunctions.instance;
+      final callable = functions.httpsCallable('createStaffUser');
+
+      // Convertir le modèle en Map pour l'envoyer à la fonction
+      final staffDataMap = staffData.toJson();
+
+      // Appeler la fonction avec les données
+      final result = await callable.call({
+        'email': email,
+        'password': password,
+        'staffData': staffDataMap
+      });
+
+      return result.data;
+    } catch (e) {
+      // Gérer les erreurs spécifiques
+      if (e is FirebaseFunctionsException) {
+        String errorCode = e.code;
+        String errorMessage = e.message ?? 'Erreur inconnue';
+        throw Exception('$errorCode: $errorMessage');
+      }
+      throw Exception('Erreur lors de la création du compte staff: ${e.toString()}');
     }
   }
 

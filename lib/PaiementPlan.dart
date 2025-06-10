@@ -514,11 +514,11 @@ class _ChoosePlanScreenState extends State<paiementplan> {
       Plan(
         title: 'Basic (Essai Gratuit 30J)',
         price: '0 FCFA',
-        oldPrice: '15000 FCFA',
+        oldPrice: '20000 FCFA',
         duration: '30 jours',
         features: [
-          'Module de réservation',
           '14 chambres max',
+          'Limite nombre employé : 3',
           'Support de base',
           'Rapports hebdo'
         ],
@@ -528,12 +528,12 @@ class _ChoosePlanScreenState extends State<paiementplan> {
       ),
       Plan(
         title: 'Starter',
-        price: '20 000 FCFA',
+        price: '30 000 FCFA',
         duration: 'par mois',
         features: [
           'Module de réservation',
           '20 chambres max',
-          'Module de facturation',
+          'Limite nombre employé : 10',
           'Support standard',
           'Rapports journaliers'
         ],
@@ -543,15 +543,17 @@ class _ChoosePlanScreenState extends State<paiementplan> {
       ),
       Plan(
         title: 'Pro',
-        price: '35 000 FCFA',
+        price: '50 000 FCFA',
         duration: 'par mois',
         features: [
           'Module de réservation',
           'Chambres illimitées',
-          'Module de facturation',
-          'Module restaurant',
-          'Support prioritaire',
-          'Tableau de bord analytique',
+          'Limite nombre employé : 20',
+          'Gestion resto',
+          'Tables resto illimitées',
+          'Support 24/7',
+          'Analyses temps réel',
+          'Marketing tools',
         ],
         planId: PlanId.pro,
         isRecommended: false,

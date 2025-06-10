@@ -3,13 +3,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-import '../components/checkin/CustomerInfoSection.dart';
-import '../components/checkin/PaiementInfoSection.dart';
-import '../config/HotelSettingsService.dart';
-import '../config/HourlyReceiptPrinter.dart';
-import '../config/generationcode.dart';
-import '../config/room_models.dart';
-import '../widgets/side_menu.dart';
+import '../../components/checkin/CustomerInfoSection.dart';
+import '../../components/checkin/PaiementInfoSection.dart';
+import '../../config/HotelSettingsService.dart';
+import '../../config/HourlyReceiptPrinter.dart';
+import '../../config/generationcode.dart';
+import '../../config/getConnectedUserAdminId.dart';
+import '../../config/room_models.dart';
+import '../../widgets/side_menu.dart';
 
 class HourlyCheckInPage extends StatefulWidget {
   @override
@@ -31,7 +32,7 @@ class _HourlyCheckInPageState extends State<HourlyCheckInPage> {
   final _checkInDateController = TextEditingController();
   final _checkInTimeController = TextEditingController();
   final _durationController = TextEditingController();
-  int _numberOfGuests = 1;
+  int _numberOfGuests = 2;
   String? _selectedRoomType;
   int _selectedDurationHours = 1; // Durée par défaut en heures
 
@@ -46,6 +47,7 @@ class _HourlyCheckInPageState extends State<HourlyCheckInPage> {
 
   DateTime? checkInDateTime;
   DateTime? checkOutDateTime;
+  String? idadmin;
 
   // Liste des durées disponibles
   final List<int> _availableDurations = [1, 2, 3, 4, 6, 12];
@@ -54,19 +56,26 @@ class _HourlyCheckInPageState extends State<HourlyCheckInPage> {
   void initState() {
     super.initState();
 
+
     // Initialiser avec la date et l'heure actuelles
     final now = DateTime.now();
     _checkInDateController.text = DateFormat('dd/MM/yyyy').format(now);
-    _checkInTimeController.text = DateFormat('HH:mm').format(now);
+
     _durationController.text = '1 heure';
 
-    checkInDateTime = now;
     checkOutDateTime = now.add(Duration(hours: 1));
 
-    // Charger les chambres disponibles
-    fetchAvailableRooms();
-  }
+    _initializeData();
 
+
+
+    // Charger les chambres disponibles
+
+  }
+  Future<void> _initializeData() async {
+    // Récupérer l'ID de l'administrateur connecté
+    idadmin = await getConnectedUserAdminId();
+  }
   // Compare les numéros de chambre qui peuvent être de format différent
   int compareRoomNumbers(String a, String b) {
     // Essayer de convertir en entiers si possible
@@ -100,7 +109,7 @@ class _HourlyCheckInPageState extends State<HourlyCheckInPage> {
       }
 
       // Obtenir l'ID de l'utilisateur connecté
-      final userId = FirebaseAuth.instance.currentUser?.uid;
+      final userId = idadmin;
       if (userId == null) {
         throw Exception('Utilisateur non connecté');
       }
@@ -274,7 +283,7 @@ class _HourlyCheckInPageState extends State<HourlyCheckInPage> {
 
       try {
         // Obtenir l'ID de l'utilisateur connecté
-        final userId = FirebaseAuth.instance.currentUser?.uid;
+        final userId = idadmin;
         if (userId == null) {
           throw Exception('Utilisateur non connecté');
         }
@@ -321,6 +330,7 @@ class _HourlyCheckInPageState extends State<HourlyCheckInPage> {
           'isWalkIn': true,
           'paymentStatus':'payé',
           'paymentMethod': _selectedPaymentMethod, // Ajouter le mode de paiement
+          'createdBy': FirebaseAuth.instance.currentUser?.uid,
         });
 
         // Mettre à jour le statut de la chambre
@@ -353,7 +363,7 @@ class _HourlyCheckInPageState extends State<HourlyCheckInPage> {
           'paymentMethod': _selectedPaymentMethod!, // Utiliser le mode de paiement sélectionné
           'description': 'Paiement du passage $generatedReservationCode',
           'createdAt': paymentDate,
-          'createdBy': userId
+          'createdBy': FirebaseAuth.instance.currentUser?.uid,
         });
 
 
@@ -395,9 +405,9 @@ class _HourlyCheckInPageState extends State<HourlyCheckInPage> {
       _nationalityController.clear();
       _addressController.clear();
       _checkInDateController.text = DateFormat('dd/MM/yyyy').format(now);
-      _checkInTimeController.text = DateFormat('HH:mm').format(now);
+      _checkInTimeController.text = '';
       _durationController.text = '1 heure';
-      _numberOfGuests = 1;
+      _numberOfGuests = 2;
       _selectedRoomType = null;
       _selectedRoom = null;
       _selectedDurationHours = 1;
@@ -531,21 +541,7 @@ class _HourlyCheckInPageState extends State<HourlyCheckInPage> {
     final filteredRooms = _getFilteredRooms();
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Enregistrement client (passage par heure)'),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.refresh),
-            onPressed: fetchAvailableRooms,
-            tooltip: 'Actualiser les chambres',
-          ),
-          IconButton(
-            icon: Icon(Icons.clear_all),
-            onPressed: _resetForm,
-            tooltip: 'Réinitialiser',
-          ),
-        ],
-      ),
+      backgroundColor: const Color(0xFFF5F7FA),
       drawer: const SideMenu(),
       body: _isLoading && _availableRooms.isEmpty
           ? Center(child: CircularProgressIndicator())
@@ -742,10 +738,14 @@ class _HourlyCheckInPageState extends State<HourlyCheckInPage> {
       children: [
         ElevatedButton.icon(
           icon: Icon(Icons.check_circle),
+
           label: Text('Enregistrer le client'),
           onPressed: _registerHourlyGuest,
           style: ElevatedButton.styleFrom(
             padding: EdgeInsets.symmetric(vertical: 15),
+            backgroundColor: const Color(0xFF4CAF50),
+            foregroundColor: Colors.white,
+            iconColor: Colors.white,
             minimumSize: Size(double.infinity, 50),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(8),
@@ -759,6 +759,9 @@ class _HourlyCheckInPageState extends State<HourlyCheckInPage> {
           onPressed: _resetForm,
           style: OutlinedButton.styleFrom(
             padding: EdgeInsets.symmetric(vertical: 15),
+            iconColor: Colors.white,
+            backgroundColor: Colors.red,
+            foregroundColor: Colors.white,
             minimumSize: Size(double.infinity, 50),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(8),
@@ -811,6 +814,7 @@ class HourlyStayInfoSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
+      color: Colors.white,
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(

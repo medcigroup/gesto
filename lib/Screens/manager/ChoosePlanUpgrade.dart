@@ -4,7 +4,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:gesto/widgets/LoadingOverlay.dart';
 import '../../../../../config/routes.dart';
 import '../../../../../config/theme.dart';
-import '../config/LicenceGenerator.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -524,9 +523,9 @@ class _ChoosePlanUpgradeState extends State<ChoosePlanUpgrade> {
     final plans = [
       Plan(
         title: 'Basic',
-        price: '15000 FCFA',
+        price: '20000 FCFA',
         duration: '/mois',
-        features: ['Module de réservation', '14 chambres max', 'Support de base', 'Rapports hebdo'],
+        features: ['14 chambres max','Limite nombre employé : 3', 'Support de base', 'Rapports hebdo'],
         planId: PlanId.basic,
         isRecommended: false,
         isDisabled: isFreePlanExpired ||
@@ -534,18 +533,31 @@ class _ChoosePlanUpgradeState extends State<ChoosePlanUpgrade> {
       ),
       Plan(
         title: 'Starter',
-        price: '20000 FCFA',
+        price: '30000 FCFA',
         duration: '/mois',
-        features: ['Module de réservation', '20 chambres max','Module de facturation', 'Support prioritaire', 'Rapports quotidiens'],
+        features: ['Module de réservation',
+          '20 chambres max',
+          'Limite nombre employé : 10',
+          'Support standard',
+          'Rapports journaliers'
+        ],
         planId: PlanId.starter,
         isRecommended: _currentPlan == PlanId.basic,
         isDisabled: _currentPlan == PlanId.starter,
       ),
       Plan(
         title: 'Pro',
-        price: '35000 FCFA',
+        price: '50000 FCFA',
         duration: '/mois',
-        features: ['Module de réservation', 'Chambres illimitées','Module de facturation', 'Gestion resto', 'Tables resto illimitées', 'Support 24/7', 'Analyses temps réel', 'Marketing tools'],
+        features: ['Module de réservation',
+          'Chambres illimitées',
+          'Limite nombre employé : 20',
+          'Gestion resto',
+          'Tables resto illimitées',
+          'Support 24/7',
+          'Analyses temps réel',
+          'Marketing tools',
+        ],
         planId: PlanId.pro,
         isRecommended: _currentPlan == PlanId.starter,
         isDisabled: _currentPlan == PlanId.pro,

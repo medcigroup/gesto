@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import '../config/HotelSettingsService.dart';
-import '../widgets/side_menu.dart';
+import '../../config/HotelSettingsService.dart';
+import '../../widgets/side_menu.dart';
+
 
 class SettingsPage extends StatefulWidget {
   @override
@@ -169,7 +170,6 @@ class _SettingsPageState extends State<SettingsPage> {
         title: Text('Paramètres de l\'hôtel'),
         elevation: 0,
       ),
-      drawer: const SideMenu(),
       body: _isLoading
           ? Center(child: CircularProgressIndicator())
           : Container(

@@ -2,14 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../components/rooms/RoomCalendar.dart';
-import '../components/rooms/RoomCard.dart';
-import '../config/HotelSettingsService.dart';
-import '../config/checkRoomCreationLimit.dart';
-import '../config/room_models.dart';
-import '../widgets/side_menu.dart';
+import '../../components/rooms/RoomCalendar.dart';
+import '../../components/rooms/RoomCard.dart';
+import '../../config/HotelSettingsService.dart';
+import '../../config/checkRoomCreationLimit.dart';
+import '../../config/room_models.dart';
+import '../../widgets/side_menu.dart';
 import 'AddRoomBottomSheet.dart';
 import 'EditRoomBottomSheet.dart';
+
 
 class RoomsPage extends StatefulWidget {
   @override
@@ -430,7 +431,6 @@ class _RoomsPageState extends State<RoomsPage> {
           },
         ),
       ),
-      drawer: const SideMenu(),
       body: RefreshIndicator(
         onRefresh: fetchRooms,
         child: isLoading

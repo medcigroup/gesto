@@ -5,10 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 
-import '../config/generationcode.dart';
-import '../config/printPaymentReceipt.dart';
-import '../widgets/side_menu.dart';
-
+import '../../config/generationcode.dart';
+import '../../config/getConnectedUserAdminId.dart';
+import '../../config/printPaymentReceipt.dart';
+import '../../widgets/side_menu.dart';
 extension StringExtension on String {
   String capitalize() {
     if (this.isEmpty) return this;
@@ -27,15 +27,20 @@ class _PaymentPageState extends State<PaymentPage> {
   List<DocumentSnapshot> bookings = [];
   String? filterStatus;
   TextEditingController searchController = TextEditingController();
-
+  String? idadmin;
   final List<String> statusOptions = ['reservé', 'enregistré', 'terminé', 'annulé', 'tous'];
 
   @override
   void initState() {
     super.initState();
+    _initializeData();
+
+  }
+  Future<void> _initializeData() async {
+    // Récupérer l'ID de l'administrateur connecté
+    idadmin = await getConnectedUserAdminId();
     fetchBookings();
   }
-
   String capitalizeFirst(String text) {
     if (text.isEmpty) return text;
     return text[0].toUpperCase() + text.substring(1);
@@ -46,14 +51,15 @@ class _PaymentPageState extends State<PaymentPage> {
   }
 
   final transactionCode = CodeGenerator.generateTransactionCode();
+
   Future<void> fetchBookings() async {
     setState(() {
       isLoading = true;
     });
 
     try {
-      // Récupérer l'utilisateur actuellement connecté
-      final User? currentUser = FirebaseAuth.instance.currentUser;
+      // Récupérer l'ID de l'administrateur
+      final currentUser = idadmin;
 
       if (currentUser == null) {
         print('Aucun utilisateur connecté');
@@ -64,39 +70,27 @@ class _PaymentPageState extends State<PaymentPage> {
         return;
       }
 
-      print('ID de l\'utilisateur connecté: ${currentUser.uid}');
+      print('ID de l\'utilisateur connecté: $currentUser');
 
       // Commencer la requête en filtrant par userId
       Query query = FirebaseFirestore.instance.collection('bookings')
-          .where('userId', isEqualTo: currentUser.uid);
-
-      // Ajout d'un log pour voir combien de documents ont été trouvés
-      final testSnapshot = await query.get();
-      print('Nombre de réservations trouvées avec ce userId: ${testSnapshot.docs.length}');
-
-      // Si aucun document n'est trouvé, essayons de récupérer tous les documents pour vérifier
-      if (testSnapshot.docs.isEmpty) {
-        print('Test: récupération de toutes les réservations pour vérification');
-        final allDocs = await FirebaseFirestore.instance.collection('bookings').get();
-        print('Nombre total de réservations dans la collection: ${allDocs.docs.length}');
-
-        // Vérifier les userId stockés dans les documents
-        for (var doc in allDocs.docs) {
-          final data = doc.data() as Map<String, dynamic>;
-          final docUserId = data['userId'];
-          print('Document ID: ${doc.id} - userId: $docUserId');
-        }
-      }
+          .where('userId', isEqualTo: currentUser);
 
       // Appliquer le filtre de statut s'il est défini
       if (filterStatus != null && filterStatus != 'tous') {
         query = query.where('status', isEqualTo: filterStatus);
       }
 
+      // Important: toujours appliquer l'ordre avant d'exécuter la requête
+      query = query.orderBy('createdAt', descending: true);
+
+      // Exécuter la requête
+      final snapshot = await query.get();
+      print('Nombre de réservations trouvées: ${snapshot.docs.length}');
+
       // Chercher par nom de client ou code d'enregistrement si une recherche est effectuée
       String searchTerm = searchController.text.trim().toLowerCase();
       if (searchTerm.isNotEmpty) {
-        final snapshot = await query.get();
         setState(() {
           bookings = snapshot.docs.where((doc) {
             final data = doc.data() as Map<String, dynamic>;
@@ -106,18 +100,13 @@ class _PaymentPageState extends State<PaymentPage> {
           }).toList();
           isLoading = false;
         });
-        return;
+      } else {
+        // Si pas de recherche, utiliser tous les résultats
+        setState(() {
+          bookings = snapshot.docs;
+          isLoading = false;
+        });
       }
-
-      // Tri par date de check-in (du plus récent au plus ancien)
-      query = query.orderBy('checkInDate', descending: true);
-
-      final snapshot = await query.get();
-      setState(() {
-        bookings = snapshot.docs;
-        isLoading = false;
-      });
-
     } catch (e) {
       print('Erreur lors de la récupération des réservations: $e');
       setState(() {
@@ -681,59 +670,132 @@ class _PaymentPageState extends State<PaymentPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Paiements'),
-      ),
-      drawer: const SideMenu(),
+      backgroundColor: const Color(0xFFF5F7FA),
+
       body: Column(
         children: [
-          // Barre de recherche et filtres
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
+          // Carte de recherche et filtres
+          Container(
+            margin: const EdgeInsets.all(16.0),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  TextField(
                     controller: searchController,
                     decoration: InputDecoration(
                       hintText: 'Rechercher par nom ou code',
-                      prefixIcon: const Icon(Icons.search),
+                      hintStyle: TextStyle(color: Colors.grey.shade400),
+                      prefixIcon: Icon(Icons.search, color: Colors.grey.shade500),
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
                       ),
                       contentPadding: const EdgeInsets.symmetric(vertical: 0),
                     ),
                     onSubmitted: (_) => fetchBookings(),
                   ),
-                ),
-                const SizedBox(width: 16),
-                DropdownButton<String>(
-                  value: filterStatus ?? 'tous',
-                  hint: const Text('Statut'),
-                  items: statusOptions.map((status) {
-                    return DropdownMenuItem<String>(
-                      value: status,
-                      child: Text(capitalizeFirst(status)),  // Utiliser la fonction au lieu de l'extension
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    setState(() {
-                      filterStatus = value;
-                    });
-                    fetchBookings();
-                  },
-                ),
-              ],
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              isExpanded: true,
+                              value: filterStatus ?? 'tous',
+                              hint: const Text('Statut'),
+                              icon: const Icon(Icons.arrow_drop_down_rounded),
+                              items: statusOptions.map((status) {
+                                return DropdownMenuItem<String>(
+                                  value: status,
+                                  child: Text(
+                                    capitalizeFirst(status),
+                                    style: const TextStyle(fontSize: 14),
+                                  ),
+                                );
+                              }).toList(),
+                              onChanged: (value) {
+                                setState(() {
+                                  filterStatus = value;
+                                });
+                                fetchBookings();
+                              },
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      ElevatedButton.icon(
+                        onPressed: fetchBookings,
+                        icon: const Icon(Icons.search, size: 18),
+                        label: const Text('Filtrer'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Theme.of(context).primaryColor,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
 
           // Liste des réservations
           Expanded(
             child: isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? Center(
+              child: CircularProgressIndicator(
+                color: Theme.of(context).primaryColor,
+              ),
+            )
                 : bookings.isEmpty
-                ? const Center(child: Text('Aucune réservation trouvée'))
+                ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.hotel_outlined,
+                    size: 64,
+                    color: Colors.grey.shade400,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Aucune réservation trouvée',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
+            )
                 : ListView.builder(
+              padding: const EdgeInsets.only(bottom: 16),
               itemCount: bookings.length,
               itemBuilder: (context, index) {
                 final booking = bookings[index];
@@ -765,99 +827,187 @@ class _PaymentPageState extends State<PaymentPage> {
                     final double remainingAmount = totalAmount - paidAmount - discountAmount;
                     final String paymentStatus = remainingAmount <= 0 ? 'Payé' : 'En attente';
 
-
-                    return Card(
+                    return Container(
                       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      child: ListTile(
-                        onTap: () => showBookingDetails(booking),
-                        title: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                data['customerName'] ?? 'Client inconnu',
-                                style: const TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: _getStatusColor(data['status']),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Text(
-                                formatStatus(data['status']),
-                                style: const TextStyle(color: Colors.white, fontSize: 12),
-                              ),
-                            ),
-                          ],
-                        ),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const SizedBox(height: 4),
-                            Row(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.03),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        borderRadius: BorderRadius.circular(16),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () => showBookingDetails(booking),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Expanded(
-                                  child: Text(
-                                      'Code: ${data['EnregistrementCode'] ?? ''} - Chambre: ${data['roomNumber'] ?? ''}'),
+                                Row(
+                                  children: [
+                                    CircleAvatar(
+                                      backgroundColor: _getStatusColor(data['status']).withOpacity(0.1),
+                                      radius: 20,
+                                      child: Icon(
+                                        Icons.person,
+                                        color: _getStatusColor(data['status']),
+                                        size: 18,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            data['customerName'] ?? 'Client inconnu',
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            'Code: ${data['EnregistrementCode'] ?? ''} - Chambre: ${data['roomNumber'] ?? ''}',
+                                            style: TextStyle(
+                                              color: Colors.grey.shade600,
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                      decoration: BoxDecoration(
+                                        color: _getStatusColor(data['status']).withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        formatStatus(data['status']),
+                                        style: TextStyle(
+                                          color: _getStatusColor(data['status']),
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: paymentStatus == 'Payé' ? Colors.green : Colors.orange,
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Text(
-                                    paymentStatus,
-                                    style: const TextStyle(color: Colors.white, fontSize: 12),
-                                  ),
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 12),
+                                  child: Divider(),
                                 ),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _buildInfoItem(
+                                        icon: Icons.calendar_today_outlined,
+                                        title: 'Arrivée',
+                                        value: _formatDateShort(data['checkInDate']),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: _buildInfoItem(
+                                        icon: Icons.calendar_today,
+                                        title: 'Départ',
+                                        value: _formatDateShort(data['checkOutDate']),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _buildInfoItem(
+                                        icon: Icons.attach_money_outlined,
+                                        title: 'Total',
+                                        value: NumberFormat.currency(
+                                          symbol: 'FCFA ',
+                                          decimalDigits: 0,
+                                        ).format(totalAmount),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: _buildInfoItem(
+                                        icon: remainingAmount <= 0
+                                            ? Icons.check_circle_outline
+                                            : Icons.warning_amber_outlined,
+                                        title: remainingAmount <= 0 ? 'Payé' : 'Reste à payer',
+                                        value: remainingAmount <= 0
+                                            ? 'Complet'
+                                            : NumberFormat.currency(
+                                          symbol: 'FCFA ',
+                                          decimalDigits: 0,
+                                        ).format(remainingAmount),
+                                        valueColor: remainingAmount <= 0
+                                            ? Colors.green
+                                            : Colors.orange,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                if ((data['depositAmount'] ?? 0) > 0)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 12),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          data['depositPaid'] ? Icons.check : Icons.access_time,
+                                          size: 16,
+                                          color: data['depositPaid'] ? Colors.green : Colors.orange,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          'Acompte: ${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(data['depositAmount'])} '
+                                              '(${data['depositPaid'] ? 'Payé' : 'En attente'})',
+                                          style: TextStyle(
+                                            color: data['depositPaid'] ? Colors.green : Colors.orange,
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                if (data['status'] != 'annulé' && remainingAmount > 0)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 16),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.end,
+                                      children: [
+                                        ElevatedButton.icon(
+                                          onPressed: () => makePayment(booking),
+                                          icon: const Icon(
+                                            Icons.payment,
+                                            size: 18,
+                                          ),
+                                          label: const Text('Effectuer un paiement'),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.green,
+                                            foregroundColor: Colors.white,
+                                            elevation: 0,
+                                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(10),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                               ],
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                                'Arrivée: ${_formatDateShort(data['checkInDate'])} - Départ: ${_formatDateShort(data['checkOutDate'])}'
-                            ),
-                            const SizedBox(height: 4),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                    'Total: ${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(totalAmount)}'
-                                ),
-                                if (remainingAmount > 0)
-                                  Text(
-                                    'Reste: ${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(remainingAmount)}',
-                                    style: const TextStyle(color: Colors.red),
-                                  )
-                                else
-                                  Text(
-                                    'Payé intégralement',
-                                    style: const TextStyle(color: Colors.green),
-                                  ),
-                              ],
-                            ),
-                            if ((data['depositAmount'] ?? 0) > 0)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 4),
-                                child: Text(
-                                  'Acompte: ${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(data['depositAmount'])} '
-                                      '(${data['depositPaid'] ? 'Payé' : 'En attente'})',
-                                  style: TextStyle(
-                                      color: data['depositPaid'] ? Colors.green : Colors.orange,
-                                      fontSize: 12
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                        trailing: data['status'] == 'annulé' || remainingAmount <= 0
-                            ? null
-                            : IconButton(
-                          icon: const Icon(Icons.payment),
-                          onPressed: () => makePayment(booking),
-                          tooltip: 'Effectuer un paiement',
-                          color: Colors.green,
+                          ),
                         ),
                       ),
                     );
@@ -868,6 +1018,45 @@ class _PaymentPageState extends State<PaymentPage> {
           ),
         ],
       ),
+    );
+  }
+
+// Widget d'aide pour afficher les informations avec icône
+  Widget _buildInfoItem({
+    required IconData icon,
+    required String title,
+    required String value,
+    Color? valueColor,
+  }) {
+    return Row(
+      children: [
+        Icon(
+          icon,
+          size: 16,
+          color: Colors.grey.shade600,
+        ),
+        const SizedBox(width: 6),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade600,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              value,
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                color: valueColor,
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 

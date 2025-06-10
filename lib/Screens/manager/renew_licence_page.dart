@@ -5,12 +5,12 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../config/LicenceGenerator.dart';
-import '../config/UserModel.dart';
-import '../config/routes.dart';
-import '../config/theme.dart';
-import '../widgets/side_menu.dart';
-import 'ActivateLicencePage.dart';
+
+import '../../config/LicenceGenerator.dart';
+import '../../config/UserModel.dart';
+import '../../config/routes.dart';
+import '../../widgets/side_menu.dart';
+
 
 class RenewLicencePage extends StatefulWidget {
   const RenewLicencePage({Key? key}) : super(key: key);
@@ -468,13 +468,6 @@ class _RenewLicencePageState extends State<RenewLicencePage> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Renouveler la licence'),
-        elevation: 0,
-        backgroundColor: theme.primaryColor,
-        foregroundColor: Colors.white,
-      ),
-      drawer: const SideMenu(),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : Container(

@@ -8,7 +8,9 @@ import 'FirebaseOptions.dart';
 import 'package:flutter_web_plugins/flutter_web_plugins.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:provider/provider.dart';
+import 'LicenseFeatures.dart';
 import 'components/messagerie/NotificationProvider.dart';
+import 'config/AuthService.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,7 +28,11 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        Provider<AuthService>(
+          create: (_) => AuthService(),
+        ),
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
+        ChangeNotifierProvider(create: (_) => LicenseManager()),
       ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,

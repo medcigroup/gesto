@@ -335,7 +335,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     child: Text('Manager / Gérant'),
                   ),
                   DropdownMenuItem(
-                    value: 'owner',
+                    value: 'manager',
                     child: Text('Propriétaire'),
                   ),
                 ],
@@ -664,7 +664,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 ),
                               ),
                               Text(
-                                ' v1.2.6',
+                                ' v1.2.7',
                                 style: TextStyle(
                                   fontSize: 14,
                                   color: Colors.grey[400],

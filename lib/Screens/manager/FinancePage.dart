@@ -3,8 +3,10 @@ import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-import '../config/ReportService.dart';
-import '../widgets/side_menu.dart';
+import '../../config/ReportService.dart';
+import '../../widgets/side_menu.dart';
+
+
 
 // Service pour récupérer les données de paiement
 class PaymentService {
@@ -411,7 +413,6 @@ class _FinancePageState extends State<FinancePage> {
           ),
         ],
       ),
-      drawer: const SideMenu(),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(

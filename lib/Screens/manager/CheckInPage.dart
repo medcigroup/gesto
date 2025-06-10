@@ -3,11 +3,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-import '../components/checkin/CustomerInfoSection.dart';
-import '../config/HotelSettingsService.dart';
-import '../config/generationcode.dart';
-import '../config/room_models.dart';
-import '../widgets/side_menu.dart';
+import '../../components/checkin/CustomerInfoSection.dart';
+import '../../config/HotelSettingsService.dart';
+import '../../config/generationcode.dart';
+import '../../config/getConnectedUserAdminId.dart';
+import '../../config/room_models.dart';
+import '../../widgets/side_menu.dart';
+
+
  // Nouveau widget pour les infos client
 
 class CheckInPage extends StatefulWidget {
@@ -31,7 +34,7 @@ class _CheckInPageState extends State<CheckInPage> {
   final _checkOutDateController = TextEditingController();
   int _numberOfGuests = 1;
   String? _selectedRoomType;
-
+  String? idadmin;
   bool _isLoading = false;
   List<String> _roomTypes = [];
   List<Room> _availableRooms = [];
@@ -50,9 +53,16 @@ class _CheckInPageState extends State<CheckInPage> {
     //_checkOutDateController.text = DateFormat('dd/MM/yyyy').format(tomorrow);
 
     // Charger les chambres disponibles
-    fetchAvailableRooms();
-  }
 
+
+    _initializeData();
+
+
+  }
+  Future<void> _initializeData() async {
+    // Récupérer l'ID de l'administrateur connecté
+    idadmin = await getConnectedUserAdminId();
+  }
   // Compare les numéros de chambre qui peuvent être de format différent
   int compareRoomNumbers(String a, String b) {
     // Essayer de convertir en entiers si possible
@@ -87,7 +97,7 @@ class _CheckInPageState extends State<CheckInPage> {
       }
 
       // Obtenir l'ID de l'utilisateur connecté
-      final userId = FirebaseAuth.instance.currentUser?.uid;
+      final userId = idadmin;
       if (userId == null) {
         throw Exception('Utilisateur non connecté');
       }
@@ -258,7 +268,7 @@ class _CheckInPageState extends State<CheckInPage> {
 
       try {
         // Obtenir l'ID de l'utilisateur connecté
-        final userId = FirebaseAuth.instance.currentUser?.uid;
+        final userId = idadmin;
         if (userId == null) {
           throw Exception('Utilisateur non connecté');
         }
@@ -328,6 +338,7 @@ class _CheckInPageState extends State<CheckInPage> {
           'depositAmount': 0,
           'depositPercentage': 0,
           'isWalkIn': true,
+          'createdBy': FirebaseAuth.instance.currentUser?.uid,
         });
 
         // Mettre à jour le statut de la chambre
@@ -487,21 +498,7 @@ class _CheckInPageState extends State<CheckInPage> {
     final filteredRooms = _getFilteredRooms();
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Enregistrement client'),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.refresh),
-            onPressed: fetchAvailableRooms,
-            tooltip: 'Actualiser les chambres',
-          ),
-          IconButton(
-            icon: Icon(Icons.clear_all),
-            onPressed: _resetForm,
-            tooltip: 'Réinitialiser',
-          ),
-        ],
-      ),
+      backgroundColor: const Color(0xFFF5F7FA),
       drawer: const SideMenu(),
       body: _isLoading && _availableRooms.isEmpty
           ? Center(child: CircularProgressIndicator())
@@ -677,6 +674,9 @@ class _CheckInPageState extends State<CheckInPage> {
           onPressed: _registerWalkInGuest,
           style: ElevatedButton.styleFrom(
             padding: EdgeInsets.symmetric(vertical: 15),
+            backgroundColor: const Color(0xFF4CAF50),
+            foregroundColor: Colors.white,
+            iconColor: Colors.white,
             minimumSize: Size(double.infinity, 50),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(8),
@@ -690,6 +690,9 @@ class _CheckInPageState extends State<CheckInPage> {
           onPressed: _resetForm,
           style: OutlinedButton.styleFrom(
             padding: EdgeInsets.symmetric(vertical: 15),
+            iconColor: Colors.white,
+            backgroundColor: Colors.red,
+            foregroundColor: Colors.white,
             minimumSize: Size(double.infinity, 50),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(8),
@@ -734,6 +737,7 @@ class StayInfoSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
+      color: Colors.white,
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(

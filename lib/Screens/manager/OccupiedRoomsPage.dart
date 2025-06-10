@@ -4,7 +4,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:gesto/config/routes.dart';
 import 'package:intl/intl.dart';
 
-import '../widgets/side_menu.dart';
+import '../../config/getConnectedUserAdminId.dart';
+import '../../widgets/side_menu.dart';
 
 class OccupiedRoomsPage extends StatefulWidget {
   @override
@@ -12,18 +13,39 @@ class OccupiedRoomsPage extends StatefulWidget {
 }
 
 class _OccupiedRoomsPageState extends State<OccupiedRoomsPage> {
-  final String _userId = FirebaseAuth.instance.currentUser?.uid ?? "";
+
   final DateFormat dateFormat = DateFormat('dd/MM/yyyy à HH:mm');
   bool _isLoading = true;
   List<Map<String, dynamic>> _occupiedRooms = [];
   String? _errorMessage;
   Map<String, bool> _processingRooms = {};
-
+  late String idadmin;
+  late String _userId; // Déclaration sans initialisation
   @override
   void initState() {
     super.initState();
-    _fetchOccupiedRooms();
+
+    _initializeData();
+
+
   }
+
+  Future<void> _initializeData() async {
+    try {
+      // Récupérer l'ID de l'administrateur connecté
+      idadmin = (await getConnectedUserAdminId())!;
+      _userId = idadmin; // Affectation de _userId une fois idadmin récupéré
+
+      // Charger les chambres occupées après avoir récupéré l'ID admin
+      await _fetchOccupiedRooms();
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Erreur lors de l\'initialisation: ${e.toString()}';
+        _isLoading = false;
+      });
+    }
+  }
+
 
   Future<void> _fetchOccupiedRooms() async {
     setState(() {
@@ -218,24 +240,7 @@ class _OccupiedRoomsPageState extends State<OccupiedRoomsPage> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Chambres Occupées'),
-        centerTitle: true,
-        elevation: 0,
-        backgroundColor: theme.primaryColor,
-        foregroundColor: Colors.white,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new),
-          onPressed: () => Navigator.pop(context),
-        ),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.refresh),
-            onPressed: _fetchOccupiedRooms,
-            tooltip: 'Actualiser',
-          ),
-        ],
-      ),
+
       drawer: const SideMenu(),
       body: Container(
         decoration: BoxDecoration(

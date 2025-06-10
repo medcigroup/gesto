@@ -46,7 +46,7 @@ class _RecentBookingsState extends State<RecentBookings> {
       QuerySnapshot snapshot = await FirebaseFirestore.instance
           .collection('bookings')
           .where('userId', isEqualTo: _userId)
-
+          .orderBy('checkInDate', descending: true)
           .limit(4)
           .get();
 

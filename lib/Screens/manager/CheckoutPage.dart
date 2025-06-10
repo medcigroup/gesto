@@ -3,7 +3,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 
-import '../widgets/side_menu.dart';
+import '../../config/getConnectedUserAdminId.dart';
+import '../../widgets/side_menu.dart';
+
+
 
 class CheckoutPage extends StatefulWidget {
   @override
@@ -17,6 +20,13 @@ class _CheckoutPageState extends State<CheckoutPage> {
   bool _isSearching = false;
   final String _userId = FirebaseAuth.instance.currentUser?.uid ?? "";
   final DateFormat dateFormat = DateFormat('dd/MM/yyyy à HH:mm');
+  late String idadmin;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeData();
+  }
 
   void _showSuccessSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -57,7 +67,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
       ),
     );
   }
-
+  Future<void> _initializeData() async {
+    // Récupérer l'ID de l'administrateur connecté
+    idadmin = (await getConnectedUserAdminId())!;
+  }
   Future<void> _fetchBookingDetails() async {
     FocusScope.of(context).unfocus();
 
@@ -73,7 +86,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
     try {
       String roomNumber = _roomNumberController.text.trim();
-      String userId = FirebaseAuth.instance.currentUser?.uid ?? ''; // Get current user ID
+      String userId = idadmin;
 
       // Rechercher dans la collection 'bookings' (status == 'enregistré')
       QuerySnapshot bookingSnapshot = await FirebaseFirestore.instance
@@ -305,17 +318,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Check-out Client'),
-        centerTitle: true,
-        elevation: 0,
-        backgroundColor: theme.primaryColor,
-        foregroundColor: Colors.white,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
+
       drawer: const SideMenu(),
       body: Container(
         decoration: BoxDecoration(

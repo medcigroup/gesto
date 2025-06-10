@@ -3,8 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
 
-import '../components/messagerie/NotificationProvider.dart';
-import '../config/UserModel.dart';
+import '../../components/messagerie/NotificationProvider.dart';
+import '../../config/UserModel.dart';
 
 // Les modèles et services restent les mêmes
 class Message {

@@ -19,6 +19,20 @@ class AuthService {
     return null;
   }
 
+  // Récupérer le rôle de l'utilisateur actuellement connecté
+  Future<String?> getCurrentUserRole() async {
+    final UserModel? user = await getCurrentUser();
+    if (user != null) {
+      return user.userRole;
+    }
+    return null;
+  }
+
+  // Déconnexion de l'utilisateur
+  Future<void> logout() async {
+    await _auth.signOut();
+  }
+
   // Vérifier si les données ont été modifiées côté serveur
   Future<bool> hasUserDataChanged(String userId, DateTime lastUpdated) async {
     final snapshot = await _firestore.collection('users').doc(userId).get();

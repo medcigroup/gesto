@@ -5,6 +5,8 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
+import 'getConnectedUserAdminId.dart';
+
 // Fonction modifiée pour prendre en compte les informations de réduction
 Future<void> printPaymentReceipt(
     DocumentSnapshot booking,
@@ -469,8 +471,8 @@ Future<double> _calculateRemainingAmount(String bookingId, double totalAmount, d
 // Fonction pour récupérer les paramètres de l'hôtel
 Future<Map<String, dynamic>> _getHotelSettings() async {
   try {
-    final user = FirebaseFirestore.instance.collection('users').doc(FirebaseAuth.instance.currentUser?.uid);
-    final hotelSettings = await FirebaseFirestore.instance.collection('hotelSettings').doc(user.id).get();
+    final user = await getConnectedUserAdminId();
+    final hotelSettings = await FirebaseFirestore.instance.collection('hotelSettings').doc(user).get();
 
     if (hotelSettings.exists) {
       return hotelSettings.data() ?? {};

@@ -1,16 +1,15 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:gesto/widgets/side_menu.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
-import 'package:intl/date_symbol_data_local.dart'; // Ajout de l'import
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 
 // Composants importés
 import '../components/dashboard/revenue_chart.dart';
 import '../components/dashboard/recent_bookings.dart';
 import '../components/dashboard/tasks_list.dart';
-import 'Screens/messagerie.dart';
+
 import 'components/messagerie/NotificationPanel.dart';
 import 'components/messagerie/NotificationProvider.dart';
 import 'config/AuthService.dart';
@@ -33,7 +32,6 @@ class _DashboardState extends State<Dashboard> {
   double _tauxOccupationActuel = 0.0;
   double _revenuJournalier = 0.0;
   bool _isLoadingStats = true;
-  int _selectedIndex = 0;
 
   @override
   void initState() {
@@ -184,478 +182,316 @@ class _DashboardState extends State<Dashboard> {
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF121212) : const Color(0xFFF5F7FA),
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-        title: Row(
-          children: [
-            const Text(
-              'Gesto',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 22,
-              ),
-            ),
-            Container(
-              margin: const EdgeInsets.only(left: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: primaryColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                'v1.2.6',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: primaryColor,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: <Widget>[
-          IconButton(
-            icon: Consumer<NotificationProvider>(
-              builder: (context, notificationProvider, _) => Badge(
-                label: Text('${notificationProvider.nonLuesCount}'),
-                isLabelVisible: notificationProvider.nonLuesCount > 0,
-                child: Icon(Icons.notifications_outlined, color: isDark ? Colors.white70 : Colors.black54),
-              ),
-            ),
-            onPressed: () {
-              // Afficher le panneau de notifications
-              showDialog(
-                context: context,
-                builder: (BuildContext context) {
-                  return Dialog(
-                    insetPadding: EdgeInsets.only(top: 0, bottom: 0, right: 0),
-                    alignment: Alignment.centerRight,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(0),
-                    ),
-                    elevation: 0,
-                    backgroundColor: Colors.transparent,
-                    child: NotificationPanel(),
-                  );
-                },
-              );
-            },
-          ),
-
-          IconButton(
-            icon: Icon(
-              _isDarkMode ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
-              color: isDark ? Colors.white70 : Colors.black54,
-            ),
-            onPressed: () {
-              setState(() {
-                _isDarkMode = !_isDarkMode;
-              });
-            },
-          ),
-          const SizedBox(width: 8),
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: CircleAvatar(
-              radius: 16,
-              backgroundColor: primaryColor,
-              child: Text(
-                _userModel?.fullName?.substring(0, 1).toUpperCase() ?? 'U',
-                style: const TextStyle(color: Colors.white),
-              ),
-            ),
-          ),
-        ],
-      ),
-      drawer: const SideMenu(),
       body: _isLoading
           ? Center(
         child: CircularProgressIndicator(
           color: primaryColor,
         ),
       )
-          : Row(
-        children: [
-          // Navigation latérale (pour les écrans larges)
-          if (MediaQuery.of(context).size.width > 1200)
-            NavigationRail(
-              selectedIndex: _selectedIndex,
-              onDestinationSelected: (int index) {
-                setState(() {
-                  _selectedIndex = index;
-                });
-              },
-              labelType: NavigationRailLabelType.all,
-              backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-              selectedLabelTextStyle: TextStyle(
-                color: primaryColor,
-                fontWeight: FontWeight.bold,
+          : SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // En-tête avec salutation et boutons
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Bonjour, ${_userModel?.fullName ?? "Utilisateur"}',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        formattedDate,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: isDark ? Colors.white60 : Colors.black54,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      OutlinedButton.icon(
+                        icon: Icon(Icons.add, size: 18, color: primaryColor),
+                        label: Text(
+                          'Nouvelle réservation',
+                          style: TextStyle(color: primaryColor),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: primaryColor),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        ),
+                        onPressed: () {
+                          Navigator.pushNamed(context, AppRoutes.reservationPage);
+                        },
+                      ),
+                      OutlinedButton.icon(
+                        icon: Icon(Icons.add, size: 18, color: primaryColor),
+                        label: Text(
+                          'Nouvel enregistrement',
+                          style: TextStyle(color: primaryColor),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: primaryColor),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        ),
+                        onPressed: () {
+                          Navigator.pushNamed(context, AppRoutes.enregistrement);
+                        },
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              unselectedLabelTextStyle: TextStyle(
-                color: isDark ? Colors.white60 : Colors.black54,
-              ),
-              selectedIconTheme: IconThemeData(
-                color: primaryColor,
-              ),
-              unselectedIconTheme: IconThemeData(
-                color: isDark ? Colors.white60 : Colors.black54,
-              ),
-              destinations: const [
-                NavigationRailDestination(
-                  icon: Icon(Icons.dashboard_outlined),
-                  selectedIcon: Icon(Icons.dashboard),
-                  label: Text(''),
+
+              const SizedBox(height: 24),
+
+              // Cards de statistiques
+              SizedBox(
+                height: 160,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: [
+                    _buildStatCard(
+                      icon: Icons.bed,
+                      iconColor: primaryColor,
+                      title: "Taux d'occupation",
+                      value: _isLoadingStats
+                          ? "Chargement..."
+                          : "${_tauxOccupationActuel.toStringAsFixed(1)}%",
+                      change: "+12%",
+                      changePositive: true,
+                      color: isDark ? const Color(0xFF263238) : Colors.white,
+                      width: 240,
+                    ),
+                    const SizedBox(width: 16),
+                    _buildStatCard(
+                      icon: Icons.payments_outlined,
+                      iconColor: secondaryColor,
+                      title: "Revenus du jour",
+                      value: _isLoadingStats
+                          ? "Chargement..."
+                          : "$formattedRevenu FCFA",
+                      change: "+15%",
+                      changePositive: true,
+                      color: isDark ? const Color(0xFF263238) : Colors.white,
+                      width: 240,
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          Expanded(
-            child: CustomScrollView(
-              slivers: [
-                SliverAppBar(
-                  automaticallyImplyLeading: false,
-                  backgroundColor: isDark ? const Color(0xFF121212) : const Color(0xFFF5F7FA),
-                  pinned: false,
-                  floating: true,
-                  elevation: 0,
-                  expandedHeight: 120,
-                  flexibleSpace: FlexibleSpaceBar(
-                    background: Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Bonjour, ${_userModel?.fullName ?? "Utilisateur"}',
-                                    style: TextStyle(
-                                      fontSize: 24,
-                                      fontWeight: FontWeight.bold,
-                                      color: isDark ? Colors.white : Colors.black87,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    formattedDate,
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: isDark ? Colors.white60 : Colors.black54,
-                                    ),
-                                  ),
-                                ],
+              ),
+
+              const SizedBox(height: 32),
+              Text(
+                'Performance',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Graphiques
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  return constraints.maxWidth > 800
+                      ? Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: _buildCard(
+                          child: OccupancyChartAvecDonnees(),
+                          title: "Taux d'occupation",
+                          actions: [
+                            _buildDropdownFilter(),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _buildCard(
+                          child: RevenueChart(),
+                          title: "Revenus",
+                          actions: [
+                            _buildDropdownFilter(),
+                          ],
+                        ),
+                      ),
+                    ],
+                  )
+                      : Column(
+                    children: [
+                      _buildCard(
+                        child: OccupancyChartAvecDonnees(),
+                        title: "Taux d'occupation",
+                        actions: [
+                          _buildDropdownFilter(),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      _buildCard(
+                        child: RevenueChart(),
+                        title: "Revenus",
+                        actions: [
+                          _buildDropdownFilter(),
+                        ],
+                      ),
+                    ],
+                  );
+                },
+              ),
+
+              const SizedBox(height: 32),
+              Text(
+                'Activités',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Activités récentes
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  return constraints.maxWidth > 800
+                      ? Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: _buildCard(
+                          child: RecentBookings(),
+                          title: "Réservations récentes",
+                          actions: [
+                            TextButton(
+                              onPressed: () {Navigator.pushNamed(context, AppRoutes.reservationPage);},
+                              child: Text(
+                                'Voir tout',
+                                style: TextStyle(color: primaryColor),
                               ),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.start,
-                                children: [
-                              OutlinedButton.icon(
-                                icon: Icon(Icons.add, size: 18, color: primaryColor),
-                                label: Text(
-                                  'Nouvelle réservation',
-                                  style: TextStyle(color: primaryColor),
-                                ),
-                                style: OutlinedButton.styleFrom(
-                                  side: BorderSide(color: primaryColor),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                ),
-                                onPressed: () {
-                                  Navigator.pushNamed(context, AppRoutes.reservationPage);
-                                },
-                              ),
-                              const SizedBox(width: 5),
-                              OutlinedButton.icon(
-                                icon: Icon(Icons.add, size: 18, color: primaryColor),
-                                label: Text(
-                                  'Nouvel enregistrement',
-                                  style: TextStyle(color: primaryColor),
-                                ),
-                                style: OutlinedButton.styleFrom(
-                                  side: BorderSide(color: primaryColor),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                ),
-                                onPressed: () {
-                                  Navigator.pushNamed(context, AppRoutes.enregistrement);
-                                },
-                              ),
-                                  ])
-                            ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _buildCard(
+                          child: TasksList(),
+                          title: "Tâches",
+                          actions: [
+                            IconButton(
+                              icon: Icon(Icons.add, color: primaryColor),
+                              onPressed: () {Navigator.pushNamed(context, AppRoutes.services);},
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  )
+                      : Column(
+                    children: [
+                      _buildCard(
+                        child: RecentBookings(),
+                        title: "Réservations récentes",
+                        actions: [
+                          TextButton(
+                            onPressed: () {Navigator.pushNamed(context, AppRoutes.reservationPage);},
+                            child: Text(
+                              'Voir tout',
+                              style: TextStyle(color: primaryColor),
+                            ),
                           ),
                         ],
                       ),
+                      const SizedBox(height: 16),
+                      _buildCard(
+                        child: TasksList(),
+                        title: "Tâches",
+                        actions: [
+                          IconButton(
+                            icon: Icon(Icons.add, color: primaryColor),
+                            onPressed: () {Navigator.pushNamed(context, AppRoutes.services);},
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                },
+              ),
+
+              const SizedBox(height: 32),
+              _buildCard(
+                title: "Actions rapides",
+                child: GridView.count(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: MediaQuery.of(context).size.width > 600 ? 4 : 2,
+                  crossAxisSpacing: 16,
+                  mainAxisSpacing: 16,
+                  childAspectRatio: 1.2,
+                  children: [
+                    _buildActionButton(
+                      context: context,
+                      icon: Icons.bed,
+                      label: "Nouvelle réservation",
+                      color: primaryColor,
+                      onTap: () {
+                        Navigator.pushNamed(context, AppRoutes.reservationPage);
+                      },
                     ),
-                  ),
+                    _buildActionButton(
+                      context: context,
+                      icon: Icons.login,
+                      label: "Enregistrement",
+                      color: successColor,
+                      onTap: () {
+                        Navigator.pushNamed(context, AppRoutes.enregistrement);
+                      },
+                    ),
+                    _buildActionButton(
+                      context: context,
+                      icon: Icons.logout,
+                      label: "Départ",
+                      color: dangerColor,
+                      onTap: () {
+                        Navigator.pushNamed(context, AppRoutes.occupiedrooms);
+                      },
+                    ),
+                    _buildActionButton(
+                      context: context,
+                      icon: Icons.assignment_outlined,
+                      label: "Nouvelle tâche",
+                      color: secondaryColor,
+                      onTap: () {
+                        Navigator.pushNamed(context, AppRoutes.services);
+                      },
+                    ),
+                  ],
                 ),
-                SliverPadding(
-                  padding: const EdgeInsets.all(24),
-                  sliver: SliverToBoxAdapter(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Cards de statistiques
-                        SizedBox(
-                          height: 160,
-                          child: ListView(
-                            scrollDirection: Axis.horizontal,
-                            children: [
-                              _buildStatCard(
-                                icon: Icons.bed,
-                                iconColor: primaryColor,
-                                title: "Taux d'occupation",
-                                value: _isLoadingStats
-                                    ? "Chargement..."
-                                    : "${_tauxOccupationActuel.toStringAsFixed(1)}%",
-                                change: "+12%",
-                                changePositive: true,
-                                color: isDark ? const Color(0xFF263238) : Colors.white,
-                                width: 240,
-                              ),
-                              const SizedBox(width: 16),
-                              _buildStatCard(
-                                icon: Icons.payments_outlined,
-                                iconColor: secondaryColor,
-                                title: "Revenus du jour",
-                                value: _isLoadingStats
-                                    ? "Chargement..."
-                                    : "$formattedRevenu FCFA",
-                                change: "+15%",
-                                changePositive: true,
-                                color: isDark ? const Color(0xFF263238) : Colors.white,
-                                width: 240,
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        const SizedBox(height: 32),
-                        Text(
-                          'Performance',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: isDark ? Colors.white : Colors.black87,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        // Graphiques
-                        LayoutBuilder(
-                          builder: (context, constraints) {
-                            return constraints.maxWidth > 800
-                                ? Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: _buildCard(
-                                    child: OccupancyChartAvecDonnees(),
-                                    title: "Taux d'occupation",
-                                    actions: [
-                                      _buildDropdownFilter(),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: _buildCard(
-                                    child: RevenueChart(),
-                                    title: "Revenus",
-                                    actions: [
-                                      _buildDropdownFilter(),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            )
-                                : Column(
-                              children: [
-                                _buildCard(
-                                  child: OccupancyChartAvecDonnees(),
-                                  title: "Taux d'occupation",
-                                  actions: [
-                                    _buildDropdownFilter(),
-                                  ],
-                                ),
-                                const SizedBox(height: 16),
-                                _buildCard(
-                                  child: RevenueChart(),
-                                  title: "Revenus",
-                                  actions: [
-                                    _buildDropdownFilter(),
-                                  ],
-                                ),
-                              ],
-                            );
-                          },
-                        ),
-
-                        const SizedBox(height: 32),
-                        Text(
-                          'Activités',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: isDark ? Colors.white : Colors.black87,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        // Activités récentes
-                        LayoutBuilder(
-                          builder: (context, constraints) {
-                            return constraints.maxWidth > 800
-                                ? Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: _buildCard(
-                                    child: RecentBookings(),
-                                    title: "Réservations récentes",
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () {},
-                                        child: Text(
-                                          'Voir tout',
-                                          style: TextStyle(color: primaryColor),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: _buildCard(
-                                    child: TasksList(),
-                                    title: "Tâches",
-                                    actions: [
-                                      IconButton(
-                                        icon: Icon(Icons.add, color: primaryColor),
-                                        onPressed: () {},
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            )
-                                : Column(
-                              children: [
-                                _buildCard(
-                                  child: RecentBookings(),
-                                  title: "Réservations récentes",
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () {},
-                                      child: Text(
-                                        'Voir tout',
-                                        style: TextStyle(color: primaryColor),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 16),
-                                _buildCard(
-                                  child: TasksList(),
-                                  title: "Tâches",
-                                  actions: [
-                                    IconButton(
-                                      icon: Icon(Icons.add, color: primaryColor),
-                                      onPressed: () {},
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            );
-                          },
-                        ),
-
-                        const SizedBox(height: 32),
-                        _buildCard(
-                          title: "Actions rapides",
-                          child: GridView.count(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            crossAxisCount: MediaQuery.of(context).size.width > 600 ? 4 : 2,
-                            crossAxisSpacing: 16,
-                            mainAxisSpacing: 16,
-                            childAspectRatio: 1.2,
-                            children: [
-                              _buildActionButton(
-                                context: context,
-                                icon: Icons.bed,
-                                label: "Nouvelle réservation",
-                                color: primaryColor,
-                                onTap: () {
-                                  Navigator.pushNamed(context, AppRoutes.reservationPage);
-                                },
-                              ),
-                              _buildActionButton(
-                                context: context,
-                                icon: Icons.login,
-                                label: "Enregistrement",
-                                color: successColor,
-                                onTap: () {
-                                  Navigator.pushNamed(context, AppRoutes.enregistrement);
-                                },
-                              ),
-                              _buildActionButton(
-                                context: context,
-                                icon: Icons.logout,
-                                label: "Départ",
-                                color: dangerColor,
-                                onTap: () {
-                                  Navigator.pushNamed(context, AppRoutes.occupiedrooms);
-                                },
-                              ),
-                              _buildActionButton(
-                                context: context,
-                                icon: Icons.assignment_outlined,
-                                label: "Nouvelle tâche",
-                                color: secondaryColor,
-                                onTap: () {
-                                  Navigator.pushNamed(context, AppRoutes.comingSoonPage);
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
-      // Bottom navigation pour les écrans mobiles
-      bottomNavigationBar: MediaQuery.of(context).size.width <= 1200
-          ? NavigationBar(
-        onDestinationSelected: (int index) {
-          setState(() {
-            _selectedIndex = index;
-          });
-        },
-        selectedIndex: _selectedIndex,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.dashboard_outlined),
-            selectedIcon: Icon(Icons.dashboard),
-            label: '',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.dashboard_outlined),
-            selectedIcon: Icon(Icons.dashboard),
-            label: '',
-          ),
-        ],
-      )
-          : null,
     );
   }
 

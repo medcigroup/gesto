@@ -30,20 +30,20 @@ class GestoPricingPage extends StatelessWidget {
   final List<Plan> plans = [
     Plan(
       title: 'Basic (essai gratuit 30j)',
-      price: '15000 FCFA',
+      price: '20000 FCFA',
       duration: '/mois',
-      features: ['Module de réservation', '14 chambres max', 'Support de base', 'Rapports hebdo'],
+      features: [ '14 chambres max','Limite nombre employé : 3', 'Support de base', 'Rapports hebdo'],
       planId: PlanId.basic,
       isRecommended: false,
     ),
     Plan(
       title: 'Starter',
-      price: '20000 FCFA',
+      price: '30000 FCFA',
       duration: '/mois',
       features: [
         'Module de réservation',
         '20 chambres max',
-        'Module de facturation',
+        'Limite nombre employé : 10',
         'Support standard',
         'Rapports journaliers'
       ],
@@ -52,11 +52,12 @@ class GestoPricingPage extends StatelessWidget {
     ),
     Plan(
       title: 'Starter Pro',
-      price: '35000 FCFA',
+      price: '50000 FCFA',
       duration: '/mois',
       features: [
         'Module de réservation',
         'Chambres illimitées',
+        'Limite nombre employé : 20',
         'Gestion resto',
         'Tables resto illimitées',
         'Support 24/7',
@@ -412,7 +413,7 @@ class GestoPricingPage extends StatelessWidget {
       },
       {
         'question': 'Proposez-vous des remises pour les paiements annuels ?',
-        'answer': 'Oui, nous offrons une remise de 15% pour tous les paiements annuels sur les plans Starter et Starter Pro.'
+        'answer': 'Oui, nous offrons une remise de 15% pour tous les paiements annuels sur les plans basic, Starter et Starter Pro.'
       },
     ];
 

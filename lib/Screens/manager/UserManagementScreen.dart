@@ -5,8 +5,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:provider/provider.dart';
 
-import '../components/messagerie/NotificationProvider.dart';
-import '../widgets/side_menu.dart';
+import '../../components/messagerie/NotificationProvider.dart';
+import '../../widgets/side_menu.dart';
 import 'LicenceManagerPage.dart';
 import 'messagerie.dart';
 
@@ -599,7 +599,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           ),
         ],
       ),
-      drawer: const SideMenu(),
       floatingActionButton: Column(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [

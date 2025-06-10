@@ -19,6 +19,7 @@ class _PaimentInfoSectionState extends State<PaimentInfoSection> {
   @override
   Widget build(BuildContext context) {
     return Card(
+      color: Colors.white,
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(

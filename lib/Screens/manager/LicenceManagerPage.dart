@@ -4,8 +4,8 @@ import 'package:intl/intl.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
 
-import '../config/LicenceGenerator.dart';
-import '../config/LicencePrinter.dart';
+import '../../config/LicenceGenerator.dart';
+import '../../config/LicencePrinter.dart';
 
 // Importation de la classe LicenceGenerator
 // Assurez-vous que cette classe est accessible dans votre projet

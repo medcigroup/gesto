@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 
-import '../config/routes.dart';
+import '../../config/routes.dart';
 
 class ActivateLicencePage extends StatefulWidget {
   const ActivateLicencePage({Key? key}) : super(key: key);

@@ -199,18 +199,48 @@ class _ChoosePlanScreenState extends State<ChoosePlanScreen> {
       Plan(
         title: 'Basic (Essai Gratuit 30J)',
         price: '0 FCFA',
-        oldPrice: '15000 FCFA',
+        oldPrice: '20000 FCFA',
         duration: '30 jours',
         features: [
-          'Module de réservation',
           '14 chambres max',
+          'Limite nombre employé : 3',
           'Support de base',
           'Rapports hebdo'
         ],
         planId: PlanId.basic,
         isRecommended: false,
       ),
-
+      Plan(
+        title: 'Starter',
+        price: '30000 FCFA',
+        duration: '/mois',
+        features: [
+          'Module de réservation',
+          '20 chambres max',
+          'Limite nombre employé : 10',
+          'Support standard',
+          'Rapports journaliers'
+        ],
+        planId: PlanId.starter,
+        isRecommended: true,
+      ),
+      Plan(
+        title: 'Starter Pro',
+        price: '50000 FCFA',
+        duration: '/mois',
+        features: [
+          'Module de réservation',
+          'Chambres illimitées',
+          'Limite nombre employé : 20',
+          'Gestion resto',
+          'Tables resto illimitées',
+          'Support 24/7',
+          'Analyses temps réel',
+          'Marketing tools',
+        ],
+        planId: PlanId.pro,
+        isRecommended: false,
+      ),
     ];
 
     return Scaffold(

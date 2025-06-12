@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'DashboardScreen.dart';
+import 'RestaurantDashboard.dart';
 import 'Screens/manager/CheckInPage.dart';
 import 'Screens/manager/ComingSoonPage.dart';
 import 'Screens/manager/FinancePage.dart';
@@ -18,7 +19,7 @@ import 'components/messagerie/NotificationPanel.dart';
 import 'components/messagerie/NotificationProvider.dart';
 import 'components/reservation/ModernReservationPage.dart';
 import 'config/AuthService.dart';
-import 'LicenseFeatures.dart'; // Importer la gestion des licences
+import 'LicenseFeatures.dart';
 
 enum UserRole {
   admin,
@@ -50,7 +51,7 @@ class _DashboardManagerState extends State<DashboardManager> {
     CheckInPage(),
     HourlyCheckInPage(),
     OccupiedRoomsPage(),
-    ComingSoonPage(),
+    RestaurantDashboard(),
     GestionPersonnelPage(),
     FinancePage(),
     RenewLicencePage(),

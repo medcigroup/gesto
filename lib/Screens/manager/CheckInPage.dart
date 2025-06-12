@@ -4,14 +4,13 @@ import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../components/checkin/CustomerInfoSection.dart';
+import '../../components/checkin/options_package_section.dart';
 import '../../config/HotelSettingsService.dart';
 import '../../config/generationcode.dart';
 import '../../config/getConnectedUserAdminId.dart';
 import '../../config/room_models.dart';
 import '../../widgets/side_menu.dart';
 
-
- // Nouveau widget pour les infos client
 
 class CheckInPage extends StatefulWidget {
   @override
@@ -36,9 +35,13 @@ class _CheckInPageState extends State<CheckInPage> {
   String? _selectedRoomType;
   String? idadmin;
   bool _isLoading = false;
+  bool _isInitializing = true; // Pour gérer l'état d'initialisation
   List<String> _roomTypes = [];
   List<Room> _availableRooms = [];
   Room? _selectedRoom;
+
+  // Options sélectionnées
+  Map<String, bool> _selectedOptions = {};
 
   DateTime? checkInDate;
   DateTime? checkOutDate;
@@ -46,32 +49,58 @@ class _CheckInPageState extends State<CheckInPage> {
   @override
   void initState() {
     super.initState();
-    // Initialiser les dates avec aujourd'hui et demain
-    //final now = DateTime.now();
-    //final tomorrow = now.add(Duration(days: 1));
-    //_checkInDateController.text = DateFormat('dd/MM/yyyy').format(now);
-    //_checkOutDateController.text = DateFormat('dd/MM/yyyy').format(tomorrow);
-
-    // Charger les chambres disponibles
-
-
+    print('🚀 CheckInPage initState');
     _initializeData();
-
-
   }
+
+  @override
+  void dispose() {
+    _customerNameController.dispose();
+    _customerEmailController.dispose();
+    _customerPhoneController.dispose();
+    _idNumberController.dispose();
+    _nationalityController.dispose();
+    _addressController.dispose();
+    _checkInDateController.dispose();
+    _checkOutDateController.dispose();
+    super.dispose();
+  }
+
   Future<void> _initializeData() async {
-    // Récupérer l'ID de l'administrateur connecté
-    idadmin = await getConnectedUserAdminId();
+    print('🔄 Initialisation des données...');
+    setState(() => _isInitializing = true);
+
+    try {
+      // Récupérer l'ID de l'administrateur connecté
+      idadmin = await getConnectedUserAdminId();
+      print('✅ ID Admin récupéré: $idadmin');
+
+      if (mounted) {
+        setState(() => _isInitializing = false);
+      }
+    } catch (e) {
+      print('❌ Erreur lors de l\'initialisation: $e');
+      if (mounted) {
+        setState(() => _isInitializing = false);
+      }
+    }
   }
+
+  // Méthode pour gérer les changements d'options
+  void _onOptionsChanged(Map<String, bool> options) {
+    setState(() {
+      _selectedOptions = options;
+    });
+    print('🎛️ Options changées: ${options.toString()}');
+  }
+
   // Compare les numéros de chambre qui peuvent être de format différent
   int compareRoomNumbers(String a, String b) {
-    // Essayer de convertir en entiers si possible
     try {
       int numA = int.parse(a);
       int numB = int.parse(b);
       return numA.compareTo(numB);
     } catch (e) {
-      // Si la conversion échoue, comparer comme des chaînes
       return a.compareTo(b);
     }
   }
@@ -81,22 +110,18 @@ class _CheckInPageState extends State<CheckInPage> {
     setState(() => _isLoading = true);
 
     try {
-      // Vérifier si les dates sont sélectionnées
       if (checkInDate == null || checkOutDate == null) {
         setState(() => _isLoading = false);
         _showErrorSnackBar('Veuillez sélectionner les dates de séjour');
         return;
       }
 
-      // Vérifier la validité des dates
       if (checkOutDate!.isBefore(checkInDate!)) {
         setState(() => _isLoading = false);
-        _showErrorSnackBar(
-            'La date de départ doit être après la date d\'arrivée');
+        _showErrorSnackBar('La date de départ doit être après la date d\'arrivée');
         return;
       }
 
-      // Obtenir l'ID de l'utilisateur connecté
       final userId = idadmin;
       if (userId == null) {
         throw Exception('Utilisateur non connecté');
@@ -113,7 +138,6 @@ class _CheckInPageState extends State<CheckInPage> {
         final data = doc.data();
         String imageValue = '';
 
-        // Gestion des différents formats d'image
         if (data['image'] is Map) {
           final imageMap = data['image'] as Map<String, dynamic>;
           imageValue = imageMap['path'] ?? '';
@@ -139,10 +163,8 @@ class _CheckInPageState extends State<CheckInPage> {
       // Filtrer les chambres disponibles pour les dates sélectionnées
       List<Room> roomsAvailable = [];
       for (Room room in allRooms) {
-
         if (room.status == 'disponible') {
-          bool isAvailable = await isRoomAvailable(
-              room.id, checkInDate!, checkOutDate!);
+          bool isAvailable = await isRoomAvailable(room.id, checkInDate!, checkOutDate!);
           if (isAvailable) {
             roomsAvailable.add(room);
           }
@@ -166,14 +188,12 @@ class _CheckInPageState extends State<CheckInPage> {
       });
     } catch (e) {
       setState(() => _isLoading = false);
-      _showErrorSnackBar(
-          'Erreur lors du chargement des chambres: ${e.toString()}');
+      _showErrorSnackBar('Erreur lors du chargement des chambres: ${e.toString()}');
     }
   }
 
-// Méthode pour vérifier si une chambre est disponible pour les dates spécifiées
+  // Méthode pour vérifier si une chambre est disponible pour les dates spécifiées
   Future<bool> isRoomAvailable(String roomId, DateTime checkIn, DateTime checkOut) async {
-    // Vérifier les deux collections en parallèle pour de meilleures performances
     final reservationsFuture = FirebaseFirestore.instance
         .collection('reservations')
         .where('roomId', isEqualTo: roomId)
@@ -186,44 +206,31 @@ class _CheckInPageState extends State<CheckInPage> {
         .where('status', whereIn: ['réservée','enregistré'])
         .get();
 
-    // Attendre les deux requêtes
     final results = await Future.wait([reservationsFuture, bookingsFuture]);
     final reservationsSnapshot = results[0];
     final bookingsSnapshot = results[1];
 
-    // Fonction pour vérifier les chevauchements dans une liste de documents
     bool hasOverlap(List<QueryDocumentSnapshot> docs) {
       for (var doc in docs) {
         final data = doc.data() as Map<String, dynamic>;
         DateTime resCheckIn = (data['checkInDate'] as Timestamp).toDate();
         DateTime resCheckOut = (data['checkOutDate'] as Timestamp).toDate();
 
-        // Vérification de chevauchement
-        bool overlap = !(checkOut.isBefore(resCheckIn.subtract(const Duration(days: 0))) || checkIn.isAfter(resCheckOut.subtract(const Duration(days: 1))));
+        bool overlap = !(checkOut.isBefore(resCheckIn.subtract(const Duration(days: 0))) ||
+            checkIn.isAfter(resCheckOut.subtract(const Duration(days: 1))));
 
         if (overlap) {
-          return true; // Il y a chevauchement
+          return true;
         }
       }
       return false;
     }
 
-    // Vérifier les chevauchements dans les deux collections
     if (hasOverlap(reservationsSnapshot.docs) || hasOverlap(bookingsSnapshot.docs)) {
-      return false; // La chambre n'est pas disponible
+      return false;
     }
 
-    return true; // La chambre est disponible
-  }
-
-// Filtrer les chambres selon le type sélectionné et le nombre de personnes
-  List<Room> getFilteredRooms() {
-    if (_selectedRoomType == null) return [];
-
-    return _availableRooms.where((room) =>
-    room.type == _selectedRoomType &&
-        room.capacity >= _numberOfGuests
-    ).toList();
+    return true;
   }
 
   // Filtrer les chambres selon le type sélectionné
@@ -235,7 +242,6 @@ class _CheckInPageState extends State<CheckInPage> {
         room.capacity >= _numberOfGuests
     ).toList();
   }
-
 
   Future<void> _registerWalkInGuest() async {
     if (_formKey.currentState!.validate()) {
@@ -267,7 +273,6 @@ class _CheckInPageState extends State<CheckInPage> {
       }
 
       try {
-        // Obtenir l'ID de l'utilisateur connecté
         final userId = idadmin;
         if (userId == null) {
           throw Exception('Utilisateur non connecté');
@@ -277,7 +282,6 @@ class _CheckInPageState extends State<CheckInPage> {
         final settingsService = HotelSettingsService();
         final settings = await settingsService.getHotelSettings();
 
-        // Vérifier si les paramètres existent et si les heures sont définies
         if (settings.isEmpty || settings['checkInTime'] == null ||
             settings['checkOutTime'] == null) {
           throw Exception('Paramètres de l\'hôtel non configurés');
@@ -287,32 +291,23 @@ class _CheckInPageState extends State<CheckInPage> {
         final checkOutTime = settings['checkOutTime'];
 
         // Créer un nouveau document de réservation
-        final bookingRef = FirebaseFirestore.instance.collection('bookings')
-            .doc();
+        final bookingRef = FirebaseFirestore.instance.collection('bookings').doc();
 
         // Générer un code de réservation unique
-        String generatedReservationCode = await CodeGenerator
-            .generateRegistrationCode();
+        String generatedReservationCode = await CodeGenerator.generateRegistrationCode();
 
         // Convertir les dates en utilisant les heures récupérées
-        final checkInDateString = _checkInDateController.text + ' ' +
-            checkInTime + ':00';
-        final checkOutDateString = _checkOutDateController.text + ' ' +
-            checkOutTime + ':00';
+        final checkInDateString = _checkInDateController.text + ' ' + checkInTime + ':00';
+        final checkOutDateString = _checkOutDateController.text + ' ' + checkOutTime + ':00';
 
-        final checkInDate = DateFormat('dd/MM/yyyy HH:mm:ss').parse(
-            checkInDateString);
-        final checkOutDate = DateFormat('dd/MM/yyyy HH:mm:ss').parse(
-            checkOutDateString);
+        final checkInDate = DateFormat('dd/MM/yyyy HH:mm:ss').parse(checkInDateString);
+        final checkOutDate = DateFormat('dd/MM/yyyy HH:mm:ss').parse(checkOutDateString);
 
         // Calculer le nombre de nuit
-        final numberOfNights = checkOutDate
-            .difference(checkInDate)
-            .inDays;
-        final numberOfNightsCorrected = numberOfNights +
-            (checkOutDate.isAfter(checkInDate) ? 1 : 0);
+        final numberOfNights = checkOutDate.difference(checkInDate).inDays;
+        final numberOfNightsCorrected = numberOfNights + (checkOutDate.isAfter(checkInDate) ? 1 : 0);
 
-        // Enregistrer la réservation
+        // Enregistrer la réservation AVEC LES OPTIONS
         await bookingRef.set({
           'EnregistrementCode': generatedReservationCode,
           'customerName': _customerNameController.text,
@@ -339,6 +334,7 @@ class _CheckInPageState extends State<CheckInPage> {
           'depositPercentage': 0,
           'isWalkIn': true,
           'createdBy': FirebaseAuth.instance.currentUser?.uid,
+          'options': _selectedOptions, // Sauvegarder les options sélectionnées
         });
 
         // Mettre à jour le statut de la chambre
@@ -359,7 +355,6 @@ class _CheckInPageState extends State<CheckInPage> {
         _showSuccessSnackBar('Client enregistré avec succès');
         _resetForm();
       } catch (e) {
-        // Fermer le dialogue de chargement en cas d'erreur
         if (mounted && Navigator.canPop(context)) {
           Navigator.of(context).pop();
         }
@@ -374,10 +369,6 @@ class _CheckInPageState extends State<CheckInPage> {
   void _resetForm() {
     _formKey.currentState!.reset();
 
-    // Réinitialiser les dates
-    final now = DateTime.now();
-    final tomorrow = now.add(Duration(days: 1));
-
     setState(() {
       _customerNameController.clear();
       _customerEmailController.clear();
@@ -390,7 +381,7 @@ class _CheckInPageState extends State<CheckInPage> {
       _numberOfGuests = 1;
       _selectedRoomType = null;
       _selectedRoom = null;
-
+      _selectedOptions.clear();
 
       // Recharger les chambres disponibles
       fetchAvailableRooms();
@@ -424,8 +415,7 @@ class _CheckInPageState extends State<CheckInPage> {
 
     if (isCheckOut && _checkInDateController.text.isNotEmpty) {
       try {
-        final checkInDate = DateFormat('dd/MM/yyyy').parse(
-            _checkInDateController.text);
+        final checkInDate = DateFormat('dd/MM/yyyy').parse(_checkInDateController.text);
         initialDate = checkInDate.add(Duration(days: 1));
         firstDate = checkInDate.add(Duration(days: 1));
       } catch (e) {
@@ -446,9 +436,7 @@ class _CheckInPageState extends State<CheckInPage> {
         return Theme(
           data: ThemeData.light().copyWith(
             colorScheme: ColorScheme.light(
-              primary: Theme
-                  .of(context)
-                  .primaryColor,
+              primary: Theme.of(context).primaryColor,
             ),
           ),
           child: child!,
@@ -466,18 +454,14 @@ class _CheckInPageState extends State<CheckInPage> {
           _selectedRoom = null;
         } else {
           checkInDate = picked;
-          // Reset selected room type and room when check-in date changes
           _selectedRoomType = null;
           _selectedRoom = null;
-          // Si on change la date d'arrivée, vérifier que la date de départ est toujours valide
           if (_checkOutDateController.text.isNotEmpty) {
             try {
-              final checkOutDate = DateFormat('dd/MM/yyyy').parse(
-                  _checkOutDateController.text);
+              final checkOutDate = DateFormat('dd/MM/yyyy').parse(_checkOutDateController.text);
               if (!checkOutDate.isAfter(picked)) {
                 final newCheckOutDate = picked.add(Duration(days: 1));
-                _checkOutDateController.text =
-                    DateFormat('dd/MM/yyyy').format(newCheckOutDate);
+                _checkOutDateController.text = DateFormat('dd/MM/yyyy').format(newCheckOutDate);
                 this.checkOutDate = newCheckOutDate;
               }
             } catch (e) {
@@ -487,13 +471,32 @@ class _CheckInPageState extends State<CheckInPage> {
         }
       });
 
-      // Actualiser les chambres disponibles avec les nouvelles dates
       fetchAvailableRooms();
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    print('🎨 CheckInPage build - isInitializing: $_isInitializing, idadmin: $idadmin');
+
+    // Si on est en cours d'initialisation, afficher un écran de chargement
+    if (_isInitializing) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF5F7FA),
+        drawer: const SideMenu(),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 20),
+              Text('Initialisation...'),
+            ],
+          ),
+        ),
+      );
+    }
+
     // Obtenir les chambres filtrées basées sur le type sélectionné
     final filteredRooms = _getFilteredRooms();
 
@@ -508,13 +511,12 @@ class _CheckInPageState extends State<CheckInPage> {
           key: _formKey,
           child: ListView(
             children: [
-              // Séjour d'abord (avant les informations client)
+              // Séjour d'abord
               StayInfoSection(
                 checkInDateController: _checkInDateController,
                 checkOutDateController: _checkOutDateController,
                 numberOfGuests: _numberOfGuests,
-                onGuestsChanged: (value) =>
-                    setState(() => _numberOfGuests = value),
+                onGuestsChanged: (value) => setState(() => _numberOfGuests = value),
                 selectedRoomType: _selectedRoomType,
                 roomTypes: _roomTypes,
                 onRoomTypeChanged: (value) {
@@ -531,7 +533,7 @@ class _CheckInPageState extends State<CheckInPage> {
 
               SizedBox(height: 20),
 
-              // Ensuite les informations client
+              // Informations client
               CustomerInfoSection(
                 nameController: _customerNameController,
                 emailController: _customerEmailController,
@@ -541,11 +543,19 @@ class _CheckInPageState extends State<CheckInPage> {
                 addressController: _addressController,
               ),
 
+              SizedBox(height: 20),
+
+              // Section Options - Utilisation du widget séparé
+              OptionsSection(
+                selectedOptions: _selectedOptions,
+                onOptionsChanged: _onOptionsChanged,
+                userId: idadmin,
+              ),
+
               SizedBox(height: 24),
 
-              // Récapitulatif (si une chambre est sélectionnée)
-              if (_selectedRoom != null)
-                _buildSummaryCard(context),
+              // Récapitulatif
+              if (_selectedRoom != null) _buildSummaryCard(context),
 
               SizedBox(height: 24),
 
@@ -572,11 +582,7 @@ class _CheckInPageState extends State<CheckInPage> {
           children: <Widget>[
             Text(
               'Récapitulatif',
-              style: Theme
-                  .of(context)
-                  .textTheme
-                  .titleLarge!
-                  .copyWith(
+              style: Theme.of(context).textTheme.titleLarge!.copyWith(
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -617,13 +623,9 @@ class _CheckInPageState extends State<CheckInPage> {
             Builder(
               builder: (context) {
                 try {
-                  final checkInDate = DateFormat('dd/MM/yyyy').parse(
-                      _checkInDateController.text);
-                  final checkOutDate = DateFormat('dd/MM/yyyy').parse(
-                      _checkOutDateController.text);
-                  final nights = checkOutDate
-                      .difference(checkInDate)
-                      .inDays;
+                  final checkInDate = DateFormat('dd/MM/yyyy').parse(_checkInDateController.text);
+                  final checkOutDate = DateFormat('dd/MM/yyyy').parse(_checkOutDateController.text);
+                  final nights = checkOutDate.difference(checkInDate).inDays;
 
                   return Column(
                     children: [
@@ -640,14 +642,11 @@ class _CheckInPageState extends State<CheckInPage> {
                         children: [
                           Text('Total:'),
                           Text(
-                            '${(_selectedRoom!.price * nights).toStringAsFixed(
-                                0)} FCFA',
+                            '${(_selectedRoom!.price * nights).toStringAsFixed(0)} FCFA',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 18,
-                              color: Theme
-                                  .of(context)
-                                  .primaryColor,
+                              color: Theme.of(context).primaryColor,
                             ),
                           ),
                         ],
@@ -702,9 +701,7 @@ class _CheckInPageState extends State<CheckInPage> {
       ],
     );
   }
-
 }
-
 
 class StayInfoSection extends StatelessWidget {
   final TextEditingController checkInDateController;
@@ -769,8 +766,7 @@ class StayInfoSection extends StatelessWidget {
                     ),
                     readOnly: true,
                     onTap: () => selectDate(context, checkInDateController),
-                    validator: (value) =>
-                    value!.isEmpty ? 'Date requise' : null,
+                    validator: (value) => value!.isEmpty ? 'Date requise' : null,
                   ),
                 ),
                 SizedBox(width: 16),
@@ -785,13 +781,8 @@ class StayInfoSection extends StatelessWidget {
                       ),
                     ),
                     readOnly: true,
-                    onTap: () => selectDate(
-                        context,
-                        checkOutDateController,
-                        isCheckOut: true
-                    ),
-                    validator: (value) =>
-                    value!.isEmpty ? 'Date requise' : null,
+                    onTap: () => selectDate(context, checkOutDateController, isCheckOut: true),
+                    validator: (value) => value!.isEmpty ? 'Date requise' : null,
                   ),
                 ),
               ],
@@ -802,9 +793,7 @@ class StayInfoSection extends StatelessWidget {
             // Nombre de personnes
             Row(
               children: [
-                Expanded(
-                  child: Text('Nombre de personnes'),
-                ),
+                Expanded(child: Text('Nombre de personnes')),
                 Row(
                   children: [
                     IconButton(
@@ -815,10 +804,7 @@ class StayInfoSection extends StatelessWidget {
                     ),
                     Text(
                       '$numberOfGuests',
-                      style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold
-                      ),
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                     IconButton(
                       icon: Icon(Icons.add_circle_outline),
@@ -836,13 +822,10 @@ class StayInfoSection extends StatelessWidget {
               decoration: InputDecoration(
                 labelText: 'Type de chambre',
                 prefixIcon: Icon(Icons.hotel),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
               ),
               value: selectedRoomType,
-              validator: (value) =>
-              value == null ? 'Veuillez sélectionner un type de chambre' : null,
+              validator: (value) => value == null ? 'Veuillez sélectionner un type de chambre' : null,
               items: roomTypes.map((type) {
                 return DropdownMenuItem<String>(
                   value: type,
@@ -861,10 +844,7 @@ class StayInfoSection extends StatelessWidget {
                 children: [
                   Text(
                     'Chambres disponibles',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
                   SizedBox(height: 8),
                   Container(
@@ -892,7 +872,7 @@ class StayInfoSection extends StatelessWidget {
                               padding: const EdgeInsets.all(12.0),
                               child: Row(
                                 children: [
-                                  // Image de la chambre (ou icône par défaut)
+                                  // Image de la chambre
                                   Container(
                                     width: 80,
                                     height: 80,
@@ -917,24 +897,17 @@ class StayInfoSection extends StatelessWidget {
                                       children: [
                                         Text(
                                           'Chambre ${room.number}',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 16,
-                                          ),
+                                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                                         ),
                                         SizedBox(height: 4),
                                         Text(
                                           'Étage: ${room.floor}',
-                                          style: TextStyle(
-                                            color: Colors.grey.shade700,
-                                          ),
+                                          style: TextStyle(color: Colors.grey.shade700),
                                         ),
                                         SizedBox(height: 4),
                                         Text(
                                           'Capacité: ${room.capacity} personne${room.capacity > 1 ? 's' : ''}',
-                                          style: TextStyle(
-                                            color: Colors.grey.shade700,
-                                          ),
+                                          style: TextStyle(color: Colors.grey.shade700),
                                         ),
                                         SizedBox(height: 4),
                                         if (room.amenities.isNotEmpty)

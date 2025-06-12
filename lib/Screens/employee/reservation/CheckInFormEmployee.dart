@@ -3,11 +3,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../../components/checkin/options_package_section.dart';
 import '../../../config/generationcode.dart';
 import '../../../config/getConnectedUserAdminId.dart';
-
-
-
 class CheckInFormEmployee extends StatefulWidget {
   final Reservation reservation;
 
@@ -33,6 +31,9 @@ class _CheckInFormEmployeeState extends State<CheckInFormEmployee> {
   // ID admin
   String? idadmin;
   bool _isLoading = true;
+
+  // Variables pour les options
+  Map<String, bool> _selectedOptions = {};
 
   @override
   void initState() {
@@ -62,10 +63,19 @@ class _CheckInFormEmployeeState extends State<CheckInFormEmployee> {
     super.dispose();
   }
 
+  // Gérer les changements d'options
+  void _onOptionsChanged(Map<String, bool> options) {
+    setState(() {
+      _selectedOptions = options;
+    });
+    print('🎛️ Options sélectionnées dans CheckInFormEmployee: ${options.toString()}');
+  }
+
   // Méthode pour charger l'ID admin
   Future<void> _loadAdminId() async {
     try {
       idadmin = await getConnectedUserAdminId();
+      print('✅ UserId récupéré pour CheckInFormEmployee: $idadmin');
 
       setState(() {
         _isLoading = false;
@@ -164,6 +174,7 @@ class _CheckInFormEmployeeState extends State<CheckInFormEmployee> {
             : null,
         'idEmploye': FirebaseAuth.instance.currentUser?.uid, // UID de l'utilisateur connecté
         'userId': idadmin, // ID admin récupéré
+        'options': _selectedOptions, // AJOUT DES OPTIONS
       };
 
       // Enregistrer les données
@@ -249,6 +260,7 @@ class _CheckInFormEmployeeState extends State<CheckInFormEmployee> {
         'depositPercentage': depositPercentage,
         'depositPaid': depositPaid,
         'balanceDue': balanceDue,
+        'options': bookingData['options'], // SAUVEGARDER LES OPTIONS
       });
 
       // Mettre à jour le statut dans la collection 'reservations'
@@ -356,14 +368,21 @@ class _CheckInFormEmployeeState extends State<CheckInFormEmployee> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Détails de la Réservation',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
+                        Row(
+                          children: [
+                            Icon(Icons.info_outline, color: Theme.of(context).colorScheme.primary),
+                            SizedBox(width: 8),
+                            Text(
+                              'Détails de la Réservation',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                            ),
+                          ],
                         ),
+                        Divider(),
                         const SizedBox(height: 12),
                         Row(
                           children: [
@@ -402,6 +421,27 @@ class _CheckInFormEmployeeState extends State<CheckInFormEmployee> {
                             ),
                           ],
                         ),
+                        if (widget.reservation.pricePerNight != null) ...[
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildInfoItem(
+                                  'Prix/nuit',
+                                  '${widget.reservation.pricePerNight!.toStringAsFixed(0)} FCFA',
+                                  Icons.monetization_on,
+                                ),
+                              ),
+                              Expanded(
+                                child: _buildInfoItem(
+                                  'Code Réservation',
+                                  widget.reservation.reservationCode,
+                                  Icons.confirmation_number,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -576,17 +616,49 @@ class _CheckInFormEmployeeState extends State<CheckInFormEmployee> {
                         if (_checkInDate != null && _checkOutDate != null)
                           Padding(
                             padding: const EdgeInsets.only(top: 16.0),
-                            child: Text(
-                              'Durée du séjour: ${_checkOutDate!.difference(_checkInDate!).inDays + 1} nuit(s)',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
+                            child: Container(
+                              padding: EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'Durée du séjour:',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w500,
+                                      color: Theme.of(context).colorScheme.primary,
+                                    ),
+                                  ),
+                                  Text(
+                                    '${_checkOutDate!.difference(_checkInDate!).inDays + 1} nuit(s)',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                      color: Theme.of(context).colorScheme.primary,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
                       ],
                     ),
                   ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // SECTION OPTIONS GRATUITES
+                OptionsSection(
+                  selectedOptions: _selectedOptions,
+                  onOptionsChanged: _onOptionsChanged,
+                  userId: idadmin,
                 ),
 
                 const SizedBox(height: 30),
@@ -628,7 +700,7 @@ class _CheckInFormEmployeeState extends State<CheckInFormEmployee> {
                     child: const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.check),
+                        Icon(Icons.check_circle),
                         SizedBox(width: 8),
                         Text(
                           'Confirmer l\'enregistrement',
@@ -638,6 +710,8 @@ class _CheckInFormEmployeeState extends State<CheckInFormEmployee> {
                     ),
                   ),
                 ),
+
+                const SizedBox(height: 20),
               ],
             ),
           ),
@@ -669,7 +743,10 @@ class _CheckInFormEmployeeState extends State<CheckInFormEmployee> {
                   value,
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
+                    fontSize: 12,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),

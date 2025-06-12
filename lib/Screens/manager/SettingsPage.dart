@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../config/HotelPackagesManagement.dart';
 import '../../config/HotelSettingsService.dart';
-import '../../widgets/side_menu.dart';
-
 
 class SettingsPage extends StatefulWidget {
   @override
@@ -163,6 +162,16 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  // Méthode pour naviguer vers la gestion des packages
+  void _navigateToPackagesManagement() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => HotelPackagesManagement(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -186,7 +195,119 @@ class _SettingsPageState extends State<SettingsPage> {
             key: _formKey,
             child: ListView(
               children: [
-                // Nouvelle carte pour les informations de l'établissement
+                // NOUVELLE CARTE - Gestion des Services & Packages
+                Card(
+                  elevation: 2,
+                  margin: EdgeInsets.only(bottom: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Theme.of(context).primaryColor.withOpacity(0.1),
+                          Theme.of(context).primaryColor.withOpacity(0.05),
+                        ],
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).primaryColor.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(
+                                  Icons.card_giftcard,
+                                  color: Theme.of(context).primaryColor,
+                                  size: 24,
+                                ),
+                              ),
+                              SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Services & Packages',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: Theme.of(context).primaryColor,
+                                      ),
+                                    ),
+                                    SizedBox(height: 4),
+                                    Text(
+                                      'Gérez les options et services proposés à vos clients',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: 16),
+                          Container(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: _navigateToPackagesManagement,
+                              icon: Icon(Icons.settings, color: Colors.white),
+                              label: Text(
+                                'Gérer les Options & Packages',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Theme.of(context).primaryColor,
+                                padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                elevation: 2,
+                              ),
+                            ),
+                          ),
+                          SizedBox(height: 12),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              _buildQuickInfo(
+                                icon: Icons.restaurant,
+                                label: 'Restauration',
+                                color: Colors.orange,
+                              ),
+                              _buildQuickInfo(
+                                icon: Icons.pool,
+                                label: 'Équipements',
+                                color: Colors.blue,
+                              ),
+                              _buildQuickInfo(
+                                icon: Icons.room_service,
+                                label: 'Services',
+                                color: Colors.green,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Carte pour les informations de l'établissement
                 Card(
                   elevation: 2,
                   margin: EdgeInsets.only(bottom: 16),
@@ -196,9 +317,19 @@ class _SettingsPageState extends State<SettingsPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Informations de l\'établissement',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        Row(
+                          children: [
+                            Icon(Icons.business, color: Theme.of(context).primaryColor),
+                            SizedBox(width: 8),
+                            Text(
+                              'Informations de l\'établissement',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).primaryColor,
+                              ),
+                            ),
+                          ],
                         ),
                         SizedBox(height: 16),
                         TextFormField(
@@ -261,6 +392,8 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                   ),
                 ),
+
+                // Carte des informations générales
                 Card(
                   elevation: 2,
                   margin: EdgeInsets.only(bottom: 16),
@@ -270,9 +403,19 @@ class _SettingsPageState extends State<SettingsPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Informations générales',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        Row(
+                          children: [
+                            Icon(Icons.settings, color: Theme.of(context).primaryColor),
+                            SizedBox(width: 8),
+                            Text(
+                              'Informations générales',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).primaryColor,
+                              ),
+                            ),
+                          ],
                         ),
                         SizedBox(height: 16),
                         // Sélection de devise (dropdown)
@@ -358,6 +501,8 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                   ),
                 ),
+
+                // Carte des types de chambre
                 Card(
                   elevation: 2,
                   margin: EdgeInsets.only(bottom: 16),
@@ -367,9 +512,19 @@ class _SettingsPageState extends State<SettingsPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Types de chambre',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        Row(
+                          children: [
+                            Icon(Icons.hotel, color: Theme.of(context).primaryColor),
+                            SizedBox(width: 8),
+                            Text(
+                              'Types de chambre',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).primaryColor,
+                              ),
+                            ),
+                          ],
                         ),
                         SizedBox(height: 16),
                         Row(
@@ -391,6 +546,8 @@ class _SettingsPageState extends State<SettingsPage> {
                               onPressed: _addRoomType,
                               child: Icon(Icons.add),
                               style: ElevatedButton.styleFrom(
+                                backgroundColor: Theme.of(context).primaryColor,
+                                foregroundColor: Colors.white,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8),
                                 ),
@@ -422,7 +579,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: ListTile(
-                                leading: Icon(Icons.king_bed),
+                                leading: Icon(Icons.king_bed, color: Theme.of(context).primaryColor),
                                 title: Text(_roomTypes[index]),
                                 trailing: IconButton(
                                   icon: Icon(Icons.delete, color: Colors.red),
@@ -436,23 +593,72 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                   ),
                 ),
+
                 SizedBox(height: 16),
-                ElevatedButton.icon(
-                  icon: Icon(Icons.save),
-                  label: Text('ENREGISTRER LES PARAMÈTRES', style: TextStyle(fontWeight: FontWeight.bold)),
-                  style: ElevatedButton.styleFrom(
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+
+                // Bouton d'enregistrement stylisé
+                Container(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    icon: Icon(Icons.save, color: Colors.white),
+                    label: Text(
+                      'ENREGISTRER LES PARAMÈTRES',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
                     ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).primaryColor,
+                      padding: EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      elevation: 2,
+                    ),
+                    onPressed: _saveSettings,
                   ),
-                  onPressed: _saveSettings,
                 ),
+
+                SizedBox(height: 20),
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+
+  // Widget pour afficher les infos rapides des catégories
+  Widget _buildQuickInfo({
+    required IconData icon,
+    required String label,
+    required Color color,
+  }) {
+    return Column(
+      children: [
+        Container(
+          padding: EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            icon,
+            color: color,
+            size: 20,
+          ),
+        ),
+        SizedBox(height: 4),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey.shade600,
+          ),
+        ),
+      ],
     );
   }
 

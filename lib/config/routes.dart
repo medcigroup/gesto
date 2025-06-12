@@ -6,6 +6,7 @@ import '../EmployeeDashboard.dart';
 import '../GestoLandingPage.dart';
 import '../GestoPricingPage.dart';
 import '../PaiementPlan.dart';
+import '../RestaurantDashboard.dart';
 import '../Screens/manager/ActivateLicencePage.dart';
 import '../Screens/manager/CheckInPage.dart';
 import '../Screens/manager/CheckoutPage.dart';
@@ -63,6 +64,8 @@ class AppRoutes {
     switch (settings.name) {
       case home:
         return MaterialPageRoute(builder: (_) => GestoLandingPage());
+      case restaurant:
+        return MaterialPageRoute(builder: (_) => RestaurantDashboard());
       case hourlyCheckInPage:
         return MaterialPageRoute(builder: (_) => HourlyCheckInPage());
       case comingSoonPage:

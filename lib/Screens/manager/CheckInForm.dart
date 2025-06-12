@@ -1,12 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-
 import 'package:intl/intl.dart';
 
+import '../../components/checkin/options_package_section.dart';
 import '../../components/reservation/ModernReservationPage.dart';
 import '../../config/generationcode.dart';
-
+import '../../config/getConnectedUserAdminId.dart'; // Ajout pour récupérer l'userId admin
 
 
 class CheckInForm extends StatefulWidget {
@@ -17,7 +17,7 @@ class CheckInForm extends StatefulWidget {
   @override
   State<CheckInForm> createState() => _CheckInFormState();
 }
-final userId = FirebaseAuth.instance.currentUser!.uid;
+
 class _CheckInFormState extends State<CheckInForm> {
   final _formKey = GlobalKey<FormState>();
   TextEditingController _fullNameController = TextEditingController();
@@ -27,12 +27,55 @@ class _CheckInFormState extends State<CheckInForm> {
   DateTime? _checkInDate;
   DateTime? _checkOutDate;
 
+  // Variables pour les options
+  Map<String, bool> _selectedOptions = {};
+  String? _userId;
+  bool _isInitializing = true;
+
   @override
   void initState() {
     super.initState();
     _fullNameController.text = widget.reservation.customerName;
     _checkInDate = widget.reservation.checkInDate;
     _checkOutDate = widget.reservation.checkOutDate;
+    _initializeUserId();
+  }
+
+  @override
+  void dispose() {
+    _fullNameController.dispose();
+    _idNumberController.dispose();
+    _nationalityController.dispose();
+    _addressController.dispose();
+    super.dispose();
+  }
+
+  // Initialiser l'userId
+  Future<void> _initializeUserId() async {
+    try {
+      // Récupérer l'ID admin connecté
+      _userId = await getConnectedUserAdminId();
+      print('✅ UserId récupéré pour CheckInForm: $_userId');
+
+      if (mounted) {
+        setState(() => _isInitializing = false);
+      }
+    } catch (e) {
+      print('❌ Erreur lors de la récupération de l\'userId: $e');
+      // Fallback vers l'userId Firebase Auth
+      _userId = FirebaseAuth.instance.currentUser?.uid;
+      if (mounted) {
+        setState(() => _isInitializing = false);
+      }
+    }
+  }
+
+  // Gérer les changements d'options
+  void _onOptionsChanged(Map<String, bool> options) {
+    setState(() {
+      _selectedOptions = options;
+    });
+    print('🎛️ Options sélectionnées dans CheckInForm: ${options.toString()}');
   }
 
   Future<void> _selectCheckInDate(BuildContext context) async {
@@ -65,10 +108,9 @@ class _CheckInFormState extends State<CheckInForm> {
 
   void _confirmCheckIn() async {
     if (_formKey.currentState!.validate()) {
-      // Call a function here to save the booking details
-      // You'll need to pass the collected information and the original reservation ID
       final numberOfNights = _checkOutDate?.difference(_checkInDate!).inDays;
       final numberOfNightsCorrected = numberOfNights! + (_checkOutDate!.isAfter(_checkInDate!) ? 1 : 0);
+
       final bookingData = {
         'customerName': _fullNameController.text,
         'idNumber': _idNumberController.text,
@@ -76,7 +118,6 @@ class _CheckInFormState extends State<CheckInForm> {
         'address': _addressController.text,
         'checkInDate': _checkInDate,
         'checkOutDate': _checkOutDate,
-        // Add other relevant details from widget.reservation
         'reservationId': widget.reservation.id,
         'roomId': widget.reservation.roomId,
         'roomNumber': widget.reservation.roomNumber,
@@ -85,27 +126,24 @@ class _CheckInFormState extends State<CheckInForm> {
         'customerPhone': widget.reservation.customerPhone,
         'numberOfGuests': widget.reservation.numberOfGuests,
         'specialRequests': widget.reservation.specialRequests,
-        'nights': numberOfNightsCorrected, // Recalculate nights
+        'nights': numberOfNightsCorrected,
         'pricePerNight': widget.reservation.pricePerNight,
         'totalAmount': widget.reservation.pricePerNight != null && _checkOutDate != null && _checkInDate != null
             ? widget.reservation.pricePerNight! * numberOfNightsCorrected
             : null,
-        'userId': userId, // Assuming userId is available in this scope
+        'userId': _userId ?? FirebaseAuth.instance.currentUser!.uid,
+        'options': _selectedOptions, // AJOUT DES OPTIONS
       };
 
-      // Call a function to save this bookingData to Firestore
       await _saveBookingData(bookingData);
 
       if (context.mounted) {
-        Navigator.pop(context); // Go back to the previous screen
+        Navigator.pop(context);
       }
     }
   }
 
   Future<void> _saveBookingData(Map<String, dynamic> bookingData) async {
-    // Variable pour suivre l'état de chargement
-    bool isLoading = true;
-
     // Afficher le dialogue de chargement
     if (mounted) {
       showDialog(
@@ -150,7 +188,7 @@ class _CheckInFormState extends State<CheckInForm> {
       await bookingRef.set({
         'EnregistrementCode': enregistrementCode,
         'reservationId': bookingData['reservationId'],
-        'actualCheckOutDate': DateTime.now().toUtc(), // Current UTC time as actual check-out (can be updated later)
+        'actualCheckOutDate': DateTime.now().toUtc(),
         'address': bookingData['address'],
         'checkInDate': bookingData['checkInDate'],
         'checkOutDate': bookingData['checkOutDate'],
@@ -163,19 +201,19 @@ class _CheckInFormState extends State<CheckInForm> {
         'nationality': bookingData['nationality'],
         'nights': bookingData['nights'],
         'numberOfGuests': bookingData['numberOfGuests'],
-        'paymentStatus': balanceDue > 0 ? 'Partiellement payé' : 'Payé', // Mise à jour du statut de paiement
+        'paymentStatus': balanceDue > 0 ? 'Partiellement payé' : 'Payé',
         'roomId': bookingData['roomId'],
         'roomNumber': bookingData['roomNumber'],
         'roomPrice': bookingData['pricePerNight'],
         'roomType': bookingData['roomType'],
-        'status': 'enregistré', // Status in the bookings collection
+        'status': 'enregistré',
         'totalAmount': bookingData['totalAmount'],
         'userId': bookingData['userId'],
-        // Ajout des informations d'acompte
         'depositAmount': depositAmount,
         'depositPercentage': depositPercentage,
         'depositPaid': depositPaid,
         'balanceDue': balanceDue,
+        'options': bookingData['options'], // SAUVEGARDER LES OPTIONS
       });
 
       // Update the status in the 'reservations' collection
@@ -199,11 +237,12 @@ class _CheckInFormState extends State<CheckInForm> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Client enregistré avec succès')),
+        const SnackBar(
+          content: Text('Client enregistré avec succès'),
+          backgroundColor: Colors.green,
+        ),
       );
 
-      // You might want to refresh the reservations list here or navigate back
-      // For now, let's just pop the current screen
       if (context.mounted) {
         Navigator.pop(context);
       }
@@ -214,14 +253,39 @@ class _CheckInFormState extends State<CheckInForm> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur lors de l\'enregistrement: ${e.toString()}')),
+        SnackBar(
+          content: Text('Erreur lors de l\'enregistrement: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
+    // Afficher un écran de chargement pendant l'initialisation
+    if (_isInitializing) {
+      return Scaffold(
+        appBar: AppBar(
+          elevation: 0,
+          centerTitle: true,
+          title: const Text('Enregistrement du Client'),
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          foregroundColor: Theme.of(context).colorScheme.onPrimary,
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 20),
+              Text('Initialisation...'),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         elevation: 0,
@@ -248,6 +312,62 @@ class _CheckInFormState extends State<CheckInForm> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
+                // Informations de la réservation
+                Card(
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.info_outline, color: Theme.of(context).colorScheme.primary),
+                            SizedBox(width: 8),
+                            Text(
+                              'Informations de la Réservation',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Divider(),
+                        SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('Chambre:', style: TextStyle(fontWeight: FontWeight.w500)),
+                            Text('N° ${widget.reservation.roomNumber}', style: TextStyle(fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                        SizedBox(height: 4),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('Type:', style: TextStyle(fontWeight: FontWeight.w500)),
+                            Text(widget.reservation.roomType),
+                          ],
+                        ),
+                        SizedBox(height: 4),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('Personnes:', style: TextStyle(fontWeight: FontWeight.w500)),
+                            Text('${widget.reservation.numberOfGuests}'),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // Informations Personnelles
                 Card(
                   elevation: 2,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -343,6 +463,7 @@ class _CheckInFormState extends State<CheckInForm> {
 
                 const SizedBox(height: 20),
 
+                // Dates du Séjour
                 Card(
                   elevation: 2,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -413,8 +534,18 @@ class _CheckInFormState extends State<CheckInForm> {
                   ),
                 ),
 
+                const SizedBox(height: 20),
+
+                // SECTION OPTIONS GRATUITES
+                OptionsSection(
+                  selectedOptions: _selectedOptions,
+                  onOptionsChanged: _onOptionsChanged,
+                  userId: _userId,
+                ),
+
                 const SizedBox(height: 30),
 
+                // Bouton de confirmation
                 ElevatedButton(
                   onPressed: () {
                     if (_formKey.currentState!.validate() && _checkInDate != null && _checkOutDate != null) {
@@ -451,7 +582,7 @@ class _CheckInFormState extends State<CheckInForm> {
                     child: const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.check),
+                        Icon(Icons.check_circle),
                         SizedBox(width: 8),
                         Text(
                           'Confirmer l\'enregistrement',
@@ -461,6 +592,8 @@ class _CheckInFormState extends State<CheckInForm> {
                     ),
                   ),
                 ),
+
+                const SizedBox(height: 20),
               ],
             ),
           ),

@@ -1,17 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 import '../../config/getConnectedUserAdminId.dart';
 import 'Screens/restaurant/ActiveOrders.dart';
 import 'Screens/restaurant/MenuManagement.dart';
 import 'Screens/restaurant/OrderTaking.dart';
 import 'Screens/restaurant/TablesManagement.dart';
+import 'Screens/restaurant/RestaurantExportReports.dart';  // ✅ Phase 4 - Export
+import 'Screens/restaurant/RestaurantTransactions.dart';  // ✅ Phase 4 - Transactions
+import 'Screens/restaurant/restaurant_reports.dart';
+import 'Screens/restaurant/table_reservations.dart';
 import 'config/restaurant_models.dart';
-
-// Imports des pages restaurant
-
-// import 'table_reservations.dart';  // À créer en Phase 3
-// import 'restaurant_reports.dart';  // À créer en Phase 3
 
 class RestaurantDashboard extends StatefulWidget {
   @override
@@ -396,6 +393,30 @@ class _RestaurantDashboardState extends State<RestaurantDashboard>
               ),
             ],
           ),
+
+          SizedBox(height: 12),
+
+          Row(
+            children: [
+              Expanded(
+                child: _buildActionCard(
+                  'Export PDF/CSV',
+                  Icons.print,
+                  Colors.deepPurple,
+                      () => _navigateToExportReports(),
+                ),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: _buildActionCard(
+                  'Transactions',
+                  Icons.list_alt,
+                  Colors.cyan,
+                      () => _navigateToTransactions(),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -561,8 +582,9 @@ class _RestaurantDashboardState extends State<RestaurantDashboard>
                   ),
                   SizedBox(height: 8),
                   Text(
-                    'Disponibles en Phase 3',
+                    'Cliquez sur "Rapports" pour voir les statistiques détaillées',
                     style: TextStyle(color: Colors.grey.shade600),
+                    textAlign: TextAlign.center,
                   ),
                 ],
               ),
@@ -858,6 +880,24 @@ class _RestaurantDashboardState extends State<RestaurantDashboard>
                 _navigateToReservations();
               },
             ),
+            ListTile(
+              leading: Icon(Icons.print, color: Colors.deepPurple),
+              title: Text('Export & Impression'),
+              subtitle: Text('Générer des rapports PDF/CSV'),
+              onTap: () {
+                Navigator.pop(context);
+                _navigateToExportReports();
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.list_alt, color: Colors.cyan),
+              title: Text('Historique Transactions'),
+              subtitle: Text('Voir toutes les transactions'),
+              onTap: () {
+                Navigator.pop(context);
+                _navigateToTransactions();
+              },
+            ),
           ],
         ),
       ),
@@ -915,45 +955,44 @@ class _RestaurantDashboardState extends State<RestaurantDashboard>
   }
 
   void _navigateToReservations() {
-    // Placeholder pour Phase 3
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(Icons.info_outline, color: Colors.white),
-            SizedBox(width: 8),
-            Text('Réservations de tables - Disponible en Phase 3'),
-          ],
-        ),
-        backgroundColor: Colors.blue,
-        behavior: SnackBarBehavior.floating,
-        action: SnackBarAction(
-          label: 'OK',
-          textColor: Colors.white,
-          onPressed: () {},
-        ),
+    // ✅ Navigation vers la page des réservations (Phase 3 implémentée)
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => TableReservations(),
+      ),
+    ).then((_) {
+      // Recharger les données au retour
+      _loadDashboardData();
+    });
+  }
+
+  void _navigateToReports() {
+    // ✅ Navigation vers la page des rapports (Phase 3 implémentée)
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => RestaurantReports(),
       ),
     );
   }
 
-  void _navigateToReports() {
-    // Placeholder pour Phase 3
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(Icons.info_outline, color: Colors.white),
-            SizedBox(width: 8),
-            Text('Rapports détaillés - Disponible en Phase 3'),
-          ],
-        ),
-        backgroundColor: Colors.indigo,
-        behavior: SnackBarBehavior.floating,
-        action: SnackBarAction(
-          label: 'OK',
-          textColor: Colors.white,
-          onPressed: () {},
-        ),
+  void _navigateToExportReports() {
+    // ✅ Navigation vers la page d'export et impression (NOUVEAU)
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => RestaurantExportReports(),
+      ),
+    );
+  }
+
+  void _navigateToTransactions() {
+    // ✅ Navigation vers la page des transactions (NOUVEAU)
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => RestaurantTransactions(),
       ),
     );
   }

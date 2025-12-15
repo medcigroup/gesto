@@ -31,15 +31,18 @@ extension LicenseTypeExtension on String {
 // Fonctionnalités disponibles par type de licence
 class LicenseFeatures {
   // Pages accessibles par type de licence
+  // Pages accessibles par type de licence - MODIFIÉ
   static const Map<LicenseType, List<String>> pageAccess = {
     LicenseType.basic: [
       'Tableau de bord',
       'Réservations',
       'Chambres',
+      'Paiements',        // ✅ AJOUTÉ - maintenant disponible en Basic
       'Enregistrement',
       'Passages',
       'Départ',
       'Personnel',
+      'Finances',         // ✅ AJOUTÉ - maintenant disponible en Basic
       'Licences',
       'Administration',
       'Paramètres',
@@ -49,10 +52,13 @@ class LicenseFeatures {
       'Réservations',
       'Chambres',
       'Taches',
+      'Emplois du temps',
+      'Paiements',        // ✅ AJOUTÉ - maintenant disponible en Starter
       'Enregistrement',
       'Passages',
       'Départ',
       'Personnel',
+      'Finances',         // ✅ AJOUTÉ - maintenant disponible en Starter
       'Licences',
       'Administration',
       'Paramètres',
@@ -62,7 +68,8 @@ class LicenseFeatures {
       'Réservations',
       'Chambres',
       'Taches',
-      'Paiements',
+      'Emplois du temps',
+      'Paiements',        // ✅ Reste disponible en Pro
       'Enregistrement',
       'Passages',
       'Départ',
@@ -78,7 +85,8 @@ class LicenseFeatures {
       'Réservations',
       'Chambres',
       'Taches',
-      'Paiements',
+      'Emplois du temps',
+      'Paiements',        // ✅ Reste disponible en Enterprise
       'Enregistrement',
       'Passages',
       'Départ',
@@ -91,11 +99,11 @@ class LicenseFeatures {
     ],
   };
 
-  // Fonctionnalités premium (nécessitant une mise à niveau)
+// Fonctionnalités premium (nécessitant une mise à niveau) - MODIFIÉ
   static const Map<String, LicenseType> premiumFeatures = {
     'Restaurant': LicenseType.pro,
-    'Finances': LicenseType.pro,
     'Taches': LicenseType.starter,
+    // 'Paiements' et 'Finances' ne sont PAS dans cette liste - donc accessibles à tous
   };
 
   // Vérifier si une page est accessible pour un type de licence donné

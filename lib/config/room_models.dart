@@ -129,6 +129,23 @@ class Room {
       'updatedAt': FieldValue.serverTimestamp(),
     };
   }
+  // Dans la classe Room, ajouter cette méthode :
+  String getDisplayImage() {
+    // Si on a une URL valide, la retourner
+    if (imageUrl.isNotEmpty) {
+      return imageUrl;
+    }
+    // Si on a un path local valide, le retourner
+    if (image.isNotEmpty && !isDefaultImage) {
+      return image;
+    }
+    // Sinon, retourner l'image par défaut
+    return 'assets/images/default_room.png';
+  }
+
+  bool hasNetworkImage() {
+    return imageUrl.isNotEmpty;
+  }
 }
 
 class Booking {
@@ -171,4 +188,6 @@ class Booking {
       'status': status,
     };
   }
+
 }
+

@@ -41,6 +41,9 @@ class HotelSettingsService {
     List<String>? roomTypes,
     Map<String, dynamic>? otherSettings,
     required int depositPercentage,
+    String? restaurantName,
+    String? restaurantAddress,
+    String? restaurantPhone,
   }) async {
     try {
       final userId = await _getAppropriateUserId();
@@ -55,6 +58,9 @@ class HotelSettingsService {
         'email': email,
         'roomTypes': roomTypes ?? [],
         'depositPercentage': depositPercentage,
+        'restaurantName': restaurantName ?? hotelName, // Utilise le nom de l'hôtel par défaut
+        'restaurantAddress': restaurantAddress ?? address, // Utilise l'adresse de l'hôtel par défaut
+        'restaurantPhone': restaurantPhone ?? phoneNumber, // Utilise le téléphone de l'hôtel par défaut
         'otherSettings': otherSettings ?? {},
       });
     } catch (e) {
@@ -83,6 +89,9 @@ class HotelSettingsService {
           'email': data['email'] ?? '',
           'roomTypes': data['roomTypes'] ?? [],
           'depositPercentage': data['depositPercentage'] ?? 30,
+          'restaurantName': data['restaurantName'] ?? data['hotelName'] ?? 'Restaurant',
+          'restaurantAddress': data['restaurantAddress'] ?? data['address'] ?? '',
+          'restaurantPhone': data['restaurantPhone'] ?? data['phoneNumber'] ?? '',
           'otherSettings': data['otherSettings'] ?? {},
         };
       } else {
@@ -97,6 +106,9 @@ class HotelSettingsService {
           'email': '',
           'roomTypes': [],
           'depositPercentage': 30,
+          'restaurantName': 'Restaurant',
+          'restaurantAddress': '',
+          'restaurantPhone': '',
           'otherSettings': {},
         };
       }
@@ -113,6 +125,9 @@ class HotelSettingsService {
         'email': '',
         'roomTypes': [],
         'depositPercentage': 30,
+        'restaurantName': 'Restaurant',
+        'restaurantAddress': '',
+        'restaurantPhone': '',
         'otherSettings': {},
       };
     }

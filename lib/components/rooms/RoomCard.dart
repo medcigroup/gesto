@@ -181,7 +181,26 @@ class RoomCard extends StatelessWidget {
         // Gestion des erreurs
         errorWidget: (context, url, error) {
           print('Erreur de chargement d\'image: $error');
-          return _buildPlaceholderImage(isError: true);
+          // Afficher l'image par défaut au lieu du placeholder
+          return ClipRRect(
+            borderRadius: BorderRadius.circular(8.0),
+            child: Image.asset(
+              'assets/images/default_room.jpg',
+              height: 180,
+              width: double.infinity,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                // Fallback ultime si même l'asset n'est pas disponible
+                return Container(
+                  height: 180,
+                  color: Colors.grey[300],
+                  child: const Center(
+                    child: Icon(Icons.hotel, size: 50, color: Colors.grey),
+                  ),
+                );
+              },
+            ),
+          );
         },
         // Headers pour gérer les problèmes CORS (même si vous les avez résolus au niveau du serveur)
         httpHeaders: kIsWeb ? {

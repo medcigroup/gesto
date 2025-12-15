@@ -82,20 +82,26 @@ class _RoomsPageState extends State<RoomsPage> {
       final fetchedRooms = snapshot.docs.map((doc) {
         final data = doc.data();
 
-        // Gestion des deux formats d'image (nouveau et ancien)
+        // Dans fetchRooms(), remplacer la section de gestion d'image par :
         String imagePath = '';
         String imageUrl = '';
+        bool isDefaultImage = false;
 
-        // Si image est un Map (nouveau format)
         if (data['image'] is Map) {
           Map<String, dynamic> imageData = Map<String, dynamic>.from(data['image']);
           imagePath = imageData['path'] ?? '';
           imageUrl = imageData['url'] ?? '';
-        }
-        // Si image est une String (ancien format)
-        else if (data['image'] is String) {
+          isDefaultImage = imageData['isDefault'] ?? false;
+        } else if (data['image'] is String) {
           imagePath = data['image'];
           imageUrl = data['imageUrl'] ?? '';
+          isDefaultImage = false;
+        }
+
+// Si aucune image n'est disponible, utiliser l'image par défaut
+        if (imagePath.isEmpty && imageUrl.isEmpty) {
+          imagePath = 'assets/images/default_room.jpg';
+          isDefaultImage = true;
         }
 
         return Room(

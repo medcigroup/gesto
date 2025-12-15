@@ -2,11 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:intl/date_symbol_data_file.dart';
 import '../../../config/routes.dart';
 import 'FirebaseOptions.dart';
-import 'package:flutter_web_plugins/flutter_web_plugins.dart';
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:provider/provider.dart';
 import 'LicenseFeatures.dart';
 import 'components/messagerie/NotificationProvider.dart';
@@ -41,8 +38,8 @@ class MyApp extends StatelessWidget {
           primarySwatch: Colors.blue,
           visualDensity: VisualDensity.adaptivePlatformDensity,
         ),
-        home: AuthChecker(), // Vérifie l'état d'authentification au démarrage
-        onGenerateRoute: AppRoutes.onGenerateRoute, // Utilisation de la méthode onGenerateRoute
+        home: AuthChecker(),
+        onGenerateRoute: AppRoutes.onGenerateRoute,
       ),
     );
   }
@@ -57,56 +54,70 @@ class _AuthCheckerState extends State<AuthChecker> {
   @override
   void initState() {
     super.initState();
+    _checkAuthState();
+  }
+
+  void _checkAuthState() {
     FirebaseAuth.instance.authStateChanges().listen((User? user) {
       if (mounted) {
         Future.microtask(() async {
           if (user != null) {
-            // Vérifier d'abord si l'utilisateur est un employé
-            bool isEmployee = await checkIfEmployee(user.uid);
-
-            if (isEmployee) {
-              // Si c'est un employé, vérifier la licence du propriétaire
-              bool hasOwnerValidLicense = await checkEmployeeOwnerLicense(user.uid);
-
-              if (hasOwnerValidLicense) {
-                // Rediriger vers le dashboard employé si le propriétaire a une licence valide
-                Navigator.pushReplacementNamed(context, AppRoutes.employeeDashboard);
-              } else {
-                // Licence du propriétaire non valide
-                await FirebaseAuth.instance.signOut();
-                ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("L'accès est désactivé. Veuillez contacter votre administrateur."))
-                );
-                Navigator.pushReplacementNamed(context, AppRoutes.login);
-              }
-            } else {
-              // Si c'est un administrateur/propriétaire, vérifier sa propre licence
-              bool hasLicence = await checkUserLicence(user.uid);
-
-              if (hasLicence) {
-                // Initialiser le provider de notifications avant d'aller au dashboard
-                Provider.of<NotificationProvider>(context, listen: false).initialiser();
-                // Redirige vers le dashboard si connecté avec licence
-                Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
-              } else {
-                // Redirige vers la page de choix de licence si pas de licence
-                Navigator.pushReplacementNamed(context, AppRoutes.choosePlan);
-              }
-            }
+            await _handleAuthenticatedUser(user);
           } else {
-            // Redirige vers la page d'accueil si non connecté
-            Navigator.pushReplacementNamed(context, AppRoutes.home);
+            _navigateToHome();
           }
         });
       }
     });
   }
 
-  // Fonction pour vérifier si l'utilisateur est un employé
-  Future<bool> checkIfEmployee(String userId) async {
+  Future<void> _handleAuthenticatedUser(User user) async {
     try {
-      // Vérifier si l'utilisateur existe dans la collection 'staff'
-      final staffDoc = await FirebaseFirestore.instance.collection('staff').doc(userId).get();
+      bool isEmployee = await _checkIfEmployee(user.uid);
+
+      if (isEmployee) {
+        await _handleEmployeeUser(user.uid);
+      } else {
+        await _handleOwnerUser(user.uid);
+      }
+    } catch (e) {
+      print('Erreur lors de la vérification de l\'utilisateur: $e');
+      _showErrorAndRedirect('Une erreur est survenue. Veuillez réessayer.');
+    }
+  }
+
+  Future<void> _handleEmployeeUser(String userId) async {
+    bool hasOwnerValidLicense = await _checkEmployeeOwnerLicense(userId);
+
+    if (hasOwnerValidLicense) {
+      _navigateToEmployeeDashboard();
+    } else {
+      // Pour les employés, on déconnecte car ils ne peuvent pas renouveler
+      await FirebaseAuth.instance.signOut();
+      _showErrorAndRedirect(
+        "La licence de votre administrateur a expiré. Veuillez le contacter pour renouveler.",
+      );
+    }
+  }
+
+  Future<void> _handleOwnerUser(String userId) async {
+    bool hasLicence = await _checkUserLicence(userId);
+
+    if (hasLicence) {
+      _initializeNotifications();
+      _navigateToDashboard();
+    } else {
+      // Pour les propriétaires, rediriger vers la page de renouvellement
+      _navigateToRenewLicence();
+    }
+  }
+
+  Future<bool> _checkIfEmployee(String userId) async {
+    try {
+      final staffDoc = await FirebaseFirestore.instance
+          .collection('staff')
+          .doc(userId)
+          .get();
       return staffDoc.exists;
     } catch (e) {
       print('Erreur lors de la vérification du statut d\'employé: $e');
@@ -114,93 +125,129 @@ class _AuthCheckerState extends State<AuthChecker> {
     }
   }
 
-  // Fonction pour vérifier la licence du propriétaire d'un employé
-  Future<bool> checkEmployeeOwnerLicense(String employeeId) async {
+  Future<bool> _checkEmployeeOwnerLicense(String employeeId) async {
     try {
-      // Récupérer les données de l'employé depuis Firestore
-      final staffDoc = await FirebaseFirestore.instance.collection('staff').doc(employeeId).get();
+      final staffDoc = await FirebaseFirestore.instance
+          .collection('staff')
+          .doc(employeeId)
+          .get();
 
       if (!staffDoc.exists) {
         return false;
       }
 
       final staffData = staffDoc.data();
-
-      // Récupérer l'ID du propriétaire/administrateur
       if (staffData == null || staffData['idadmin'] == null) {
         return false;
       }
 
       String ownerId = staffData['idadmin'];
-
-      // Vérifier la licence du propriétaire
-      final ownerDoc = await FirebaseFirestore.instance.collection('users').doc(ownerId).get();
-
-      if (!ownerDoc.exists) {
-        return false;
-      }
-
-      final ownerData = ownerDoc.data();
-
-      // Vérifier si le propriétaire a une licence valide
-      if (ownerData == null || ownerData['licence'] == null) {
-        return false;
-      }
-
-      // Vérifier si la licence est expirée (si vous avez une date d'expiration)
-      if (ownerData['licenceExpiry'] != null) {
-        DateTime expiryDate = (ownerData['licenceExpiry'] as Timestamp).toDate();
-        if (expiryDate.isBefore(DateTime.now())) {
-          return false;
-        }
-      }
-
-      // Propriétaire a une licence valide
-      return true;
+      return await _checkUserLicence(ownerId);
     } catch (e) {
       print('Erreur lors de la vérification de la licence du propriétaire: $e');
       return false;
     }
   }
 
-  // Fonction pour vérifier si l'utilisateur a une licence
-  Future<bool> checkUserLicence(String userId) async {
+  Future<bool> _checkUserLicence(String userId) async {
     try {
-      // Récupérer les données de l'utilisateur depuis Firestore
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .get();
 
       if (!userDoc.exists) {
         return false;
       }
 
       final userData = userDoc.data();
-
-      // Vérifier si l'utilisateur a une licence
       if (userData == null || userData['licence'] == null) {
         return false;
       }
 
-      // Vérifier si la licence est expirée (si vous avez une date d'expiration)
-      if (userData['licenceExpiry'] != null) {
-        DateTime expiryDate = (userData['licenceExpiry'] as Timestamp).toDate();
-        if (expiryDate.isBefore(DateTime.now())) {
-          return false;
+      if (userData['licenceExpiry'] != null || userData['licenceExpiryDate'] != null) {
+        Timestamp? expiryTimestamp = userData['licenceExpiry'] ?? userData['licenceExpiryDate'];
+        if (expiryTimestamp != null) {
+          DateTime expiryDate = expiryTimestamp.toDate();
+          if (expiryDate.isBefore(DateTime.now())) {
+            return false;
+          }
         }
       }
 
-      // L'utilisateur a une licence valide
       return true;
     } catch (e) {
       print('Erreur lors de la vérification de la licence: $e');
-      // En cas d'erreur, on suppose que l'utilisateur n'a pas de licence
       return false;
+    }
+  }
+
+  void _initializeNotifications() {
+    if (mounted) {
+      Provider.of<NotificationProvider>(context, listen: false).initialiser();
+    }
+  }
+
+  void _navigateToHome() {
+    if (mounted) {
+      Navigator.pushReplacementNamed(context, AppRoutes.home);
+    }
+  }
+
+  void _navigateToEmployeeDashboard() {
+    if (mounted) {
+      Navigator.pushReplacementNamed(context, AppRoutes.employeeDashboard);
+    }
+  }
+
+  void _navigateToDashboard() {
+    if (mounted) {
+      Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
+    }
+  }
+
+  void _navigateToRenewLicence() {
+    if (mounted) {
+      // Afficher un message avant la redirection
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Votre licence a expiré. Veuillez la renouveler pour continuer."),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 3),
+        ),
+      );
+
+      // Rediriger vers la page de renouvellement
+      Navigator.pushReplacementNamed(context, AppRoutes.renewlicencePage);
+    }
+  }
+
+  void _showErrorAndRedirect(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 5),
+        ),
+      );
+      Navigator.pushReplacementNamed(context, AppRoutes.login);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(child: CircularProgressIndicator()), // Loader pendant la vérification
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 20),
+            Text('Vérification de votre accès...'),
+          ],
+        ),
+      ),
     );
   }
 }

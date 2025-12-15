@@ -37,8 +37,9 @@ class _GestionPersonnelPageState extends State<GestionPersonnelPage> {
     'Responsable maintenance',
     'Concierge',
     'Responsable accueil',
-    'Femme de chambre',
-    'Valet'
+    'Personnel de chambre',
+    'Caissier',
+    'Barman'
   ];
 
   @override
@@ -347,7 +348,7 @@ class _GestionPersonnelPageState extends State<GestionPersonnelPage> {
                           ),
                           prefixIcon: const Icon(Icons.business_outlined),
                         ),
-                        items: ['Accueil','Cuisine', 'Service', 'Chambres', 'Maintenance']
+                        items: ['Accueil','Cuisine', 'Service', 'Chambres', 'Maintenance', 'Restaurant']
                             .map((dept) => DropdownMenuItem(
                           value: dept,
                           child: Text(dept),
@@ -620,7 +621,7 @@ class _GestionPersonnelPageState extends State<GestionPersonnelPage> {
   }
 
   Widget _buildSearchAndFilterBar(ThemeData theme) {
-    final departments = ['Tous les départements', 'Accueil','Cuisine', 'Service', 'Chambres', 'Maintenance'];
+    final departments = ['Tous les départements', 'Accueil','Cuisine', 'Service', 'Chambres', 'Maintenance','Restaurant'];
     final String displayValue = _selectedDepartement == 'Tous'
         ? 'Tous les départements'
         : _selectedDepartement;
@@ -898,6 +899,8 @@ class _EmployeeDataSource extends DataTableSource {
         return Colors.purple;
       case 'Maintenance':
         return Colors.teal;
+      case 'Restaurant':
+        return Colors.deepOrangeAccent;
       default:
         return Colors.grey;
     }
@@ -936,8 +939,9 @@ class __EmployeeEditDialogState extends State<_EmployeeEditDialog> {
     'Responsable maintenance',
     'Concierge',
     'Responsable accueil',
-    'Femme de chambre',
-    'Valet'
+    'Personnel de chambre',
+    'Caissier',
+    'Barman'
   ];
 
   @override
@@ -1045,7 +1049,7 @@ class __EmployeeEditDialogState extends State<_EmployeeEditDialog> {
               ),
               dropdownColor: colorScheme.surface,
               borderRadius: BorderRadius.circular(10),
-              items: ['Accueil', 'Service', 'Chambres', 'Maintenance']
+              items: ['Accueil','Cuisine', 'Service', 'Chambres', 'Maintenance', 'Restaurant']
                   .map((e) => DropdownMenuItem(
                 value: e,
                 child: Text(e),

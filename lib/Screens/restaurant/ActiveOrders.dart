@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../config/HotelSettingsService.dart';
 import '../../config/getConnectedUserAdminId.dart';
 import 'dart:async';
 
 import '../../config/restaurant_models.dart';
+import 'ReceiptService.dart';
 
 class ActiveOrders extends StatefulWidget {
   @override
@@ -20,6 +22,12 @@ class _ActiveOrdersState extends State<ActiveOrders>
   List<RestaurantOrder> _activeOrders = [];
   List<RestaurantOrder> _completedOrders = [];
   bool _isLoading = true;
+
+  // ✅ NOUVEAU : Paramètres du restaurant
+  final HotelSettingsService _hotelSettingsService = HotelSettingsService();
+  String _restaurantName = 'Restaurant';
+  String _restaurantAddress = '';
+  String _restaurantPhone = '';
 
   // Filtres
   String _selectedFilter = 'Toutes';
@@ -45,10 +53,30 @@ class _ActiveOrdersState extends State<ActiveOrders>
   Future<void> _initializeData() async {
     try {
       _userId = await getConnectedUserAdminId();
+
+      // ✅ NOUVEAU : Charger les paramètres du restaurant
+      await _loadRestaurantSettings();
+
       await _loadOrders();
     } catch (e) {
       print('❌ Erreur initialisation commandes: $e');
       setState(() => _isLoading = false);
+    }
+  }
+
+  // ✅ NOUVELLE MÉTHODE : Charger les paramètres du restaurant
+  Future<void> _loadRestaurantSettings() async {
+    try {
+      final settings = await _hotelSettingsService.getHotelSettings();
+      setState(() {
+        _restaurantName = settings['restaurantName'] ?? settings['hotelName'] ?? 'Restaurant';
+        _restaurantAddress = settings['restaurantAddress'] ?? settings['address'] ?? '';
+        _restaurantPhone = settings['restaurantPhone'] ?? settings['phoneNumber'] ?? '';
+      });
+      print('✅ Paramètres restaurant chargés: $_restaurantName');
+    } catch (e) {
+      print('⚠️ Erreur chargement paramètres restaurant: $e');
+      // Garder les valeurs par défaut en cas d'erreur
     }
   }
 
@@ -595,6 +623,10 @@ class _ActiveOrdersState extends State<ActiveOrders>
         onPaymentCompleted: () {
           _loadOrders();
         },
+        // ✅ NOUVEAU : Passer les paramètres du restaurant
+        restaurantName: _restaurantName,
+        restaurantAddress: _restaurantAddress,
+        restaurantPhone: _restaurantPhone,
       ),
     );
   }
@@ -848,11 +880,18 @@ class OrderDetailsDialog extends StatelessWidget {
 class PaymentDialog extends StatefulWidget {
   final RestaurantOrder order;
   final VoidCallback onPaymentCompleted;
+  // ✅ NOUVEAU : Paramètres du restaurant
+  final String restaurantName;
+  final String restaurantAddress;
+  final String restaurantPhone;
 
   const PaymentDialog({
     Key? key,
     required this.order,
     required this.onPaymentCompleted,
+    required this.restaurantName,
+    required this.restaurantAddress,
+    required this.restaurantPhone,
   }) : super(key: key);
 
   @override
@@ -862,6 +901,7 @@ class PaymentDialog extends StatefulWidget {
 class _PaymentDialogState extends State<PaymentDialog> {
   String _selectedPaymentMethod = 'Espèces';
   bool _isProcessing = false;
+  bool _printReceipt = true;
 
   final List<Map<String, dynamic>> _paymentMethods = [
     {'key': 'Espèces', 'name': 'Espèces', 'icon': Icons.money},
@@ -888,24 +928,77 @@ class _PaymentDialogState extends State<PaymentDialog> {
     setState(() => _isProcessing = true);
 
     try {
+      // 1. Enregistrer le paiement
       await RestaurantService.updateOrderPayment(widget.order.id, _selectedPaymentMethod);
 
-      // Libérer la table
-      await RestaurantService.updateTableStatus(widget.order.tableId, 'libre');
+      // 2. Libérer la table (sauf si service en chambre)
+      if (widget.order.isRoomService != true && widget.order.tableId.isNotEmpty) {
+        await RestaurantService.updateTableStatus(widget.order.tableId, 'libre');
+      }
+
+      // ✅ 3. Générer le reçu si l'option est activée - UTILISATION DES PARAMÈTRES
+      if (_printReceipt) {
+        try {
+          // Créer une copie de la commande avec les infos de paiement
+          final updatedOrder = RestaurantOrder(
+            id: widget.order.id,
+            tableId: widget.order.tableId,
+            tableNumber: widget.order.tableNumber,
+            customerType: widget.order.customerType,
+            hotelGuestId: widget.order.hotelGuestId,
+            guestName: widget.order.guestName,
+            guestPhone: widget.order.guestPhone,
+            roomNumber: widget.order.roomNumber,
+            items: widget.order.items,
+            subtotal: widget.order.subtotal,
+            tax: widget.order.tax,
+            serviceCharge: widget.order.serviceCharge,
+            total: widget.order.total,
+            status: 'payée',
+            paymentMethod: _selectedPaymentMethod,
+            createdAt: widget.order.createdAt,
+            completedAt: DateTime.now(),
+            userId: widget.order.userId,
+            waiterId: widget.order.waiterId,
+            specialRequests: widget.order.specialRequests,
+            isRoomService: widget.order.isRoomService,
+          );
+
+          // ✅ UTILISATION DES PARAMÈTRES DU RESTAURANT
+          await ReceiptService.generateReceiptWithStaff(
+            order: updatedOrder,
+            restaurantName: widget.restaurantName,
+            restaurantAddress: widget.restaurantAddress,
+            restaurantPhone: widget.restaurantPhone,
+            waiterId: widget.order.waiterId,
+            autoPrint: true,
+          );
+        } catch (e) {
+          print('⚠️ Erreur génération reçu: $e');
+          // On continue même si le reçu échoue
+        }
+      }
 
       Navigator.pop(context);
       widget.onPaymentCompleted();
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Paiement enregistré avec succès'),
+          content: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 8),
+              Text('✅ Paiement enregistré avec succès'),
+            ],
+          ),
           backgroundColor: Colors.green,
+          duration: Duration(seconds: 3),
         ),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Erreur lors du paiement'),
+          content: Text('❌ Erreur lors du paiement: $e'),
           backgroundColor: Colors.red,
         ),
       );
@@ -1027,6 +1120,40 @@ class _PaymentDialogState extends State<PaymentDialog> {
                       ),
                     );
                   }).toList(),
+
+                  SizedBox(height: 16),
+
+                  // Option pour imprimer le reçu
+                  Container(
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.blue.shade200),
+                    ),
+                    child: CheckboxListTile(
+                      value: _printReceipt,
+                      onChanged: (value) {
+                        setState(() => _printReceipt = value ?? true);
+                      },
+                      title: Row(
+                        children: [
+                          Icon(Icons.print, size: 20, color: Colors.blue),
+                          SizedBox(width: 8),
+                          Text(
+                            'Imprimer le reçu',
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                      subtitle: Text(
+                        'Générer automatiquement le ticket de caisse',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                      activeColor: Colors.blue,
+                      controlAffinity: ListTileControlAffinity.leading,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -1047,18 +1174,23 @@ class _PaymentDialogState extends State<PaymentDialog> {
                   ),
                   SizedBox(width: 16),
                   Expanded(
-                    child: ElevatedButton(
+                    child: ElevatedButton.icon(
                       onPressed: _isProcessing ? null : _processPayment,
+                      icon: _isProcessing
+                          ? SizedBox(
+                        height: 16,
+                        width: 16,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                          : Icon(Icons.payment),
+                      label: Text(_isProcessing ? 'Traitement...' : 'Encaisser'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blue,
                         foregroundColor: Colors.white,
                       ),
-                      child: _isProcessing
-                          ? SizedBox(
-                        height: 16, width: 16,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                      )
-                          : Text('Encaisser'),
                     ),
                   ),
                 ],

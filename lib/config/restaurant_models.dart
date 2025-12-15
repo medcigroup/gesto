@@ -125,6 +125,7 @@ class OrderItem {
   final int quantity;
   final String? specialInstructions;
   final String status; // commandé, en_preparation, prêt, servi
+  final String category; // entrée, plat, dessert, boisson;
 
   OrderItem({
     required this.menuItemId,
@@ -133,6 +134,7 @@ class OrderItem {
     required this.quantity,
     this.specialInstructions,
     required this.status,
+    required this.category,
   });
 
   factory OrderItem.fromMap(Map<String, dynamic> data) {
@@ -143,6 +145,7 @@ class OrderItem {
       quantity: data['quantity'] ?? 1,
       specialInstructions: data['specialInstructions'],
       status: data['status'] ?? 'commandé',
+      category: data['category'] ?? '',
     );
   }
 
@@ -154,6 +157,7 @@ class OrderItem {
       'quantity': quantity,
       'specialInstructions': specialInstructions,
       'status': status,
+      'category': category,
     };
   }
 
@@ -444,12 +448,19 @@ class RestaurantService {
   // ========== GESTION DES COMMANDES ==========
 
   static Future<String> createOrder(RestaurantOrder order) async {
-    final docRef = await _firestore.collection('restaurant_orders').add(order.toMap());
+    try {
+      final docRef = await _firestore.collection('restaurant_orders').add(order.toMap());
 
-    // Mettre à jour le statut de la table
-    await updateTableStatus(order.tableId, 'occupée');
+      // Mettre à jour le statut de la table SEULEMENT si ce n'est pas un service en chambre
+      if (order.isRoomService != true && order.tableId.isNotEmpty) {
+        await updateTableStatus(order.tableId, 'occupée');
+      }
 
-    return docRef.id;
+      return docRef.id;
+    } catch (e) {
+      print('❌ Erreur lors de la création de la commande: $e');
+      throw Exception('Erreur lors de la création de la commande: $e');
+    }
   }
 
   static Future<List<RestaurantOrder>> getActiveOrders(String userId) async {
@@ -463,30 +474,40 @@ class RestaurantService {
 
       return snapshot.docs.map((doc) => RestaurantOrder.fromFirestore(doc)).toList();
     } catch (e) {
-      print('Erreur lors du chargement des commandes actives: $e');
+      print('❌ Erreur lors du chargement des commandes actives: $e');
       return [];
     }
   }
 
   static Future<void> updateOrderStatus(String orderId, String status) async {
-    final updateData = {
-      'status': status,
-      'updatedAt': FieldValue.serverTimestamp(),
-    };
+    try {
+      final updateData = {
+        'status': status,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
 
-    if (status == 'payée') {
-      updateData['completedAt'] = FieldValue.serverTimestamp();
+      if (status == 'payée') {
+        updateData['completedAt'] = FieldValue.serverTimestamp();
+      }
+
+      await _firestore.collection('restaurant_orders').doc(orderId).update(updateData);
+    } catch (e) {
+      print('❌ Erreur lors de la mise à jour du statut de commande: $e');
+      throw Exception('Erreur lors de la mise à jour du statut de commande: $e');
     }
-
-    await _firestore.collection('restaurant_orders').doc(orderId).update(updateData);
   }
 
   static Future<void> updateOrderPayment(String orderId, String paymentMethod) async {
-    await _firestore.collection('restaurant_orders').doc(orderId).update({
-      'paymentMethod': paymentMethod,
-      'status': 'payée',
-      'completedAt': FieldValue.serverTimestamp(),
-    });
+    try {
+      await _firestore.collection('restaurant_orders').doc(orderId).update({
+        'paymentMethod': paymentMethod,
+        'status': 'payée',
+        'completedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      print('❌ Erreur lors de la mise à jour du paiement: $e');
+      throw Exception('Erreur lors de la mise à jour du paiement: $e');
+    }
   }
 
   // ========== GESTION DES RÉSERVATIONS ==========
@@ -558,6 +579,45 @@ class RestaurantService {
       return [];
     }
   }
+  // ========== RECHERCHE DES INFOS DU STAFF ==========
+  static final Map<String, Map<String, dynamic>> _staffCache = {};
+
+  static Future<Map<String, dynamic>?> getStaffInfo(String waiterId) async {
+    if (waiterId.isEmpty) return null;
+
+    // Vérifier le cache
+    if (_staffCache.containsKey(waiterId)) {
+      return _staffCache[waiterId];
+    }
+
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('staff')
+          .doc(waiterId)
+          .get();
+
+      if (doc.exists) {
+        final data = doc.data()!;
+        final staffInfo = {
+          'nom': data['nom'] ?? '',
+          'prenom': data['prenom'] ?? '',
+          'poste': data['poste'] ?? '',
+          'departement': data['departement'] ?? '',
+          'email': data['email'] ?? '',
+          'photoUrl': data['photoUrl'],
+        };
+
+        // Mettre en cache
+        _staffCache[waiterId] = staffInfo;
+        return staffInfo;
+      }
+    } catch (e) {
+      print('❌ Erreur chargement info serveur: $e');
+    }
+
+    return null;
+  }
+
 
   // ========== STATISTIQUES ==========
 

@@ -13,11 +13,15 @@ class _SettingsPageState extends State<SettingsPage> {
   final _checkInTimeController = TextEditingController();
   final _checkOutTimeController = TextEditingController();
   final _roomTypesController = TextEditingController();
-  // Nouveaux contrôleurs pour les champs ajoutés
+  // Contrôleurs pour les champs de l'établissement
   final _hotelNameController = TextEditingController();
   final _addressController = TextEditingController();
   final _phoneNumberController = TextEditingController();
   final _emailController = TextEditingController();
+  // ✅ NOUVEAUX CONTRÔLEURS pour les informations du restaurant
+  final _restaurantNameController = TextEditingController();
+  final _restaurantAddressController = TextEditingController();
+  final _restaurantPhoneController = TextEditingController();
   // Contrôleur pour le pourcentage d'acompte
   final _depositPercentageController = TextEditingController();
   final _settingsService = HotelSettingsService();
@@ -45,11 +49,15 @@ class _SettingsPageState extends State<SettingsPage> {
         _selectedCurrency = settings['currency'] ?? 'FCFA';
         _checkInTimeController.text = settings['checkInTime'] ?? '';
         _checkOutTimeController.text = settings['checkOutTime'] ?? '';
-        // Chargement des nouveaux champs
+        // Chargement des champs de l'établissement
         _hotelNameController.text = settings['hotelName'] ?? '';
         _addressController.text = settings['address'] ?? '';
         _phoneNumberController.text = settings['phoneNumber'] ?? '';
         _emailController.text = settings['email'] ?? '';
+        // ✅ CHARGEMENT des champs du restaurant
+        _restaurantNameController.text = settings['restaurantName'] ?? settings['hotelName'] ?? '';
+        _restaurantAddressController.text = settings['restaurantAddress'] ?? settings['address'] ?? '';
+        _restaurantPhoneController.text = settings['restaurantPhone'] ?? settings['phoneNumber'] ?? '';
         // Chargement du pourcentage d'acompte
         _depositPercentageController.text = settings['depositPercentage']?.toString() ?? '30';
         _roomTypes = List<String>.from(settings['roomTypes'] ?? []);
@@ -94,11 +102,21 @@ class _SettingsPageState extends State<SettingsPage> {
           currency: _selectedCurrency,
           checkInTime: _checkInTimeController.text,
           checkOutTime: _checkOutTimeController.text,
-          // Nouveaux paramètres
+          // Paramètres de l'établissement
           hotelName: _hotelNameController.text,
           address: _addressController.text,
           phoneNumber: _phoneNumberController.text,
           email: _emailController.text,
+          // ✅ NOUVEAUX PARAMÈTRES du restaurant
+          restaurantName: _restaurantNameController.text.isNotEmpty
+              ? _restaurantNameController.text
+              : _hotelNameController.text,
+          restaurantAddress: _restaurantAddressController.text.isNotEmpty
+              ? _restaurantAddressController.text
+              : _addressController.text,
+          restaurantPhone: _restaurantPhoneController.text.isNotEmpty
+              ? _restaurantPhoneController.text
+              : _phoneNumberController.text,
           roomTypes: _roomTypes,
           // Ajout du pourcentage d'acompte
           depositPercentage: int.tryParse(_depositPercentageController.text) ?? 30,
@@ -195,7 +213,7 @@ class _SettingsPageState extends State<SettingsPage> {
             key: _formKey,
             child: ListView(
               children: [
-                // NOUVELLE CARTE - Gestion des Services & Packages
+                // CARTE - Gestion des Services & Packages
                 Card(
                   elevation: 2,
                   margin: EdgeInsets.only(bottom: 16),
@@ -387,6 +405,106 @@ class _SettingsPageState extends State<SettingsPage> {
                             return null;
                           },
                           keyboardType: TextInputType.emailAddress,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // ✅ NOUVELLE CARTE pour les informations du restaurant
+                Card(
+                  elevation: 2,
+                  margin: EdgeInsets.only(bottom: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.restaurant, color: Colors.deepOrange),
+                            SizedBox(width: 8),
+                            Text(
+                              'Informations du restaurant',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.deepOrange,
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'Ces informations apparaîtront sur les reçus et tickets de caisse du restaurant',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                        SizedBox(height: 16),
+                        TextFormField(
+                          controller: _restaurantNameController,
+                          decoration: InputDecoration(
+                            labelText: 'Nom du restaurant',
+                            hintText: 'Laissez vide pour utiliser le nom de l\'établissement',
+                            prefixIcon: Icon(Icons.restaurant_menu, color: Colors.deepOrange),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                        SizedBox(height: 16),
+                        TextFormField(
+                          controller: _restaurantAddressController,
+                          decoration: InputDecoration(
+                            labelText: 'Adresse du restaurant',
+                            hintText: 'Laissez vide pour utiliser l\'adresse de l\'établissement',
+                            prefixIcon: Icon(Icons.location_on, color: Colors.deepOrange),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          maxLines: 2,
+                        ),
+                        SizedBox(height: 16),
+                        TextFormField(
+                          controller: _restaurantPhoneController,
+                          decoration: InputDecoration(
+                            labelText: 'Téléphone du restaurant',
+                            hintText: 'Laissez vide pour utiliser le téléphone de l\'établissement',
+                            prefixIcon: Icon(Icons.phone, color: Colors.deepOrange),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          keyboardType: TextInputType.phone,
+                        ),
+                        SizedBox(height: 12),
+                        Container(
+                          padding: EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.orange.shade200),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.info_outline, color: Colors.orange, size: 20),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Si vous laissez ces champs vides, les informations de l\'établissement seront utilisées par défaut.',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.orange.shade900,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
@@ -672,7 +790,11 @@ class _SettingsPageState extends State<SettingsPage> {
     _addressController.dispose();
     _phoneNumberController.dispose();
     _emailController.dispose();
-    _depositPercentageController.dispose(); // Libération du contrôleur d'acompte
+    // ✅ LIBÉRATION des contrôleurs du restaurant
+    _restaurantNameController.dispose();
+    _restaurantAddressController.dispose();
+    _restaurantPhoneController.dispose();
+    _depositPercentageController.dispose();
     super.dispose();
   }
 }

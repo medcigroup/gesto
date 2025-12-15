@@ -9,7 +9,6 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../config/LicenceGenerator.dart';
 import '../../config/UserModel.dart';
 import '../../config/routes.dart';
-import '../../widgets/side_menu.dart';
 
 
 class RenewLicencePage extends StatefulWidget {
@@ -20,26 +19,24 @@ class RenewLicencePage extends StatefulWidget {
 }
 
 class _RenewLicencePageState extends State<RenewLicencePage> {
-  UserModel? _userModel;
-  bool _isLoading = true;
   bool _isProcessingPayment = false;
+  Stream<DocumentSnapshot>? _userStream;
 
   @override
   void initState() {
     super.initState();
-    _loadUserData();
+    _initializeUserStream();
   }
 
-  Future<void> _loadUserData() async {
+  // ✅ Initialiser le stream pour écouter les changements en temps réel
+  void _initializeUserStream() {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      final snapshot = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
-      if (snapshot.exists) {
-        setState(() {
-          _userModel = UserModel.fromJson(snapshot.data() as Map<String, dynamic>);
-          _isLoading = false;
-        });
-      }
+      _userStream = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .snapshots();
+      print('[RENEW PAGE] 🔄 Stream utilisateur initialisé');
     }
   }
 
@@ -72,7 +69,7 @@ class _RenewLicencePageState extends State<RenewLicencePage> {
   }
 
   // Fonction pour afficher le dialogue de sélection de méthode de paiement
-  Future<void> _showPaymentMethodSelector() async {
+  Future<void> _showPaymentMethodSelector(UserModel userModel) async {
     final selectedMethod = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -105,15 +102,15 @@ class _RenewLicencePageState extends State<RenewLicencePage> {
 
     if (selectedMethod != null) {
       if (selectedMethod == 'stripe') {
-        await _processStripePayment('renew');
+        await _processStripePayment('renew', userModel);
       } else if (selectedMethod == 'cinetpay') {
-        await _processCinetPayPayment('renew');
+        await _processCinetPayPayment('renew', userModel);
       }
     }
   }
 
   // Fonction pour traiter le paiement via Stripe
-  Future<void> _processStripePayment(String action, [String? newPlan]) async {
+  Future<void> _processStripePayment(String action, UserModel userModel, [String? newPlan]) async {
     setState(() {
       _isProcessingPayment = true;
     });
@@ -122,7 +119,7 @@ class _RenewLicencePageState extends State<RenewLicencePage> {
       // Appeler la fonction d'initialisation du paiement Stripe
       final callable = FirebaseFunctions.instance.httpsCallable('initializeStripePayment');
       final result = await callable.call({
-        'planId': action == 'upgrade' ? newPlan : _userModel?.plan,
+        'planId': action == 'upgrade' ? newPlan : userModel.plan,
       });
 
       if (result.data['success'] == true) {
@@ -161,18 +158,17 @@ class _RenewLicencePageState extends State<RenewLicencePage> {
               if (statusResult.data['status'] == 'completed') {
                 paymentCompleted = true;
 
-                // Recharger les données utilisateur pour afficher la nouvelle licence
-                await _loadUserData();
-
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(action == 'renew'
-                        ? 'Votre licence a été renouvelée avec succès'
-                        : 'Votre licence a été mise à niveau avec succès'),
-                    behavior: SnackBarBehavior.floating,
-                    backgroundColor: Colors.green,
-                  ),
-                );
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(action == 'renew'
+                          ? 'Votre licence a été renouvelée avec succès'
+                          : 'Votre licence a été mise à niveau avec succès'),
+                      behavior: SnackBarBehavior.floating,
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
 
                 break;
               }
@@ -184,7 +180,7 @@ class _RenewLicencePageState extends State<RenewLicencePage> {
             }
           }
 
-          if (!paymentCompleted) {
+          if (!paymentCompleted && mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('Veuillez vérifier votre email pour confirmer le statut de votre paiement'),
@@ -200,23 +196,27 @@ class _RenewLicencePageState extends State<RenewLicencePage> {
         throw Exception(result.data['message'] ?? 'Échec de l\'initialisation du paiement');
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erreur lors du paiement: ${e.toString()}'),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: Colors.red,
-          duration: Duration(seconds: 5),
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur lors du paiement: ${e.toString()}'),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
     } finally {
-      setState(() {
-        _isProcessingPayment = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isProcessingPayment = false;
+        });
+      }
     }
   }
 
   // Fonction pour traiter le paiement via CinetPay
-  Future<void> _processCinetPayPayment(String action, [String? newPlan]) async {
+  Future<void> _processCinetPayPayment(String action, UserModel userModel, [String? newPlan]) async {
     setState(() {
       _isProcessingPayment = true;
     });
@@ -225,7 +225,7 @@ class _RenewLicencePageState extends State<RenewLicencePage> {
       // Appeler la fonction d'initialisation du paiement CinetPay
       final callable = FirebaseFunctions.instance.httpsCallable('initializePayment');
       final result = await callable.call({
-        'planId': action == 'upgrade' ? newPlan : _userModel?.plan,
+        'planId': action == 'upgrade' ? newPlan : userModel.plan,
       });
 
       if (result.data['success'] == true) {
@@ -264,18 +264,17 @@ class _RenewLicencePageState extends State<RenewLicencePage> {
               if (statusResult.data['status'] == 'completed') {
                 paymentCompleted = true;
 
-                // Recharger les données utilisateur pour afficher la nouvelle licence
-                await _loadUserData();
-
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(action == 'renew'
-                        ? 'Votre licence a été renouvelée avec succès'
-                        : 'Votre licence a été mise à niveau avec succès'),
-                    behavior: SnackBarBehavior.floating,
-                    backgroundColor: Colors.green,
-                  ),
-                );
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(action == 'renew'
+                          ? 'Votre licence a été renouvelée avec succès'
+                          : 'Votre licence a été mise à niveau avec succès'),
+                      behavior: SnackBarBehavior.floating,
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
 
                 break;
               }
@@ -287,7 +286,7 @@ class _RenewLicencePageState extends State<RenewLicencePage> {
             }
           }
 
-          if (!paymentCompleted) {
+          if (!paymentCompleted && mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('Veuillez vérifier votre téléphone pour confirmer le paiement Mobile Money'),
@@ -303,23 +302,27 @@ class _RenewLicencePageState extends State<RenewLicencePage> {
         throw Exception(result.data['message'] ?? 'Échec de l\'initialisation du paiement');
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erreur lors du paiement: ${e.toString()}'),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: Colors.red,
-          duration: Duration(seconds: 5),
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur lors du paiement: ${e.toString()}'),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
     } finally {
-      setState(() {
-        _isProcessingPayment = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isProcessingPayment = false;
+        });
+      }
     }
   }
 
   // Fonction pour afficher le dialogue de sélection de méthode de paiement pour la mise à niveau
-  Future<void> _showUpgradePaymentMethodSelector(String newPlan) async {
+  Future<void> _showUpgradePaymentMethodSelector(String newPlan, UserModel userModel) async {
     final selectedMethod = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -352,19 +355,15 @@ class _RenewLicencePageState extends State<RenewLicencePage> {
 
     if (selectedMethod != null) {
       if (selectedMethod == 'stripe') {
-        await _processStripePayment('upgrade', newPlan);
+        await _processStripePayment('upgrade', userModel, newPlan);
       } else if (selectedMethod == 'cinetpay') {
-        await _processCinetPayPayment('upgrade', newPlan);
+        await _processCinetPayPayment('upgrade', userModel, newPlan);
       }
     }
   }
 
   // Méthode pour mettre à niveau la licence (à appeler après la sélection d'un nouveau plan)
   Future<void> _upgradeLicence(String newPlan) async {
-    setState(() {
-      _isLoading = true;
-    });
-
     try {
       // Déterminer la durée en fonction du nouveau plan
       int durationDays = 30; // Par défaut, 1 mois
@@ -373,12 +372,12 @@ class _RenewLicencePageState extends State<RenewLicencePage> {
       if (newPlan == 'basic') {
         durationDays = 30;
       } else if (newPlan == 'Starter') {
-        durationDays = 30; // Ajout de la valeur manquante
+        durationDays = 30;
       } else if (newPlan == 'Pro') {
         durationDays = 30;
       } else if (newPlan == 'entreprise') {
         durationDays = 365;
-        durationType = 'year'; // Ajustement pour l'année
+        durationType = 'year';
       }
 
       // Générer une nouvelle licence
@@ -397,35 +396,30 @@ class _RenewLicencePageState extends State<RenewLicencePage> {
         'licence': licenceData['code'],
         'licenceGenerationDate': licenceData['generationDate'],
         'licenceExpiryDate': licenceData['expiryDate'],
-        'plan': newPlan, // Mettre à jour le plan car c'est une mise à niveau
+        'plan': newPlan,
       });
 
-      // Recharger les données utilisateur
-      await _loadUserData();
-
-      // Afficher un message de confirmation
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Votre licence a été mise à niveau avec succès'),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 3),
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Votre licence a été mise à niveau avec succès'),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
     } catch (e) {
-      // Afficher une erreur en cas d'échec
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erreur lors de la mise à niveau: ${e.toString()}'),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: Colors.red,
-          duration: Duration(seconds: 3),
-        ),
-      );
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur lors de la mise à niveau: ${e.toString()}'),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
     }
   }
 
@@ -440,394 +434,432 @@ class _RenewLicencePageState extends State<RenewLicencePage> {
     );
   }
 
-  bool get _isLicenceExpired {
-    if (_userModel?.licenceExpiryDate == null) return false;
-    return _userModel!.licenceExpiryDate!.toDate().isBefore(DateTime.now());
+  bool _isLicenceExpired(UserModel? userModel) {
+    if (userModel?.licenceExpiryDate == null) return false;
+    return userModel!.licenceExpiryDate!.toDate().isBefore(DateTime.now());
   }
 
-  int get _daysUntilExpiry {
-    if (_userModel?.licenceExpiryDate == null) return 0;
+  int _daysUntilExpiry(UserModel? userModel) {
+    if (userModel?.licenceExpiryDate == null) return 0;
     final now = DateTime.now();
-    final expiry = _userModel!.licenceExpiryDate!.toDate();
+    final expiry = userModel!.licenceExpiryDate!.toDate();
     return expiry.difference(now).inDays;
   }
 
-  Color get _expiryColor {
-    if (_isLicenceExpired) return Colors.red;
-    if (_daysUntilExpiry <= 30) return Colors.orange;
+  Color _expiryColor(UserModel? userModel) {
+    if (_isLicenceExpired(userModel)) return Colors.red;
+    if (_daysUntilExpiry(userModel) <= 30) return Colors.orange;
     return Colors.green;
   }
 
-  bool get _canRenewLicence {
-    // Vérifie si la licence n'est pas gratuite
-    return _userModel?.plan != null && _userModel!.plan.toLowerCase() != 'gratuit';
+  bool _canRenewLicence(UserModel? userModel) {
+    return userModel?.plan != null && userModel!.plan.toLowerCase() != 'gratuit';
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final user = FirebaseAuth.instance.currentUser;
 
-    return Scaffold(
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [theme.primaryColor.withOpacity(0.1), Colors.white],
-          ),
+    if (user == null) {
+      return Scaffold(
+        body: Center(
+          child: Text('Utilisateur non connecté'),
         ),
-        child: SafeArea(
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Informations de licence',
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: theme.primaryColor,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 10,
-                          offset: const Offset(0, 5),
-                        ),
-                      ],
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(24.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: theme.primaryColor.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                padding: const EdgeInsets.all(12),
-                                child: Icon(
-                                  Icons.verified_user,
-                                  color: theme.primaryColor,
-                                  size: 32,
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Type de licence',
-                                      style: theme.textTheme.bodySmall?.copyWith(
-                                        color: Colors.grey[600],
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      _userModel?.plan ?? 'N/A',
-                                      style: theme.textTheme.titleMedium?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          const Divider(height: 40),
-                          _buildInfoRow(
-                            context,
-                            title: 'Date de génération',
-                            value: _formatDate(_userModel?.licenceGenerationDate),
-                            icon: Icons.calendar_today,
-                          ),
-                          const SizedBox(height: 24),
-                          _buildInfoRow(
-                            context,
-                            title: 'Date d\'expiration',
-                            value: _formatDate(_userModel?.licenceExpiryDate),
-                            icon: Icons.event_busy,
-                            valueColor: _expiryColor,
-                          ),
-                          if (!_isLicenceExpired && _userModel?.licenceExpiryDate != null)
-                            Padding(
-                              padding: const EdgeInsets.only(left: 48, top: 8),
-                              child: Text(
-                                _daysUntilExpiry > 0
-                                    ? 'Expire dans $_daysUntilExpiry jours'
-                                    : 'Expire aujourd\'hui',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                  color: _expiryColor,
-                                ),
-                              ),
-                            ),
-                          if (_isLicenceExpired)
-                            Padding(
-                              padding: const EdgeInsets.only(left: 48, top: 8),
-                              child: Text(
-                                'Licence expirée',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.red,
-                                ),
-                              ),
-                            ),
-                          const SizedBox(height: 24),
-                          _buildLicenceCodeRow(context),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 40),
+      );
+    }
 
-                  // Boutons d'action
-                  Column(
+    // ✅ Utiliser StreamBuilder pour écouter les changements en temps réel
+    return StreamBuilder<DocumentSnapshot>(
+      stream: _userStream,
+      builder: (context, snapshot) {
+        // États de chargement
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        if (snapshot.hasError) {
+          print('[RENEW PAGE] ❌ Erreur stream: ${snapshot.error}');
+          return Scaffold(
+            body: Center(
+              child: Text('Erreur lors du chargement des données'),
+            ),
+          );
+        }
+
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          return Scaffold(
+            body: Center(
+              child: Text('Données utilisateur introuvables'),
+            ),
+          );
+        }
+
+        // ✅ Convertir les données en UserModel
+        final userModel = UserModel.fromJson(
+            snapshot.data!.data() as Map<String, dynamic>
+        );
+
+        print('[RENEW PAGE] 📊 Données mises à jour: ${userModel.plan}, expiré: ${_isLicenceExpired(userModel)}');
+
+        return Scaffold(
+          body: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [theme.primaryColor.withOpacity(0.1), Colors.white],
+              ),
+            ),
+            child: SafeArea(
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Bouton "Renouveler ma licence" - visible seulement si non gratuite
-                      if (_canRenewLicence)
-                        Row(
-                          children: [
-                            Expanded(
-                              child: ElevatedButton(
-                                onPressed: () {
-                                  Navigator.pushNamed(context, AppRoutes.activatelicence);
-                                },
-                                style: ElevatedButton.styleFrom(
-                                  foregroundColor: Colors.white,
-                                  backgroundColor: Colors.green,
-                                  padding: const EdgeInsets.symmetric(vertical: 16),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  elevation: 0,
-                                  minimumSize: const Size(double.infinity, 56),
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: const [
-                                    Icon(Icons.key, color: Colors.white),
-                                    SizedBox(width: 12),
-                                    Text(
-                                      'Activer une licence',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
+                      Text(
+                        'Informations de licence',
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: theme.primaryColor,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 10,
+                              offset: const Offset(0, 5),
                             ),
-                            const SizedBox(width: 16), // Espace entre les boutons
-                            Expanded(
-                              child: ElevatedButton(
-                                onPressed: _isProcessingPayment ? null : () {
-                                  // Afficher une boîte de dialogue de confirmation
-                                  showDialog(
-                                    context: context,
-                                    builder: (context) => AlertDialog(
-                                      title: Text('Renouveler la licence'),
-                                      content: Text(
-                                          'Êtes-vous sûr de vouloir renouveler votre licence ${_userModel?.plan} pour ${_userModel?.plan == "entreprise" ? "une année" : "un mois"} supplémentaire?'
-                                      ),
-                                      actions: [
-                                        TextButton(
-                                          onPressed: () => Navigator.pop(context),
-                                          child: Text('Annuler'),
+                          ],
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(24.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: theme.primaryColor.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    padding: const EdgeInsets.all(12),
+                                    child: Icon(
+                                      Icons.verified_user,
+                                      color: theme.primaryColor,
+                                      size: 32,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Type de licence',
+                                          style: theme.textTheme.bodySmall?.copyWith(
+                                            color: Colors.grey[600],
+                                          ),
                                         ),
-                                        TextButton(
-                                          onPressed: () {
-                                            Navigator.pop(context);
-                                            _showPaymentMethodSelector(); // Afficher le sélecteur de méthode de paiement
-                                          },
-                                          child: Text('Confirmer'),
-                                          style: TextButton.styleFrom(
-                                            foregroundColor: theme.primaryColor,
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          userModel.plan ?? 'N/A',
+                                          style: theme.textTheme.titleMedium?.copyWith(
+                                            fontWeight: FontWeight.bold,
                                           ),
                                         ),
                                       ],
                                     ),
-                                  );
-                                },
-                                style: ElevatedButton.styleFrom(
-                                  foregroundColor: Colors.white,
-                                  backgroundColor: theme.primaryColor,
-                                  padding: const EdgeInsets.symmetric(vertical: 16),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
                                   ),
-                                  elevation: 0,
-                                  minimumSize: const Size(double.infinity, 56),
-                                ),
-                                child: _isProcessingPayment
-                                    ? SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      color: Colors.white,
-                                      strokeWidth: 2,
-                                    )
-                                )
-                                    : Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: const [
-                                    Icon(Icons.refresh, color: Colors.white),
-                                    SizedBox(width: 12),
-                                    Text(
-                                      'Renouveler ma licence',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                      ),
+                                ],
+                              ),
+                              const Divider(height: 40),
+                              _buildInfoRow(
+                                context,
+                                title: 'Date de génération',
+                                value: _formatDate(userModel.licenceGenerationDate),
+                                icon: Icons.calendar_today,
+                              ),
+                              const SizedBox(height: 24),
+                              _buildInfoRow(
+                                context,
+                                title: 'Date d\'expiration',
+                                value: _formatDate(userModel.licenceExpiryDate),
+                                icon: Icons.event_busy,
+                                valueColor: _expiryColor(userModel),
+                              ),
+                              if (!_isLicenceExpired(userModel) && userModel.licenceExpiryDate != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 48, top: 8),
+                                  child: Text(
+                                    _daysUntilExpiry(userModel) > 0
+                                        ? 'Expire dans ${_daysUntilExpiry(userModel)} jours'
+                                        : 'Expire aujourd\'hui',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                      color: _expiryColor(userModel),
                                     ),
-                                  ],
+                                  ),
                                 ),
-                              ),
-                            ),
-                          ],
-                        ),
-
-                      // Espace entre les boutons si les deux sont visibles
-                      if (_canRenewLicence)
-                        const SizedBox(height: 16),
-
-                      // Bouton "Mettre à niveau ma licence" - toujours visible
-                      ElevatedButton(
-                        onPressed: () async {
-                          // Option 1: Naviguer vers la page de choix de plan et attendre le résultat
-                          final result = await Navigator.pushNamed(
-                            context,
-                            AppRoutes.chooseplanUpgrade,
-                            arguments: _userModel?.plan, // Passer le plan actuel pour référence
-                          );
-
-                          // Si un nouveau plan a été sélectionné
-                          if (result != null && result is String && result != _userModel?.plan) {
-                            // Afficher le sélecteur de paiement pour mise à niveau
-                            _showUpgradePaymentMethodSelector(result);
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          foregroundColor: _canRenewLicence ? theme.primaryColor : Colors.white,
-                          backgroundColor: _canRenewLicence ? Colors.white : theme.primaryColor,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            side: _canRenewLicence
-                                ? BorderSide(color: theme.primaryColor, width: 2)
-                                : BorderSide.none,
+                              if (_isLicenceExpired(userModel))
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 48, top: 8),
+                                  child: Text(
+                                    'Licence expirée',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.red,
+                                    ),
+                                  ),
+                                ),
+                              const SizedBox(height: 24),
+                              _buildLicenceCodeRow(context, userModel),
+                            ],
                           ),
-                          elevation: 0,
-                          minimumSize: const Size(double.infinity, 56),
                         ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.upgrade),
-                            const SizedBox(width: 12),
-                            const Text(
-                              'Mettre à niveau ma licence',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
+                      ),
+                      const SizedBox(height: 40),
+
+                      // Boutons d'action
+                      Column(
+                        children: [
+                          // Bouton "Activer" et "Renouveler" côte à côte si licence non gratuite
+                          if (_canRenewLicence(userModel))
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: ElevatedButton(
+                                    onPressed: () {
+                                      Navigator.pushNamed(context, AppRoutes.activatelicence);
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      foregroundColor: Colors.white,
+                                      backgroundColor: Colors.green,
+                                      padding: const EdgeInsets.symmetric(vertical: 16),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      elevation: 0,
+                                      minimumSize: const Size(double.infinity, 56),
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: const [
+                                        Icon(Icons.key, color: Colors.white),
+                                        SizedBox(width: 12),
+                                        Text(
+                                          'Activer une licence',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: ElevatedButton(
+                                    onPressed: _isProcessingPayment ? null : () {
+                                      showDialog(
+                                        context: context,
+                                        builder: (context) => AlertDialog(
+                                          title: Text('Renouveler la licence'),
+                                          content: Text(
+                                              'Êtes-vous sûr de vouloir renouveler votre licence ${userModel.plan} pour ${userModel.plan == "entreprise" ? "une année" : "un mois"} supplémentaire?'
+                                          ),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () => Navigator.pop(context),
+                                              child: Text('Annuler'),
+                                            ),
+                                            TextButton(
+                                              onPressed: () {
+                                                Navigator.pop(context);
+                                                _showPaymentMethodSelector(userModel);
+                                              },
+                                              child: Text('Confirmer'),
+                                              style: TextButton.styleFrom(
+                                                foregroundColor: theme.primaryColor,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      foregroundColor: Colors.white,
+                                      backgroundColor: theme.primaryColor,
+                                      padding: const EdgeInsets.symmetric(vertical: 16),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      elevation: 0,
+                                      minimumSize: const Size(double.infinity, 56),
+                                    ),
+                                    child: _isProcessingPayment
+                                        ? SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                          color: Colors.white,
+                                          strokeWidth: 2,
+                                        )
+                                    )
+                                        : Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: const [
+                                        Icon(Icons.refresh, color: Colors.white),
+                                        SizedBox(width: 12),
+                                        Text(
+                                          'Renouveler ma licence',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
+
+                          if (_canRenewLicence(userModel))
+                            const SizedBox(height: 16),
+
+                          // Bouton "Mettre à niveau"
+                          ElevatedButton(
+                            onPressed: () async {
+                              final result = await Navigator.pushNamed(
+                                context,
+                                AppRoutes.chooseplanUpgrade,
+                                arguments: userModel.plan,
+                              );
+
+                              if (result != null && result is String && result != userModel.plan) {
+                                _showUpgradePaymentMethodSelector(result, userModel);
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              foregroundColor: _canRenewLicence(userModel) ? theme.primaryColor : Colors.white,
+                              backgroundColor: _canRenewLicence(userModel) ? Colors.white : theme.primaryColor,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                side: _canRenewLicence(userModel)
+                                    ? BorderSide(color: theme.primaryColor, width: 2)
+                                    : BorderSide.none,
+                              ),
+                              elevation: 0,
+                              minimumSize: const Size(double.infinity, 56),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.upgrade),
+                                const SizedBox(width: 12),
+                                const Text(
+                                  'Mettre à niveau ma licence',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildLicenceCodeRow(BuildContext context) {
-    final formattedLicence = _formatLicenceCode(_userModel?.licence);
+  Widget _buildLicenceCodeRow(BuildContext context, UserModel userModel) {
+    final formattedLicence = _formatLicenceCode(userModel.licence);
 
     return Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
         Icon(
-        Icons.vpn_key,
-        size: 24,
-        color: Colors.grey[600],
-    ),
-    const SizedBox(width: 24),
-    Expanded(
-    child: Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-    Text(
-    'Code de licence',
-    style: TextStyle(
-    fontSize: 14,
-    color: Colors.grey[600],
-    ),
-    ),
-    const SizedBox(height: 8),
-    Container(
-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-    decoration: BoxDecoration(
-    color: Colors.grey[100],
-    borderRadius: BorderRadius.circular(8),
-    border: Border.all(color: Colors.grey[300]!),
-    ),
-    child: Row(
-    children: [
-    Expanded(
-    child: Row(
-    mainAxisAlignment: MainAxisAlignment.center,
-    children: formattedLicence.split('-').map((block) {
-    return Container(
-    margin: const EdgeInsets.symmetric(horizontal: 4),
-    child: Text(
-    block,
-    style: TextStyle(
-    fontSize: 16,
-    fontWeight: FontWeight.w600,
-    letterSpacing: 1,
-    color: Colors.grey[800],
-    fontFamily: 'Courier',
-    ),
-    ),
-    );
-    }).toList(),
-    ),
-    ),
-    IconButton(
-    icon: const Icon(Icons.copy, size: 20),
-    color: Theme.of(context).primaryColor,
-    onPressed: () => _copyToClipboard(_userModel?.licence ?? ''),
-    tooltip: 'Copier le code',
-    ),
-    ],
-    ),
-    ),
-    ],
-    ),
-    ),
-        ],
+          Icons.vpn_key,
+          size: 24,
+          color: Colors.grey[600],
+        ),
+        const SizedBox(width: 24),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Code de licence',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[600],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey[300]!),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: formattedLicence.split('-').map((block) {
+                          return Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 4),
+                            child: Text(
+                              block,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 1,
+                                color: Colors.grey[800],
+                                fontFamily: 'Courier',
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.copy, size: 20),
+                      color: Theme.of(context).primaryColor,
+                      onPressed: () => _copyToClipboard(userModel.licence ?? ''),
+                      tooltip: 'Copier le code',
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 

@@ -5,6 +5,8 @@ import '../../../../../config/routes.dart';
 import '../../../../../config/theme.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../config/AppConstants.dart';
+
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
 
@@ -153,18 +155,17 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 2),
-                    Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                    Row(mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(
-                            'GESTO',
+                            AppConstants.appName,  // ✅ Utilise la constante
                             style: theme.textTheme.displaySmall?.copyWith(
                               color: GestoTheme.white,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
                           Text(
-                            ' v1.2.7',
+                            ' ${AppConstants.appVersion}',  // ✅ Utilise la constante
                             style: TextStyle(
                               fontSize: 14,
                               color: Colors.grey[400],

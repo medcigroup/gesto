@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../config/getConnectedUserAdminId.dart';
 import '../../config/restaurant_models.dart';
@@ -284,7 +283,7 @@ class _OrderTakingState extends State<OrderTaking>
                       gradient: LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
-                        colors: [Colors.green.shade100, Colors.green.shade50],
+                        colors: [Colors.green.shade50, Colors.green.shade100],
                       ),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: Colors.green.shade200, width: 1.5),
@@ -799,7 +798,7 @@ class _OrderTakingState extends State<OrderTaking>
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [Colors.blue.shade100, Colors.blue.shade50],
+                    colors: [Colors.blue.shade50, Colors.blue.shade100],
                   ),
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -1279,7 +1278,7 @@ class _OrderTakingState extends State<OrderTaking>
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [Colors.green.shade100, Colors.green.shade50],
+                  colors: [Colors.green.shade50, Colors.green.shade100],
                 ),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: Colors.green.shade200),
@@ -1441,6 +1440,7 @@ class _OrderTakingState extends State<OrderTaking>
           price: item.price,
           quantity: _orderItems[existingIndex].quantity + 1,
           status: 'commandé',
+          category: item.category,
         );
       } else {
         _orderItems.add(OrderItem(
@@ -1449,6 +1449,7 @@ class _OrderTakingState extends State<OrderTaking>
           price: item.price,
           quantity: 1,
           status: 'commandé',
+          category: item.category,
         ));
       }
     });
@@ -1472,6 +1473,7 @@ class _OrderTakingState extends State<OrderTaking>
             quantity: newQuantity,
             specialInstructions: orderItem.specialInstructions,
             status: orderItem.status,
+            category: orderItem.category,
           );
         }
       }
@@ -1643,10 +1645,18 @@ class _OrderTakingState extends State<OrderTaking>
       return;
     }
 
-    // Pour le service en chambre, pas besoin de table
-    if (!_isRoomService && _selectedTable == null) {
-      _showErrorMessage('Veuillez sélectionner une table');
-      return;
+    // Validation pour le service en chambre
+    if (_isRoomService) {
+      if (_customerType != 'hotel_guest' || _selectedHotelGuest == null) {
+        _showErrorMessage('Veuillez sélectionner un client d\'hôtel pour le service en chambre');
+        return;
+      }
+    } else {
+      // Validation pour le service normal (avec table)
+      if (_selectedTable == null) {
+        _showErrorMessage('Veuillez sélectionner une table');
+        return;
+      }
     }
 
     try {
@@ -1657,10 +1667,10 @@ class _OrderTakingState extends State<OrderTaking>
         customerType: _customerType,
         hotelGuestId: _selectedHotelGuest?['id'],
         guestName: _customerType == 'hotel_guest'
-            ? _selectedHotelGuest!['name']
+            ? (_selectedHotelGuest?['name'] ?? 'Client hôtel')
             : (_externalNameController.text.isEmpty ? 'Client anonyme' : _externalNameController.text),
         guestPhone: _customerType == 'hotel_guest'
-            ? _selectedHotelGuest!['phone']
+            ? (_selectedHotelGuest?['phone'] ?? '')
             : _externalPhoneController.text,
         roomNumber: _selectedHotelGuest?['roomNumber'],
         items: _orderItems,
@@ -1673,14 +1683,17 @@ class _OrderTakingState extends State<OrderTaking>
         createdAt: DateTime.now(),
         userId: _userId!,
         specialRequests: _specialRequests.isEmpty ? null : _specialRequests,
-        isRoomService: _isRoomService, // Nouveau champ
+        isRoomService: _isRoomService,
       );
 
       await RestaurantService.createOrder(order);
-      _showSuccessMessage('Commande créée avec succès');
+      _showSuccessMessage(_isRoomService
+          ? 'Commande pour service en chambre créée avec succès'
+          : 'Commande créée avec succès');
       Navigator.pop(context);
     } catch (e) {
-      _showErrorMessage('Erreur lors de la création de la commande');
+      print('❌ Erreur détaillée: $e');
+      _showErrorMessage('Erreur lors de la création de la commande: ${e.toString()}');
     }
   }
 }

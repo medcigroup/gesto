@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../../../config/routes.dart';
 import '../../../../../config/theme.dart';
+import '../../../config/AppConstants.dart';
 import '../../../config/CodeEntrepriseGenerator.dart';
 import '../../../config/HotelSettingsService.dart';
 
@@ -335,7 +336,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     child: Text('Manager / Gérant'),
                   ),
                   DropdownMenuItem(
-                    value: 'manager',
+                    value: 'owner',  // ✅
                     child: Text('Propriétaire'),
                   ),
                 ],
@@ -649,7 +650,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 width: 250,
                                 height: 250,
                               ),
-                              // Le SizedBox et le Text ont été supprimés ici
                             ],
                           ),
                         ),
@@ -657,14 +657,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         Row(mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Text(
-                                'GESTO',
+                                AppConstants.appName,  // ✅ Utilise la constante
                                 style: theme.textTheme.displaySmall?.copyWith(
                                   color: GestoTheme.white,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
                               Text(
-                                ' v1.2.7',
+                                ' ${AppConstants.appVersion}',  // ✅ Utilise la constante
                                 style: TextStyle(
                                   fontSize: 14,
                                   color: Colors.grey[400],
@@ -710,12 +710,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
                             const SizedBox(height: 16),
                             Center(
-                              child: Text(
-                                'GESTO',
-                                style: theme.textTheme.headlineMedium?.copyWith(
-                                  color: GestoTheme.navyBlue,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                              child: Column(
+                                children: [
+                                  Text(
+                                    AppConstants.appName,  // ✅ Utilise la constante
+                                    style: theme.textTheme.headlineMedium?.copyWith(
+                                      color: GestoTheme.navyBlue,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  Text(
+                                    AppConstants.appVersion,  // ✅ Ajoute la version
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                             const SizedBox(height: 32),

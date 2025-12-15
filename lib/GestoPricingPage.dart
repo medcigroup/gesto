@@ -1,140 +1,40 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:animate_do/animate_do.dart';
+import 'package:intl/intl.dart';
 
+import 'config/AppConstants.dart';
 import 'config/routes.dart';
+class GestoPricingPage extends StatefulWidget {
+  const GestoPricingPage({Key? key}) : super(key: key);
 
-enum PlanId { basic, starter, pro, entreprise }
-
-class Plan {
-  final String title;
-  final String price;
-  final String duration;
-  final List<String> features;
-  final PlanId planId;
-  final bool isRecommended;
-
-  Plan({
-    required this.title,
-    required this.price,
-    required this.duration,
-    required this.features,
-    required this.planId,
-    required this.isRecommended,
-  });
+  @override
+  State<GestoPricingPage> createState() => _GestoPricingPageState();
 }
 
-class GestoPricingPage extends StatelessWidget {
-  GestoPricingPage({Key? key}) : super(key: key);
-
-  final List<Plan> plans = [
-    Plan(
-      title: 'Basic (essai gratuit 30j)',
-      price: '20000 FCFA',
-      duration: '/mois',
-      features: [ '14 chambres max','Limite nombre employé : 3', 'Support de base', 'Rapports hebdo'],
-      planId: PlanId.basic,
-      isRecommended: false,
-    ),
-    Plan(
-      title: 'Starter',
-      price: '30000 FCFA',
-      duration: '/mois',
-      features: [
-        'Module de réservation',
-        '20 chambres max',
-        'Limite nombre employé : 10',
-        'Support standard',
-        'Rapports journaliers'
-      ],
-      planId: PlanId.starter,
-      isRecommended: true,
-    ),
-    Plan(
-      title: 'Starter Pro',
-      price: '50000 FCFA',
-      duration: '/mois',
-      features: [
-        'Module de réservation',
-        'Chambres illimitées',
-        'Limite nombre employé : 20',
-        'Gestion resto',
-        'Tables resto illimitées',
-        'Support 24/7',
-        'Analyses temps réel',
-        'Marketing tools',
-      ],
-      planId: PlanId.pro,
-      isRecommended: false,
-    ),
-    Plan(
-      title: 'Grand Hôtel',
-      price: 'Sur mesure',
-      duration: '',
-      features: [
-        'Solution personnalisée',
-        'Intégrations API',
-        'Account manager dédié',
-        'Formation avancée',
-        'Maintenance incluse'
-      ],
-      planId: PlanId.entreprise,
-      isRecommended: false,
-    ),
-  ];
+class _GestoPricingPageState extends State<GestoPricingPage> {
+  bool _isAnnual = false;
+  final NumberFormat _currencyFormatter = NumberFormat('#,###', 'fr_FR');
 
   @override
   Widget build(BuildContext context) {
-    final primaryColor = Color(0xFF6366F1);
-    final secondaryColor = Color(0xFF10B981);
-    final accentColor = Color(0xFFFF6B6B);
-    final backgroundColor = Colors.white;
-    final darkColor = Color(0xFF0F172A);
-
-    final headlineFont = GoogleFonts.poppins(
-      fontWeight: FontWeight.w800,
-      color: darkColor,
-    );
-
-    final bodyFont = GoogleFonts.poppins(
-      color: Colors.grey[700],
-    );
-
     return Scaffold(
       extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: Text('Gesto',
-            style: GoogleFonts.poppins(
-                fontWeight: FontWeight.bold, color: Colors.white)),
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
+      appBar: _buildAppBar(context),
       body: Stack(
         children: [
-          Container(
-            height: 200,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [primaryColor, secondaryColor],
-              ),
-            ),
-          ),
+          _buildHeaderGradient(),
           SingleChildScrollView(
             physics: BouncingScrollPhysics(),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                _buildHeader(headlineFont, bodyFont),
-                _buildPricingPlans(context, plans, bodyFont, primaryColor, secondaryColor),
-                _buildFAQSection(headlineFont, bodyFont),
-                _buildCtaSection(context, headlineFont, bodyFont, primaryColor),
-                _buildFooter(bodyFont, darkColor),
+                _buildHeader(),
+                _buildBillingToggle(),
+                _buildPricingPlans(context),
+                _buildComparisonTable(),
+                _buildFAQSection(),
+                _buildCtaSection(context),
+                _buildFooter(context),
               ],
             ),
           ),
@@ -143,24 +43,68 @@ class GestoPricingPage extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader(TextStyle headlineFont, TextStyle bodyFont) {
+  PreferredSizeWidget _buildAppBar(BuildContext context) {
+    return AppBar(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      title: Row(
+        children: [
+          Image.asset(
+            AppConstants.logoPath,
+            height: 40,
+          ),
+          SizedBox(width: 10),
+          Text(
+            AppConstants.appName,
+            style: AppConstants.getHeadlineFont(color: Colors.white)
+                .copyWith(fontSize: 20),
+          ),
+        ],
+      ),
+      leading: IconButton(
+        icon: Icon(Icons.arrow_back, color: Colors.white),
+        onPressed: () => Navigator.pop(context),
+      ),
+    );
+  }
+
+  Widget _buildHeaderGradient() {
     return Container(
-      padding: EdgeInsets.fromLTRB(20, 120, 20, 40),
+      height: 280,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppConstants.primaryColor,
+            AppConstants.secondaryColor,
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Container(
+      padding: EdgeInsets.fromLTRB(20, 120, 20, 20),
       child: Column(
         children: [
           FadeInDown(
             child: Text(
-              'Nos tarifs',
-              style: headlineFont.copyWith(fontSize: 42, color: Colors.white),
+              AppConstants.pricingSectionTitle,
+              style: AppConstants.getHeadlineFont(color: Colors.white)
+                  .copyWith(fontSize: 42),
               textAlign: TextAlign.center,
             ),
           ),
           SizedBox(height: 20),
           FadeInUp(
-            delay: Duration(milliseconds: 200),
+            delay: AppConstants.shortAnimationDuration,
             child: Text(
-              'Choisissez le plan qui correspond à vos besoins',
-              style: bodyFont.copyWith(fontSize: 18, color: Colors.white.withOpacity(0.9)),
+              AppConstants.pricingSectionSubtitle,
+              style: AppConstants.getBodyFont(
+                color: Colors.white.withOpacity(0.9),
+              ).copyWith(fontSize: 18),
               textAlign: TextAlign.center,
             ),
           ),
@@ -169,224 +113,420 @@ class GestoPricingPage extends StatelessWidget {
     );
   }
 
-  Widget _buildPricingPlans(BuildContext context, List<Plan> plans, TextStyle bodyFont, Color primaryColor, Color secondaryColor) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 30),
-      child: Column(
-        children: [
-          LayoutBuilder(
-            builder: (context, constraints) {
-              if (constraints.maxWidth > 1000) {
-                // Desktop layout - all plans in one row
-                return Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: plans.map((plan) {
-                    return Expanded(
-                      child: FadeInUp(
-                        delay: Duration(milliseconds: 100 * plans.indexOf(plan)),
-                        child: _buildPricingCard(context, plan, bodyFont, primaryColor, secondaryColor),
-                      ),
-                    );
-                  }).toList(),
-                );
-              } else if (constraints.maxWidth > 600) {
-                // Tablet layout - 2x2 grid
-                return Column(
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: FadeInUp(
-                            delay: Duration(milliseconds: 100),
-                            child: _buildPricingCard(context, plans[0], bodyFont, primaryColor, secondaryColor),
-                          ),
-                        ),
-                        Expanded(
-                          child: FadeInUp(
-                            delay: Duration(milliseconds: 200),
-                            child: _buildPricingCard(context, plans[1], bodyFont, primaryColor, secondaryColor),
-                          ),
-                        ),
-                      ],
-                    ),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: FadeInUp(
-                            delay: Duration(milliseconds: 300),
-                            child: _buildPricingCard(context, plans[2], bodyFont, primaryColor, secondaryColor),
-                          ),
-                        ),
-                        Expanded(
-                          child: FadeInUp(
-                            delay: Duration(milliseconds: 400),
-                            child: _buildPricingCard(context, plans[3], bodyFont, primaryColor, secondaryColor),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                );
-              } else {
-                // Mobile layout - vertical stack
-                return Column(
-                  children: plans.map((plan) {
-                    return FadeInUp(
-                      delay: Duration(milliseconds: 100 * plans.indexOf(plan)),
-                      child: _buildPricingCard(context, plan, bodyFont, primaryColor, secondaryColor),
-                    );
-                  }).toList(),
-                );
-              }
-            },
-          ),
-        ],
+  Widget _buildBillingToggle() {
+    return FadeInUp(
+      delay: Duration(milliseconds: 300),
+      child: Container(
+        margin: EdgeInsets.symmetric(vertical: 30),
+        padding: EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(50),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 20,
+              offset: Offset(0, 5),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildToggleButton(
+              AppConstants.pricingToggleMonthly,
+              !_isAnnual,
+                  () => setState(() => _isAnnual = false),
+            ),
+            _buildToggleButton(
+              AppConstants.pricingToggleAnnual,
+              _isAnnual,
+                  () => setState(() => _isAnnual = true),
+              showBadge: true,
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildPricingCard(BuildContext context, Plan plan, TextStyle bodyFont, Color primaryColor, Color secondaryColor) {
+  Widget _buildToggleButton(String text, bool isSelected, VoidCallback onTap,
+      {bool showBadge = false}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(50),
+      child: AnimatedContainer(
+        duration: Duration(milliseconds: 300),
+        padding: EdgeInsets.symmetric(horizontal: 30, vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? AppConstants.primaryColor : Colors.transparent,
+          borderRadius: BorderRadius.circular(50),
+        ),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Text(
+              text,
+              style: AppConstants.getBodyFont(
+                color: isSelected ? Colors.white : Colors.grey[700],
+              ).copyWith(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            if (showBadge)
+              Positioned(
+                right: -60,
+                top: -20,
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppConstants.accentColor,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    AppConstants.pricingSaveText,
+                    style: AppConstants.getBodyFont(color: Colors.white)
+                        .copyWith(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPricingPlans(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 30),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth > AppConstants.desktopBreakpoint) {
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: AppConstants.pricingPlans.asMap().entries.map((entry) {
+                return Expanded(
+                  child: FadeInUp(
+                    delay: Duration(milliseconds: 100 * entry.key),
+                    child: _buildPricingCard(context, entry.value),
+                  ),
+                );
+              }).toList(),
+            );
+          } else if (constraints.maxWidth > AppConstants.mobileBreakpoint) {
+            return Wrap(
+              spacing: 20,
+              runSpacing: 20,
+              alignment: WrapAlignment.center,
+              children: AppConstants.pricingPlans.asMap().entries.map((entry) {
+                return Container(
+                  width: (constraints.maxWidth - 60) / 2,
+                  child: FadeInUp(
+                    delay: Duration(milliseconds: 100 * entry.key),
+                    child: _buildPricingCard(context, entry.value),
+                  ),
+                );
+              }).toList(),
+            );
+          } else {
+            return Column(
+              children: AppConstants.pricingPlans.asMap().entries.map((entry) {
+                return FadeInUp(
+                  delay: Duration(milliseconds: 100 * entry.key),
+                  child: _buildPricingCard(context, entry.value),
+                );
+              }).toList(),
+            );
+          }
+        },
+      ),
+    );
+  }
+
+  Widget _buildPricingCard(BuildContext context, Map<String, dynamic> plan) {
+    final bool isPopular = plan['isPopular'] as bool;
+    final Color planColor = plan['color'] as Color;
+    final int? priceMonthly = plan['priceMonthly'] as int?;
+    final String? badge = plan['badge'] as String?;
+
+    // Calcul dynamique du prix annuel
+    int? priceAnnual;
+    if (priceMonthly != null) {
+      priceAnnual = AppConstants.calculateAnnualPrice(priceMonthly);
+    }
+
     Color cardColor = Colors.white;
     Color textColor = Colors.black87;
-    Color buttonColor = primaryColor;
+    Color buttonColor = planColor;
     Color buttonTextColor = Colors.white;
     Color borderColor = Colors.grey.withOpacity(0.2);
 
-    // Style spécial pour le plan recommandé
-    if (plan.isRecommended) {
-      cardColor = primaryColor;
+    if (isPopular) {
+      cardColor = planColor;
       textColor = Colors.white;
       buttonColor = Colors.white;
-      buttonTextColor = primaryColor;
-      borderColor = primaryColor;
+      buttonTextColor = planColor;
+      borderColor = planColor;
+    }
+
+    String displayPrice = 'Sur mesure';
+    String displayPeriod = '';
+    String? oldPrice;
+    int? savings;
+
+    if (priceMonthly != null) {
+      if (_isAnnual && priceAnnual != null) {
+        displayPrice = _currencyFormatter.format(priceAnnual);
+        displayPeriod = '/an';
+        oldPrice = _currencyFormatter.format(priceMonthly * 12);
+        savings = AppConstants.calculateSavings(priceMonthly);
+      } else {
+        displayPrice = _currencyFormatter.format(priceMonthly);
+        displayPeriod = '/mois';
+      }
     }
 
     return Container(
       margin: EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: cardColor,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppConstants.cardBorderRadius),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 15,
+            color: Colors.black.withOpacity(isPopular ? 0.15 : 0.05),
+            blurRadius: isPopular ? 20 : 15,
             offset: Offset(0, 5),
           ),
         ],
-        border: Border.all(color: borderColor, width: 2),
+        border: Border.all(color: borderColor, width: isPopular ? 3 : 2),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Badge pour le plan recommandé
-          if (plan.isRecommended)
+          if (badge != null)
             Container(
               width: double.infinity,
-              padding: EdgeInsets.symmetric(vertical: 8),
+              padding: EdgeInsets.symmetric(vertical: 10),
               decoration: BoxDecoration(
-                color: secondaryColor,
+                color: isPopular
+                    ? AppConstants.secondaryColor
+                    : (plan['planId'] == 'basic'
+                    ? AppConstants.orangeAccent
+                    : AppConstants.purpleAccent),
                 borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(14),
-                  topRight: Radius.circular(14),
+                  topLeft: Radius.circular(AppConstants.cardBorderRadius - 3),
+                  topRight: Radius.circular(AppConstants.cardBorderRadius - 3),
                 ),
               ),
               child: Text(
-                'RECOMMANDÉ',
+                badge,
                 textAlign: TextAlign.center,
-                style: bodyFont.copyWith(
-                  color: Colors.white,
+                style: AppConstants.getBodyFont(color: Colors.white).copyWith(
                   fontWeight: FontWeight.bold,
-                  fontSize: 12,
+                  fontSize: 13,
+                  letterSpacing: 1.2,
                 ),
               ),
             ),
-
           Padding(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(30),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Text(
-                  plan.title,
-                  style: bodyFont.copyWith(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: textColor,
+                  plan['name'],
+                  style: AppConstants.getHeadlineFont(color: textColor).copyWith(
+                    fontSize: 26,
                   ),
                   textAlign: TextAlign.center,
                 ),
-                SizedBox(height: 20),
+                if (plan['subtitle'] != '')
+                  Padding(
+                    padding: EdgeInsets.only(top: 5),
+                    child: Text(
+                      plan['subtitle'],
+                      style: AppConstants.getBodyFont(
+                        color: textColor.withOpacity(0.7),
+                      ).copyWith(fontSize: 14),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                SizedBox(height: 10),
+                Text(
+                  plan['description'],
+                  style: AppConstants.getBodyFont(
+                    color: textColor.withOpacity(0.8),
+                  ).copyWith(fontSize: 15),
+                  textAlign: TextAlign.center,
+                ),
+                SizedBox(height: 25),
+
+                // Prix avec effet de barré pour l'ancien prix
+                if (_isAnnual && oldPrice != null && priceMonthly != null)
+                  Column(
+                    children: [
+                      Text(
+                        '${plan['currency']} $oldPrice/an',
+                        style: AppConstants.getBodyFont(
+                          color: textColor.withOpacity(0.5),
+                        ).copyWith(
+                          fontSize: 16,
+                          decoration: TextDecoration.lineThrough,
+                        ),
+                      ),
+                      SizedBox(height: 5),
+                    ],
+                  ),
+
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.end,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      plan.price,
-                      style: bodyFont.copyWith(
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        color: textColor,
+                    if (plan['currency'] != '')
+                      Padding(
+                        padding: EdgeInsets.only(top: 8),
+                        child: Text(
+                          plan['currency'],
+                          style: AppConstants.getBodyFont(color: textColor)
+                              .copyWith(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    SizedBox(width: 5),
+                    Flexible(
+                      child: Text(
+                        displayPrice,
+                        style:
+                        AppConstants.getHeadlineFont(color: textColor).copyWith(
+                          fontSize: 36,
+                        ),
+                        textAlign: TextAlign.center,
                       ),
                     ),
-                    Text(
-                      plan.duration,
-                      style: bodyFont.copyWith(
-                        fontSize: 16,
-                        color: textColor.withOpacity(0.7),
+                    if (displayPeriod != '')
+                      Padding(
+                        padding: EdgeInsets.only(top: 15),
+                        child: Text(
+                          displayPeriod,
+                          style: AppConstants.getBodyFont(
+                            color: textColor.withOpacity(0.7),
+                          ).copyWith(fontSize: 16),
+                        ),
                       ),
-                    ),
                   ],
                 ),
-                SizedBox(height: 30),
 
-                // Liste des fonctionnalités
-                ...plan.features.map((feature) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
+                // Badge économies pour annuel (calculé dynamiquement)
+                if (_isAnnual && priceMonthly != null && savings != null)
+                  Padding(
+                    padding: EdgeInsets.only(top: 10),
+                    child: Container(
+                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppConstants.secondaryColor.withOpacity(
+                          isPopular ? 0.3 : 0.1,
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: isPopular
+                              ? Colors.white.withOpacity(0.5)
+                              : AppConstants.secondaryColor,
+                        ),
+                      ),
+                      child: Text(
+                        '💰 Économisez ${_currencyFormatter.format(savings)} FCFA',
+                        style: AppConstants.getBodyFont(
+                          color: isPopular ? Colors.white : AppConstants.secondaryColor,
+                        ).copyWith(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                SizedBox(height: 30),
+                Divider(color: textColor.withOpacity(0.2)),
+                SizedBox(height: 25),
+
+                ...(plan['features'] as List<String>).map((feature) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Icon(
                         Icons.check_circle,
-                        color: plan.isRecommended ? Colors.white : secondaryColor,
-                        size: 20,
+                        color: isPopular
+                            ? Colors.white
+                            : AppConstants.secondaryColor,
+                        size: 22,
                       ),
                       SizedBox(width: 12),
                       Expanded(
                         child: Text(
                           feature,
-                          style: bodyFont.copyWith(
+                          style: AppConstants.getBodyFont(
                             color: textColor.withOpacity(0.9),
-                            fontSize: 15,
-                          ),
+                          ).copyWith(fontSize: 15),
                         ),
                       ),
                     ],
                   ),
-                )).toList(),
+                )),
 
                 SizedBox(height: 30),
+
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     foregroundColor: buttonTextColor,
                     backgroundColor: buttonColor,
-                    padding: EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+                    padding: EdgeInsets.symmetric(horizontal: 30, vertical: 16),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
+                      borderRadius:
+                      BorderRadius.circular(AppConstants.buttonBorderRadius),
                     ),
+                    elevation: isPopular ? 5 : 2,
+                    minimumSize: Size(double.infinity, 50),
                   ),
                   onPressed: () {
-                    if (plan.planId == PlanId.basic||plan.planId == PlanId.starter||plan.planId == PlanId.pro) {
-                      Navigator.pushNamed(context, AppRoutes.register);
-                    } else {
-                      Navigator.pushNamed(context, AppRoutes.contactpage);
+                    final planId = plan['planId'] as String;
+                    final billingCycle = _isAnnual ? 'annual' : 'monthly';
+
+                    // Calcul du prix final à passer
+                    String finalPrice = displayPrice;
+                    int? finalPriceValue;
+                    if (priceMonthly != null) {
+                      finalPriceValue = _isAnnual ? priceAnnual : priceMonthly;
                     }
+
+                    // Toutes les souscriptions vont vers register avec les paramètres
+                    Navigator.pushNamed(
+                      context,
+                      AppRoutes.register,
+                      arguments: {
+                        'planId': planId,
+                        'billingCycle': billingCycle,
+                        'planName': plan['name'],
+                        'price': finalPrice,
+                        'priceValue': finalPriceValue,
+                        'currency': plan['currency'],
+                        'savings': savings,
+                      },
+                    );
                   },
                   child: Text(
-                    plan.planId == PlanId.basic
-                        ? 'Démarrer l\'essai'
-                        : (plan.planId == PlanId.entreprise ? 'Contacter un expert' : 'Souscrire maintenant'),
+                    plan['buttonText'],
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ],
@@ -397,26 +537,86 @@ class GestoPricingPage extends StatelessWidget {
     );
   }
 
-  Widget _buildFAQSection(TextStyle headlineFont, TextStyle bodyFont) {
-    final faqs = [
-      {
-        'question': 'Puis-je changer de plan à tout moment ?',
-        'answer': 'Oui, vous pouvez mettre à niveau ou rétrograder votre plan à tout moment. Les modifications seront prises en compte lors de votre prochain cycle de facturation.'
-      },
-      {
-        'question': 'Comment fonctionne l\'essai gratuit ?',
-        'answer': 'L\'essai gratuit vous donne accès à toutes les fonctionnalités de base pendant 30 jours. Aucune carte de crédit n\'est requise pour commencer.'
-      },
-      {
-        'question': 'Que se passe-t-il à la fin de mon essai gratuit ?',
-        'answer': 'À la fin de votre essai gratuit, vous pourrez choisir de passer à l\'un de nos plans payants. Si vous ne faites pas de choix, votre compte sera automatiquement limité.'
-      },
-      {
-        'question': 'Proposez-vous des remises pour les paiements annuels ?',
-        'answer': 'Oui, nous offrons une remise de 15% pour tous les paiements annuels sur les plans basic, Starter et Starter Pro.'
-      },
-    ];
+  Widget _buildComparisonTable() {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 40, vertical: 60),
+      child: Column(
+        children: [
+          FadeInUp(
+            child: Text(
+              'Comparez nos offres',
+              style: AppConstants.getHeadlineFont().copyWith(fontSize: 36),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          SizedBox(height: 40),
+          FadeInUp(
+            delay: AppConstants.shortAnimationDuration,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(AppConstants.cardBorderRadius),
+                  border: Border.all(color: Colors.grey[200]!),
+                ),
+                child: DataTable(
+                  headingRowColor: MaterialStateProperty.all(
+                    AppConstants.primaryColor.withOpacity(0.1),
+                  ),
+                  columns: [
+                    DataColumn(
+                      label: Text(
+                        'Fonctionnalités',
+                        style: AppConstants.getBodyFont().copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    ...AppConstants.pricingPlans.map((plan) => DataColumn(
+                      label: Text(
+                        plan['name'],
+                        style: AppConstants.getBodyFont().copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: plan['color'] as Color,
+                        ),
+                      ),
+                    )),
+                  ],
+                  rows: [
+                    _buildComparisonRow('Chambres', ['14', '20', 'Illimité', 'Illimité']),
+                    _buildComparisonRow('Employés', ['3', '10', '20', 'Illimité']),
+                    _buildComparisonRow('Réservations', ['❌', '✅', '✅', '✅']),
+                    _buildComparisonRow('Gestion resto', ['❌', '❌', '✅', '✅']),
+                    _buildComparisonRow('Analyses temps réel', ['❌', '❌', '✅', '✅']),
+                    _buildComparisonRow('Support', ['Base', 'Standard', '24/7', 'Prioritaire']),
+                    _buildComparisonRow('API', ['❌', '❌', '❌', '✅']),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
+  DataRow _buildComparisonRow(String feature, List<String> values) {
+    return DataRow(
+      cells: [
+        DataCell(Text(
+          feature,
+          style: AppConstants.getBodyFont().copyWith(fontWeight: FontWeight.w600),
+        )),
+        ...values.map((value) => DataCell(Text(
+          value,
+          style: AppConstants.getBodyFont(),
+        ))),
+      ],
+    );
+  }
+
+  Widget _buildFAQSection() {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 40, vertical: 60),
       color: Colors.grey[50],
@@ -424,111 +624,165 @@ class GestoPricingPage extends StatelessWidget {
         children: [
           FadeInUp(
             child: Text(
-              'Questions fréquentes',
-              style: headlineFont.copyWith(fontSize: 32),
+              AppConstants.faqSectionTitle,
+              style: AppConstants.getHeadlineFont().copyWith(fontSize: 36),
               textAlign: TextAlign.center,
             ),
           ),
           SizedBox(height: 40),
-          ...faqs.map((faq) => FadeInUp(
-            child: _buildFAQItem(faq['question']!, faq['answer']!, bodyFont),
-          )).toList(),
+          Container(
+            constraints: BoxConstraints(maxWidth: 900),
+            child: Column(
+              children: AppConstants.pricingFaqs.map((faq) {
+                return FadeInUp(
+                  child: _buildFAQItem(faq['question']!, faq['answer']!),
+                );
+              }).toList(),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildFAQItem(String question, String answer, TextStyle bodyFont) {
+  Widget _buildFAQItem(String question, String answer) {
     return Container(
-        margin: EdgeInsets.only(bottom: 16),
-    decoration: BoxDecoration(
-    color: Colors.white,
-    borderRadius: BorderRadius.circular(12),
-    boxShadow: [
-    BoxShadow(
-    color: Colors.black.withOpacity(0.03),
-    blurRadius: 10,
-    offset: Offset(0, 3),
-    ),
-    ],
-    ),child: ExpansionTile(
-      tilePadding: EdgeInsets.symmetric(horizontal: 20, vertical: 5),
-      title: Text(
-        question,
-        style: bodyFont.copyWith(
-          fontWeight: FontWeight.w600,
-          fontSize: 17,
-        ),
+      margin: EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: Offset(0, 3),
+          ),
+        ],
       ),
-      children: [
-        Padding(
-          padding: EdgeInsets.fromLTRB(20, 0, 20, 16),
-          child: Text(
-            answer,
-            style: bodyFont.copyWith(
-              fontSize: 15,
-              color: Colors.grey[700],
+      child: Theme(
+        data: ThemeData().copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: EdgeInsets.symmetric(horizontal: 20, vertical: 5),
+          childrenPadding: EdgeInsets.fromLTRB(20, 0, 20, 20),
+          iconColor: AppConstants.primaryColor,
+          collapsedIconColor: Colors.grey[600],
+          title: Text(
+            question,
+            style: AppConstants.getBodyFont().copyWith(
+              fontWeight: FontWeight.w600,
+              fontSize: 17,
             ),
           ),
+          children: [
+            Text(
+              answer,
+              style: AppConstants.getBodyFont(color: Colors.grey[700]),
+            ),
+          ],
         ),
-      ],
-    ),
+      ),
     );
   }
 
-  Widget _buildCtaSection(BuildContext context, TextStyle headlineFont, TextStyle bodyFont, Color primaryColor) {
+  Widget _buildCtaSection(BuildContext context) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 80),
+      padding: EdgeInsets.symmetric(horizontal: 40, vertical: 80),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppConstants.primaryColor.withOpacity(0.9),
+            AppConstants.secondaryColor.withOpacity(0.9),
+          ],
+        ),
+      ),
       child: Column(
         children: [
           FadeInUp(
             child: Text(
-              'Prêt à transformer votre hôtel ?',
-              style: headlineFont.copyWith(fontSize: 32),
+              AppConstants.pricingCtaTitle,
+              style: AppConstants.getHeadlineFont(color: Colors.white)
+                  .copyWith(fontSize: 36),
               textAlign: TextAlign.center,
             ),
           ),
           SizedBox(height: 20),
           FadeInUp(
-            delay: Duration(milliseconds: 200),
-            child: Text(
-              'Découvrez comment Gesto peut vous aider à augmenter vos revenus et améliorer la satisfaction de vos clients',
-              style: bodyFont.copyWith(fontSize: 18),
-              textAlign: TextAlign.center,
+            delay: AppConstants.shortAnimationDuration,
+            child: Container(
+              constraints: BoxConstraints(maxWidth: 700),
+              child: Text(
+                AppConstants.pricingCtaSubtitle,
+                style: AppConstants.getBodyFont(
+                  color: Colors.white.withOpacity(0.95),
+                ).copyWith(fontSize: 18),
+                textAlign: TextAlign.center,
+              ),
             ),
           ),
-          SizedBox(height: 40),
+          SizedBox(height: 50),
           FadeInUp(
-            delay: Duration(milliseconds: 300),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    backgroundColor: primaryColor,
-                    padding: EdgeInsets.symmetric(horizontal: 30, vertical: 15),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
+            delay: AppConstants.mediumAnimationDuration,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                if (constraints.maxWidth < AppConstants.mobileBreakpoint) {
+                  return Column(
+                    children: [
+                      _buildCtaButton(
+                        context,
+                        'Démarrer gratuitement',
+                        Icons.rocket_launch,
+                        true,
+                            () => Navigator.pushNamed(
+                          context,
+                          AppRoutes.register,
+                          arguments: {
+                            'planId': 'basic',
+                            'billingCycle': 'monthly',
+                          },
+                        ),
+                      ),
+                      SizedBox(height: 15),
+                      _buildCtaButton(
+                        context,
+                        'Contacter un expert',
+                        Icons.support_agent,
+                        false,
+                            () => Navigator.pushNamed(context, AppRoutes.contactpage),
+                      ),
+                    ],
+                  );
+                }
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _buildCtaButton(
+                      context,
+                      'Démarrer gratuitement',
+                      Icons.rocket_launch,
+                      true,
+                          () => Navigator.pushNamed(
+                        context,
+                        AppRoutes.register,
+                        arguments: {
+                          'planId': 'basic',
+                          'billingCycle': 'monthly',
+                        },
+                      ),
                     ),
-                  ),
-                  onPressed: () => Navigator.pushNamed(context, AppRoutes.register),
-                  child: Text('Démarrer gratuitement'),
-                ),
-                SizedBox(width: 20),
-                OutlinedButton(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: primaryColor,
-                    side: BorderSide(color: primaryColor),
-                    padding: EdgeInsets.symmetric(horizontal: 30, vertical: 15),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
+                    SizedBox(width: 20),
+                    _buildCtaButton(
+                      context,
+                      'Contacter un expert',
+                      Icons.support_agent,
+                      false,
+                          () => Navigator.pushNamed(context, AppRoutes.contactpage),
                     ),
-                  ),
-                  onPressed: () => Navigator.pushNamed(context, AppRoutes.contactpage),
-                  child: Text('Contacter un expert'),
-                ),
-              ],
+                  ],
+                );
+              },
             ),
           ),
         ],
@@ -536,73 +790,103 @@ class GestoPricingPage extends StatelessWidget {
     );
   }
 
-  Widget _buildFooter(TextStyle bodyFont, Color darkColor) {
+  Widget _buildCtaButton(
+      BuildContext context,
+      String text,
+      IconData icon,
+      bool isPrimary,
+      VoidCallback onPressed,
+      ) {
+    if (isPrimary) {
+      return ElevatedButton.icon(
+        icon: Icon(icon),
+        style: ElevatedButton.styleFrom(
+          foregroundColor: AppConstants.primaryColor,
+          backgroundColor: Colors.white,
+          padding: EdgeInsets.symmetric(horizontal: 35, vertical: 18),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppConstants.buttonBorderRadius),
+          ),
+          elevation: 8,
+        ),
+        onPressed: onPressed,
+        label: Text(
+          text,
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+      );
+    } else {
+      return OutlinedButton.icon(
+        icon: Icon(icon),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: Colors.white,
+          side: BorderSide(color: Colors.white, width: 2),
+          padding: EdgeInsets.symmetric(horizontal: 35, vertical: 18),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppConstants.buttonBorderRadius),
+          ),
+        ),
+        onPressed: onPressed,
+        label: Text(
+          text,
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+      );
+    }
+  }
+
+  Widget _buildFooter(BuildContext context) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 40),
-      color: darkColor,
+      padding: EdgeInsets.symmetric(horizontal: 40, vertical: 40),
+      color: AppConstants.darkColor,
       child: Column(
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(
-                'Gesto',
-                style: bodyFont.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 24,
-                ),
+              Image.asset(
+                AppConstants.logoPath,
+                height: 40,
               ),
+              SizedBox(width: 10),
               Text(
-                ' - Solutions hôtelières',
-                style: bodyFont.copyWith(
-                  color: Colors.white70,
-                  fontSize: 16,
-                ),
+                AppConstants.appName,
+                style: AppConstants.getHeadlineFont(color: Colors.white)
+                    .copyWith(fontSize: 24),
               ),
             ],
           ),
-          SizedBox(height: 20),
+          SizedBox(height: 15),
           Text(
-            '© ${DateTime.now().year} Gesto. Tous droits réservés.',
-            style: bodyFont.copyWith(
-              color: Colors.white60,
-              fontSize: 14,
-            ),
+            AppConstants.appDescription,
+            style: AppConstants.getBodyFont(color: Colors.white70)
+                .copyWith(fontSize: 16),
+            textAlign: TextAlign.center,
           ),
-          SizedBox(height: 20),
+          SizedBox(height: 25),
+          Text(
+            AppConstants.copyrightText,
+            style: AppConstants.getBodyFont(color: Colors.white60)
+                .copyWith(fontSize: 14),
+          ),
+          SizedBox(height: 25),
           Wrap(
             spacing: 20,
-            children: [
-              TextButton(
-                onPressed: () {},
+            runSpacing: 10,
+            alignment: WrapAlignment.center,
+            children: AppConstants.footerSections['Légal']!.map((item) {
+              return TextButton(
+                onPressed: () {
+                  if (item['route'] != null) {
+                    Navigator.pushNamed(context, item['route']!);
+                  }
+                },
                 child: Text(
-                  'Mentions légales',
-                  style: bodyFont.copyWith(color: Colors.white70),
+                  item['label']!,
+                  style: AppConstants.getBodyFont(color: Colors.white70),
                 ),
-              ),
-              TextButton(
-                onPressed: () {},
-                child: Text(
-                  'Politique de confidentialité',
-                  style: bodyFont.copyWith(color: Colors.white70),
-                ),
-              ),
-              TextButton(
-                onPressed: () {},
-                child: Text(
-                  'Conditions générales',
-                  style: bodyFont.copyWith(color: Colors.white70),
-                ),
-              ),
-              TextButton(
-                onPressed: () {},
-                child: Text(
-                  'Contact',
-                  style: bodyFont.copyWith(color: Colors.white70),
-                ),
-              ),
-            ],
+              );
+            }).toList(),
           ),
         ],
       ),

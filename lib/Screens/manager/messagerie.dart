@@ -185,14 +185,18 @@ class ListeUtilisateurs extends StatelessWidget {
   Widget build(BuildContext context) {
     final provider = Provider.of<MessageProvider>(context);
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return Expanded(
       flex: 1,
       child: Card(
-        elevation: 3,
+        elevation: 0,
         margin: EdgeInsets.all(12),
+        surfaceTintColor: colorScheme.surfaceTint,
+        color: colorScheme.surface,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: colorScheme.outlineVariant, width: 1),
         ),
         child: Padding(
           padding: EdgeInsets.all(16),
@@ -205,24 +209,36 @@ class ListeUtilisateurs extends StatelessWidget {
                 children: [
                   Text(
                     'Destinataires',
-                    style: theme.textTheme.titleLarge?.copyWith(
+                    style: theme.textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
                     ),
                   ),
                   if (!provider.estModeGroupe)
                     Container(
-                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       decoration: BoxDecoration(
-                        color: theme.primaryColor.withOpacity(0.1),
+                        color: colorScheme.primaryContainer,
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: Text(
-                        '${provider.utilisateursSelectionnes.length} sélectionné(s)',
-                        style: TextStyle(
-                          color: theme.primaryColor,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                        ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.check_circle,
+                            size: 16,
+                            color: colorScheme.onPrimaryContainer,
+                          ),
+                          SizedBox(width: 6),
+                          Text(
+                            '${provider.utilisateursSelectionnes.length} sélectionné(s)',
+                            style: TextStyle(
+                              color: colorScheme.onPrimaryContainer,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                 ],
@@ -231,26 +247,25 @@ class ListeUtilisateurs extends StatelessWidget {
               SizedBox(height: 16),
 
               // Champ de recherche
-              TextField(
+              SearchBar(
                 onChanged: (value) => provider.updateSearchQuery(value),
-                decoration: InputDecoration(
-                  prefixIcon: Icon(Icons.search, color: Colors.grey),
-                  hintText: 'Rechercher un utilisateur...',
-                  filled: true,
-                  fillColor: Colors.grey[100],
-                  contentPadding: EdgeInsets.symmetric(vertical: 0, horizontal: 16),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(30),
-                    borderSide: BorderSide.none,
+                hintText: 'Rechercher un utilisateur...',
+                leading: Icon(Icons.search, color: colorScheme.onSurfaceVariant),
+                trailing: provider.searchQuery.isNotEmpty ? [
+                  IconButton(
+                    icon: Icon(Icons.clear, color: colorScheme.onSurfaceVariant),
+                    onPressed: () => provider.updateSearchQuery(''),
                   ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(30),
-                    borderSide: BorderSide.none,
+                ] : null,
+                elevation: MaterialStateProperty.all(0),
+                backgroundColor: MaterialStateProperty.all(colorScheme.surfaceVariant),
+                shape: MaterialStateProperty.all(
+                  RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(28),
                   ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(30),
-                    borderSide: BorderSide(color: theme.primaryColor, width: 1),
-                  ),
+                ),
+                padding: MaterialStateProperty.all(
+                  EdgeInsets.symmetric(horizontal: 16),
                 ),
               ),
 
@@ -263,13 +278,38 @@ class ListeUtilisateurs extends StatelessWidget {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.people_alt_outlined, size: 48, color: Colors.grey[400]),
-                      SizedBox(height: 16),
+                      Container(
+                        padding: EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: colorScheme.surfaceVariant,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          provider.searchQuery.isEmpty
+                              ? Icons.people_alt_outlined
+                              : Icons.search_off,
+                          size: 48,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      SizedBox(height: 20),
                       Text(
                         provider.searchQuery.isEmpty
                             ? 'Aucun utilisateur disponible'
                             : 'Aucun résultat trouvé',
-                        style: TextStyle(color: Colors.grey[600]),
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: colorScheme.onSurface,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        provider.searchQuery.isEmpty
+                            ? 'Les utilisateurs apparaîtront ici'
+                            : 'Essayez une autre recherche',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     ],
                   ),
@@ -290,73 +330,119 @@ class ListeUtilisateurs extends StatelessWidget {
                         .join('')
                         .toUpperCase();
 
-                    return ListTile(
-                      enabled: !provider.estModeGroupe,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      leading: CircleAvatar(
-                        backgroundColor: estSelectionne
-                            ? theme.primaryColor
-                            : Colors.grey[300],
-                        foregroundColor: estSelectionne
-                            ? Colors.white
-                            : Colors.grey[800],
-                        radius: 24,
-                        child: Text(
-                          initiales,
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
+                    return AnimatedContainer(
+                      duration: Duration(milliseconds: 200),
+                      curve: Curves.easeInOut,
+                      margin: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        color: estSelectionne
+                            ? colorScheme.primaryContainer.withOpacity(0.3)
+                            : Colors.transparent,
                       ),
-                      title: Text(
-                        utilisateur.fullName,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: estSelectionne
-                              ? theme.primaryColor
-                              : Colors.black87,
-                        ),
-                      ),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            utilisateur.email,
-                            style: TextStyle(fontSize: 13),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: provider.estModeGroupe
+                              ? null
+                              : () => provider.toggleUtilisateur(utilisateur),
+                          borderRadius: BorderRadius.circular(12),
+                          child: ListTile(
+                          enabled: !provider.estModeGroupe,
+                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          Text(
-                            utilisateur.establishmentName,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey[600],
-                              fontStyle: FontStyle.italic,
+                          leading: CircleAvatar(
+                            backgroundColor: estSelectionne
+                                ? colorScheme.primaryContainer
+                                : colorScheme.surfaceVariant,
+                            foregroundColor: estSelectionne
+                                ? colorScheme.onPrimaryContainer
+                                : colorScheme.onSurfaceVariant,
+                            radius: 24,
+                            child: Text(
+                              initiales,
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
                             ),
                           ),
-                        ],
-                      ),
-                      isThreeLine: true,
-                      trailing: provider.estModeGroupe
-                          ? Icon(
-                        Icons.check_circle,
-                        color: theme.primaryColor,
-                      )
-                          : Checkbox(
-                        value: estSelectionne,
-                        activeColor: theme.primaryColor,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(4),
+                          title: Text(
+                            utilisateur.fullName,
+                            style: theme.textTheme.bodyLarge?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: estSelectionne
+                                  ? colorScheme.primary
+                                  : colorScheme.onSurface,
+                            ),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.email_outlined,
+                                    size: 14,
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                  SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      utilisateur.email,
+                                      style: theme.textTheme.bodyMedium?.copyWith(
+                                        color: colorScheme.onSurfaceVariant,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.business_outlined,
+                                    size: 14,
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                  SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      utilisateur.establishmentName,
+                                      style: theme.textTheme.bodySmall?.copyWith(
+                                        color: colorScheme.onSurfaceVariant,
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          isThreeLine: true,
+                          trailing: provider.estModeGroupe
+                              ? Icon(
+                            Icons.check_circle,
+                            color: colorScheme.primary,
+                          )
+                              : Checkbox(
+                            value: estSelectionne,
+                            activeColor: colorScheme.primary,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            onChanged: (value) {
+                              provider.toggleUtilisateur(utilisateur);
+                            },
+                          ),
                         ),
-                        onChanged: (value) {
-                          provider.toggleUtilisateur(utilisateur);
-                        },
                       ),
-                      onTap: provider.estModeGroupe
-                          ? null
-                          : () {
-                        provider.toggleUtilisateur(utilisateur);
-                      },
-                    );
+                    ));
                   },
                 ),
               ),
@@ -409,13 +495,18 @@ class _ComposerMessageState extends State<ComposerMessage> {
     final provider = Provider.of<MessageProvider>(context);
     final theme = Theme.of(context);
 
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return Expanded(
       flex: 2,
       child: Card(
-        elevation: 3,
+        elevation: 0,
         margin: EdgeInsets.all(12),
+        surfaceTintColor: colorScheme.surfaceTint,
+        color: colorScheme.surface,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: colorScheme.outlineVariant, width: 1),
         ),
         child: Padding(
           padding: EdgeInsets.all(24),
@@ -432,31 +523,32 @@ class _ComposerMessageState extends State<ComposerMessage> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.grey[100],
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _ModeButton(
-                          text: 'Spécifique',
-                          isActive: !provider.estModeGroupe,
-                          onTap: () {
-                            if (provider.estModeGroupe) provider.toggleModeGroupe();
-                          },
-                        ),
-                        SizedBox(width: 8),
-                        _ModeButton(
-                          text: 'Tous',
-                          isActive: provider.estModeGroupe,
-                          onTap: () {
-                            if (!provider.estModeGroupe) provider.toggleModeGroupe();
-                          },
-                        ),
-                      ],
+                  SegmentedButton<bool>(
+                    segments: [
+                      ButtonSegment<bool>(
+                        value: false,
+                        label: Text('Spécifique'),
+                        icon: Icon(Icons.person_outline),
+                      ),
+                      ButtonSegment<bool>(
+                        value: true,
+                        label: Text('Tous'),
+                        icon: Icon(Icons.groups_outlined),
+                      ),
+                    ],
+                    selected: {provider.estModeGroupe},
+                    onSelectionChanged: (Set<bool> selection) {
+                      if (selection.first != provider.estModeGroupe) {
+                        provider.toggleModeGroupe();
+                      }
+                    },
+                    style: ButtonStyle(
+                      backgroundColor: MaterialStateProperty.resolveWith((states) {
+                        if (states.contains(MaterialState.selected)) {
+                          return colorScheme.secondaryContainer;
+                        }
+                        return null;
+                      }),
                     ),
                   ),
                 ],
@@ -466,22 +558,36 @@ class _ComposerMessageState extends State<ComposerMessage> {
 
               // Mode actuel
               Container(
-                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 decoration: BoxDecoration(
                   color: provider.estModeGroupe
-                      ? theme.primaryColor.withOpacity(0.1)
-                      : Colors.grey[100],
-                  borderRadius: BorderRadius.circular(4),
+                      ? colorScheme.primaryContainer
+                      : colorScheme.secondaryContainer,
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: Text(
-                  provider.estModeGroupe
-                      ? 'Message à tous les utilisateurs'
-                      : 'Message aux ${provider.utilisateursSelectionnes.length} utilisateur(s) sélectionné(s)',
-                  style: TextStyle(
-                    color: provider.estModeGroupe ? theme.primaryColor : Colors.grey[800],
-                    fontWeight: FontWeight.w500,
-                    fontSize: 13,
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      provider.estModeGroupe ? Icons.groups : Icons.people,
+                      size: 16,
+                      color: provider.estModeGroupe
+                          ? colorScheme.onPrimaryContainer
+                          : colorScheme.onSecondaryContainer,
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      provider.estModeGroupe
+                          ? 'Message à tous les utilisateurs'
+                          : 'Message aux ${provider.utilisateursSelectionnes.length} utilisateur(s) sélectionné(s)',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: provider.estModeGroupe
+                            ? colorScheme.onPrimaryContainer
+                            : colorScheme.onSecondaryContainer,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
               ),
 
@@ -494,21 +600,21 @@ class _ComposerMessageState extends State<ComposerMessage> {
                 decoration: InputDecoration(
                   hintText: 'Quel est le sujet de votre message ?',
                   labelText: 'Titre',
-                  prefixIcon: Icon(Icons.title, color: theme.primaryColor),
+                  prefixIcon: Icon(Icons.title_rounded, color: colorScheme.primary),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey[300]!),
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide(color: colorScheme.outline),
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey[300]!),
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide(color: colorScheme.outline),
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: theme.primaryColor, width: 2),
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide(color: colorScheme.primary, width: 2),
                   ),
                   filled: true,
-                  fillColor: Colors.grey[50],
+                  fillColor: colorScheme.surfaceVariant.withOpacity(0.3),
                   contentPadding: EdgeInsets.all(16),
                 ),
               ),
@@ -519,8 +625,9 @@ class _ComposerMessageState extends State<ComposerMessage> {
               Expanded(
                 child: Container(
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey[300]!),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: colorScheme.outline),
+                    color: colorScheme.surfaceVariant.withOpacity(0.3),
                   ),
                   child: Column(
                     children: [
@@ -528,10 +635,10 @@ class _ComposerMessageState extends State<ComposerMessage> {
                       Container(
                         padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                         decoration: BoxDecoration(
-                          color: Colors.grey[100],
+                          color: colorScheme.surfaceVariant,
                           borderRadius: BorderRadius.only(
-                            topLeft: Radius.circular(11),
-                            topRight: Radius.circular(11),
+                            topLeft: Radius.circular(15),
+                            topRight: Radius.circular(15),
                           ),
                         ),
                         child: Row(
@@ -540,59 +647,66 @@ class _ComposerMessageState extends State<ComposerMessage> {
                               icon: Icon(Icons.format_bold, size: 20),
                               onPressed: () {},
                               tooltip: 'Gras',
-                              color: Colors.grey[700],
-                              padding: EdgeInsets.all(4),
-                              constraints: BoxConstraints(),
+                              color: colorScheme.onSurfaceVariant,
+                              style: IconButton.styleFrom(
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
                             ),
                             IconButton(
                               icon: Icon(Icons.format_italic, size: 20),
                               onPressed: () {},
                               tooltip: 'Italique',
-                              color: Colors.grey[700],
-                              padding: EdgeInsets.all(4),
-                              constraints: BoxConstraints(),
+                              color: colorScheme.onSurfaceVariant,
+                              style: IconButton.styleFrom(
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
                             ),
                             IconButton(
                               icon: Icon(Icons.format_underlined, size: 20),
                               onPressed: () {},
                               tooltip: 'Souligné',
-                              color: Colors.grey[700],
-                              padding: EdgeInsets.all(4),
-                              constraints: BoxConstraints(),
+                              color: colorScheme.onSurfaceVariant,
+                              style: IconButton.styleFrom(
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
                             ),
                             VerticalDivider(width: 16, thickness: 1, indent: 4, endIndent: 4),
                             IconButton(
                               icon: Icon(Icons.format_list_bulleted, size: 20),
                               onPressed: () {},
                               tooltip: 'Liste à puces',
-                              color: Colors.grey[700],
-                              padding: EdgeInsets.all(4),
-                              constraints: BoxConstraints(),
+                              color: colorScheme.onSurfaceVariant,
+                              style: IconButton.styleFrom(
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
                             ),
                             IconButton(
                               icon: Icon(Icons.format_list_numbered, size: 20),
                               onPressed: () {},
                               tooltip: 'Liste numérotée',
-                              color: Colors.grey[700],
-                              padding: EdgeInsets.all(4),
-                              constraints: BoxConstraints(),
+                              color: colorScheme.onSurfaceVariant,
+                              style: IconButton.styleFrom(
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
                             ),
                             Spacer(),
                             IconButton(
                               icon: Icon(Icons.attach_file, size: 20),
                               onPressed: () {},
                               tooltip: 'Pièce jointe',
-                              color: Colors.grey[700],
-                              padding: EdgeInsets.all(4),
-                              constraints: BoxConstraints(),
+                              color: colorScheme.onSurfaceVariant,
+                              style: IconButton.styleFrom(
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
                             ),
                             IconButton(
                               icon: Icon(Icons.emoji_emotions_outlined, size: 20),
                               onPressed: () {},
                               tooltip: 'Emoji',
-                              color: Colors.grey[700],
-                              padding: EdgeInsets.all(4),
-                              constraints: BoxConstraints(),
+                              color: colorScheme.onSurfaceVariant,
+                              style: IconButton.styleFrom(
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
                             ),
                           ],
                         ),
@@ -622,20 +736,34 @@ class _ComposerMessageState extends State<ComposerMessage> {
                       Container(
                         padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         decoration: BoxDecoration(
-                          color: Colors.grey[50],
+                          color: colorScheme.surfaceVariant,
                           borderRadius: BorderRadius.only(
-                            bottomLeft: Radius.circular(11),
-                            bottomRight: Radius.circular(11),
+                            bottomLeft: Radius.circular(15),
+                            bottomRight: Radius.circular(15),
                           ),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
+                            Icon(
+                              _caracteresRestants < 100
+                                  ? Icons.warning_amber_rounded
+                                  : Icons.check_circle_outline,
+                              size: 14,
+                              color: _caracteresRestants < 100
+                                  ? colorScheme.error
+                                  : colorScheme.onSurfaceVariant,
+                            ),
+                            SizedBox(width: 6),
                             Text(
                               '$_caracteresRestants caractères restants',
-                              style: TextStyle(
-                                color: _caracteresRestants < 100 ? Colors.red : Colors.grey[600],
-                                fontSize: 12,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: _caracteresRestants < 100
+                                    ? colorScheme.error
+                                    : colorScheme.onSurfaceVariant,
+                                fontWeight: _caracteresRestants < 100
+                                    ? FontWeight.w600
+                                    : FontWeight.normal,
                               ),
                             ),
                           ],
@@ -655,21 +783,25 @@ class _ComposerMessageState extends State<ComposerMessage> {
                   // Erreur si aucun destinataire n'est sélectionné
                   if (!provider.estModeGroupe && provider.utilisateursSelectionnes.isEmpty)
                     Container(
-                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                       decoration: BoxDecoration(
-                        color: Colors.red[50],
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: Colors.red[100]!),
+                        color: colorScheme.errorContainer,
+                        borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.error_outline, color: Colors.red, size: 16),
+                          Icon(
+                            Icons.error_outline,
+                            color: colorScheme.onErrorContainer,
+                            size: 18,
+                          ),
                           SizedBox(width: 8),
                           Text(
                             'Sélectionnez au moins un destinataire',
-                            style: TextStyle(
-                              color: Colors.red[700],
-                              fontSize: 13,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onErrorContainer,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ],
@@ -687,11 +819,11 @@ class _ComposerMessageState extends State<ComposerMessage> {
                     icon: Icon(Icons.delete_outline),
                     label: Text('Annuler'),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.grey[700],
-                      side: BorderSide(color: Colors.grey[400]!),
-                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                      foregroundColor: colorScheme.onSurface,
+                      side: BorderSide(color: colorScheme.outline),
+                      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                     ),
                   ),
@@ -699,7 +831,7 @@ class _ComposerMessageState extends State<ComposerMessage> {
                   SizedBox(width: 12),
 
                   // Bouton d'envoi
-                  ElevatedButton.icon(
+                  FilledButton.icon(
                     onPressed: _envoiEnCours ||
                         (_messageController.text.trim().isEmpty) ||
                         (_titreController.text.trim().isEmpty) ||
@@ -726,48 +858,56 @@ class _ComposerMessageState extends State<ComposerMessage> {
                         _messageController.clear();
 
                         // Message de succès plus moderne
+                        if (!context.mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Row(
                               children: [
-                                Icon(Icons.check_circle, color: Colors.white),
+                                Icon(Icons.check_circle_rounded, color: colorScheme.onPrimaryContainer),
                                 SizedBox(width: 16),
                                 Expanded(
                                   child: Text(
                                     provider.estModeGroupe
                                         ? 'Message envoyé à tous les utilisateurs'
                                         : 'Message envoyé à ${provider.utilisateursSelectionnes.length} destinataire(s)',
+                                    style: TextStyle(color: colorScheme.onPrimaryContainer),
                                   ),
                                 ),
                               ],
                             ),
-                            backgroundColor: Colors.green[600],
+                            backgroundColor: colorScheme.primaryContainer,
                             behavior: SnackBarBehavior.floating,
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: BorderRadius.circular(12),
                             ),
                             action: SnackBarAction(
                               label: 'OK',
-                              textColor: Colors.white,
+                              textColor: colorScheme.primary,
                               onPressed: () {},
                             ),
                           ),
                         );
                       } else {
                         // Message d'erreur plus moderne
+                        if (!context.mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Row(
                               children: [
-                                Icon(Icons.error_outline, color: Colors.white),
+                                Icon(Icons.error_outline_rounded, color: colorScheme.onErrorContainer),
                                 SizedBox(width: 16),
-                                Expanded(child: Text('Erreur lors de l\'envoi du message')),
+                                Expanded(
+                                  child: Text(
+                                    'Erreur lors de l\'envoi du message',
+                                    style: TextStyle(color: colorScheme.onErrorContainer),
+                                  ),
+                                ),
                               ],
                             ),
-                            backgroundColor: Colors.red[600],
+                            backgroundColor: colorScheme.errorContainer,
                             behavior: SnackBarBehavior.floating,
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: BorderRadius.circular(12),
                             ),
                           ),
                         );
@@ -775,26 +915,22 @@ class _ComposerMessageState extends State<ComposerMessage> {
                     },
                     icon: _envoiEnCours
                         ? SizedBox(
-                      width: 20,
-                      height: 20,
+                      width: 18,
+                      height: 18,
                       child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2,
+                        color: colorScheme.onPrimary,
+                        strokeWidth: 2.5,
                       ),
                     )
-                        : Icon(Icons.send),
-                    label: Text(_envoiEnCours ? 'Envoi en cours...' : 'Envoyer'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: theme.primaryColor,
-                      foregroundColor: Colors.white,
-                      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                      textStyle: TextStyle(
+                        : Icon(Icons.send_rounded),
+                    label: Text(_envoiEnCours ? 'Envoi...' : 'Envoyer'),
+                    style: FilledButton.styleFrom(
+                      padding: EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                      textStyle: theme.textTheme.labelLarge?.copyWith(
                         fontWeight: FontWeight.bold,
-                        fontSize: 15,
                       ),
-                      elevation: 2,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                     ),
                   ),
@@ -902,51 +1038,24 @@ class _PageMessagerieComponentState extends State<PageMessagerieComponent> with 
       appBar: AppBar(
         title: Text(
           'Messagerie',
-          style: TextStyle(
+          style: theme.textTheme.titleLarge?.copyWith(
             fontWeight: FontWeight.bold,
           ),
         ),
-        backgroundColor: theme.primaryColor,
-        foregroundColor: Colors.white,
         elevation: 0,
+        scrolledUnderElevation: 3,
         actions: [
           // Badge avec notifications (pour montrer l'aspect moderne)
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              IconButton(
-                icon: Icon(Icons.notifications_outlined),
-                onPressed: () {},
-                tooltip: 'Notifications',
-              ),
-              Positioned(
-                top: 10,
-                right: 10,
-                child: Container(
-                  padding: EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: Colors.red,
-                    shape: BoxShape.circle,
-                  ),
-                  constraints: BoxConstraints(
-                    minWidth: 12,
-                    minHeight: 12,
-                  ),
-                  child: Text(
-                    '3',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 8,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ),
-            ],
+          Badge(
+            label: Text('3'),
+            child: IconButton(
+              icon: Icon(Icons.notifications_outlined),
+              onPressed: () {},
+              tooltip: 'Notifications',
+            ),
           ),
           IconButton(
-            icon: Icon(Icons.refresh),
+            icon: Icon(Icons.refresh_rounded),
             onPressed: () {
               setState(() {
                 _chargementEnCours = true;
@@ -956,61 +1065,53 @@ class _PageMessagerieComponentState extends State<PageMessagerieComponent> with 
             tooltip: 'Actualiser',
           ),
           PopupMenuButton(
-            icon: Icon(Icons.more_vert),
+            icon: Icon(Icons.more_vert_rounded),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
             itemBuilder: (context) => [
               PopupMenuItem(
                 value: 'archives',
-                child: Row(
-                  children: [
-                    Icon(Icons.archive, color: Colors.grey[700], size: 20),
-                    SizedBox(width: 12),
-                    Text('Archives'),
-                  ],
+                child: ListTile(
+                  leading: Icon(Icons.archive_outlined, size: 20),
+                  title: Text('Archives'),
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
                 ),
               ),
               PopupMenuItem(
                 value: 'settings',
-                child: Row(
-                  children: [
-                    Icon(Icons.settings, color: Colors.grey[700], size: 20),
-                    SizedBox(width: 12),
-                    Text('Paramètres'),
-                  ],
+                child: ListTile(
+                  leading: Icon(Icons.settings_outlined, size: 20),
+                  title: Text('Paramètres'),
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
                 ),
               ),
               PopupMenuItem(
                 value: 'help',
-                child: Row(
-                  children: [
-                    Icon(Icons.help_outline, color: Colors.grey[700], size: 20),
-                    SizedBox(width: 12),
-                    Text('Aide'),
-                  ],
+                child: ListTile(
+                  leading: Icon(Icons.help_outline_rounded, size: 20),
+                  title: Text('Aide'),
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
                 ),
               ),
             ],
           ),
         ],
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(
-            bottom: Radius.circular(16),
-          ),
-        ),
       ),
       body: _chargementEnCours
           ? Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(theme.primaryColor),
-            ),
+            CircularProgressIndicator(),
             SizedBox(height: 24),
             Text(
               'Chargement des utilisateurs...',
-              style: TextStyle(
-                color: Colors.grey[700],
-                fontSize: 16,
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
           ],
@@ -1020,7 +1121,7 @@ class _PageMessagerieComponentState extends State<PageMessagerieComponent> with 
         width: double.infinity,
         height: double.infinity,
         decoration: BoxDecoration(
-          color: Colors.grey[100],
+          color: theme.colorScheme.background,
         ),
         child: FadeTransition(
           opacity: _animation,
@@ -1032,46 +1133,64 @@ class _PageMessagerieComponentState extends State<PageMessagerieComponent> with 
                 // Message d'information sur l'utilisation
                 Padding(
                   padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                  child: Container(
-                    width: double.infinity,
-                    padding: EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.blue[50],
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.blue[200]!),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
-                        SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            'Sélectionnez des destinataires à gauche ou activez le mode "Tous" pour envoyer à tout le monde.',
-                            style: TextStyle(
-                              color: Colors.blue[700],
-                              fontSize: 13,
+                  child: Material(
+                    elevation: 0,
+                    borderRadius: BorderRadius.circular(16),
+                    color: theme.colorScheme.secondaryContainer,
+                    child: Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.info_outline_rounded,
+                            color: theme.colorScheme.onSecondaryContainer,
+                            size: 22,
+                          ),
+                          SizedBox(width: 16),
+                          Expanded(
+                            child: Text(
+                              'Sélectionnez des destinataires à gauche ou activez le mode "Tous" pour envoyer à tout le monde.',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.colorScheme.onSecondaryContainer,
+                              ),
                             ),
                           ),
-                        ),
-                        SizedBox(width: 8),
-                        InkWell(
-                          onTap: () {},
-                          child: Icon(Icons.close, color: Colors.blue[700], size: 16),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
 
                 // Zone principale avec la liste et le composeur
                 Expanded(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      ListeUtilisateurs(),
-                      ComposerMessage(expediteurId: widget.expediteurId),
-                    ],
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      // Responsive: affichage vertical sur petits écrans
+                      if (constraints.maxWidth < 800) {
+                        return SingleChildScrollView(
+                          child: Column(
+                            children: [
+                              SizedBox(
+                                height: 400,
+                                child: ListeUtilisateurs(),
+                              ),
+                              SizedBox(
+                                height: 600,
+                                child: ComposerMessage(expediteurId: widget.expediteurId),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+                      // Affichage horizontal sur grands écrans
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ListeUtilisateurs(),
+                          ComposerMessage(expediteurId: widget.expediteurId),
+                        ],
+                      );
+                    },
                   ),
                 ),
               ],

@@ -7,8 +7,45 @@ import 'dart:async';
 import '../../config/LicenceGenerator.dart';
 import '../../config/LicencePrinter.dart';
 
-// Importation de la classe LicenceGenerator
-// Assurez-vous que cette classe est accessible dans votre projet
+// Enums pour une meilleure gestion des types
+enum LicenceType {
+  basic('basic', 'Basic'),
+  starter('starter', 'Starter'),
+  pro('pro', 'Pro'),
+  entreprise('entreprise', 'Entreprise');
+
+  final String value;
+  final String label;
+  const LicenceType(this.value, this.label);
+}
+
+enum PeriodeType {
+  month('month', '1 Mois'),
+  sixMonths('6months', '6 Mois'),
+  year('year', '1 An');
+
+  final String value;
+  final String label;
+  const PeriodeType(this.value, this.label);
+}
+
+enum LicenceDuration {
+  week(7, '1 Semaine'),
+  month(30, '1 Mois'),
+  quarter(90, '3 Mois'),
+  semester(180, '6 Mois'),
+  year(365, '1 An');
+
+  final int days;
+  final String label;
+  const LicenceDuration(this.days, this.label);
+}
+
+// Extension pour faciliter les calculs de dates
+extension DateTimeExtension on DateTime {
+  bool get isExpired => DateTime.now().isAfter(this);
+  int get daysUntil => difference(DateTime.now()).inDays;
+}
 
 class LicenceManagerPage extends StatefulWidget {
   const LicenceManagerPage({Key? key}) : super(key: key);
@@ -22,26 +59,27 @@ class _LicenceManagerPageState extends State<LicenceManagerPage> {
   final _formKey = GlobalKey<FormState>();
 
   // Variables pour la génération de nouvelles licences
-  int _durationDays = 30;
-  String _licenceType = 'basic';
-  String _PeriodeType = 'month';
+  LicenceDuration _selectedDuration = LicenceDuration.month;
+  LicenceType _selectedLicenceType = LicenceType.basic;
+  PeriodeType _selectedPeriodeType = PeriodeType.month;
   bool _isGenerating = false;
   String? _lastGeneratedLicence;
 
-  // Liste des types de licences disponibles
-  final List<String> _licenceTypes = ['basic','starter', 'pro', 'entreprise'];
-  final List<String> _PeriodeTypes = ['month','6months', 'year'];
-
-
-  // Liste des durées prédéfinies en jours
-  final List<int> _durationOptions = [7, 30, 90, 180, 365];
+  // Variables pour les filtres
+  String _statusFilter = 'all'; // 'all', 'valid', 'expired'
+  LicenceType? _typeFilter;
+  PeriodeType? _periodeFilter;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Gestion des Licences'),
-        backgroundColor: Colors.blue,
+        centerTitle: true,
+        elevation: 0,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -49,306 +87,206 @@ class _LicenceManagerPageState extends State<LicenceManagerPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Section pour générer une nouvelle licence
-            Card(
-              elevation: 4,
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Générer une nouvelle licence',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      // Choix du type de licence
-                      DropdownButtonFormField<String>(
-                        decoration: const InputDecoration(
-                          labelText: 'Type de licence',
-                          border: OutlineInputBorder(),
-                        ),
-                        value: _licenceType,
-                        items: _licenceTypes.map((type) {
-                          return DropdownMenuItem<String>(
-                            value: type,
-                            child: Text(type),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            _licenceType = value!;
-                          });
-                        },
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Veuillez sélectionner un type de licence';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      // Choix du type de période
-                      DropdownButtonFormField<String>(
-                        decoration: const InputDecoration(
-                          labelText: 'Type de période',
-                          border: OutlineInputBorder(),
-                        ),
-                        value: _PeriodeType,
-                        items: _PeriodeTypes.map((type) {
-                          return DropdownMenuItem<String>(
-                            value: type,
-                            child: Text(type),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            _PeriodeType = value!;
-                          });
-                        },
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Veuillez sélectionner un type de période';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      // Choix de la durée
-                      DropdownButtonFormField<int>(
-                        decoration: const InputDecoration(
-                          labelText: 'Durée de validité (jours)',
-                          border: OutlineInputBorder(),
-                        ),
-                        value: _durationDays,
-                        items: _durationOptions.map((days) {
-                          return DropdownMenuItem<int>(
-                            value: days,
-                            child: Text('$days jours'),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            _durationDays = value!;
-                          });
-                        },
-                        validator: (value) {
-                          if (value == null) {
-                            return 'Veuillez sélectionner une durée';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 20),
-                      // Bouton de génération
-                      Center(
-                        child: ElevatedButton.icon(
-                          icon: const Icon(Icons.key),
-                          label: Text(_isGenerating
-                              ? 'Génération en cours...'
-                              : 'Générer une licence'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 12,
-                            ),
-                          ),
-                          onPressed: _isGenerating
-                              ? null
-                              : _generateNewLicence,
-                        ),
-                      ),
-
-                      // Affichage de la dernière licence générée
-                      if (_lastGeneratedLicence != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 16.0),
-                          child: Card(
-                            color: Colors.green.shade50,
-                            child: Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Licence générée avec succès :',
-                                    style: TextStyle(fontWeight: FontWeight.bold),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  SelectableText(
-                                    _lastGeneratedLicence!,
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontFamily: 'monospace',
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  OutlinedButton.icon(
-                                    icon: const Icon(Icons.copy),
-                                    label: const Text('Copier'),
-                                    onPressed: () {
-                                      _copyToClipboard(context,_lastGeneratedLicence!);
-                                    },
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
+            _LicenceGeneratorCard(
+              formKey: _formKey,
+              selectedDuration: _selectedDuration,
+              selectedLicenceType: _selectedLicenceType,
+              selectedPeriodeType: _selectedPeriodeType,
+              isGenerating: _isGenerating,
+              lastGeneratedLicence: _lastGeneratedLicence,
+              onDurationChanged: (value) => setState(() => _selectedDuration = value),
+              onLicenceTypeChanged: (value) => setState(() => _selectedLicenceType = value),
+              onPeriodeTypeChanged: (value) => setState(() => _selectedPeriodeType = value),
+              onGenerateLicence: _generateNewLicence,
+              onCopyLicence: (code) => _copyToClipboard(context, code),
             ),
-
             const SizedBox(height: 24),
 
             // Section pour afficher les licences existantes
-            const Text(
+            Text(
               'Licences existantes',
-              style: TextStyle(
-                fontSize: 18,
+              style: theme.textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
 
             // Liste des licences
             Expanded(
-              child: StreamBuilder<QuerySnapshot>(
-                stream: _licencesCollection
-                    .orderBy('generationDate', descending: true)
-                    .snapshots(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  if (snapshot.hasError) {
-                    return Center(
-                      child: Text('Erreur: ${snapshot.error}'),
-                    );
-                  }
-
-                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                    return const Center(
-                      child: Text('Aucune licence trouvée'),
-                    );
-                  }
-
-                  return ListView.builder(
-                    itemCount: snapshot.data!.docs.length,
-                    itemBuilder: (context, index) {
-                      final doc = snapshot.data!.docs[index];
-                      final data = doc.data() as Map<String, dynamic>;
-
-                      // Conversion des Timestamps en DateTime
-                      final generationDate = (data['generationDate'] as Timestamp).toDate();
-                      final expiryDate = (data['expiryDate'] as Timestamp).toDate();
-
-                      // Calcul de l'état de la licence
-                      final now = DateTime.now();
-                      final isExpired = now.isAfter(expiryDate);
-                      final daysLeft = expiryDate.difference(now).inDays;
-
-                      // Formatage des dates
-                      final dateFormat = DateFormat('dd/MM/yyyy');
-
-                      return Card(
-                        margin: const EdgeInsets.symmetric(vertical: 4),
-                        color: isExpired ? Colors.grey.shade200 : Colors.white,
-                        child: ListTile(
-                          title: Row(
-                            children: [
-                              Expanded(
-                                child: SelectableText(
-                                  data['code'] ?? '',
-                                  style: TextStyle(
-                                    fontFamily: 'monospace',
-                                    fontWeight: FontWeight.bold,
-                                    color: isExpired ? Colors.grey : Colors.black,
-                                    decoration: isExpired
-                                        ? TextDecoration.lineThrough
-                                        : null,
-                                  ),
-                                ),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.copy, size: 20),
-                                onPressed: () {
-                                  _copyToClipboard(context,data['code']);
-                                },
-                                tooltip: 'Copier la clé',
-                              ),
-                            ],
-                          ),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const SizedBox(height: 4),
-                              Text('Type: ${data['licenceType'] ?? 'Non spécifié'}'),
-                              Text('Période: ${data['periodeType'] ?? 'Non spécifié'}'),
-                              Text('Généré le: ${dateFormat.format(generationDate)}'),
-                              Text('Expire le: ${dateFormat.format(expiryDate)}'),
-                              const SizedBox(height: 4),
-                              // Badge d'état
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: isExpired
-                                      ? Colors.red.shade100
-                                      : (daysLeft < 30
-                                      ? Colors.orange.shade100
-                                      : Colors.green.shade100),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  isExpired
-                                      ? 'Expirée'
-                                      : 'Valide (${daysLeft}j restants)',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: isExpired
-                                        ? Colors.red.shade800
-                                        : (daysLeft < 30
-                                        ? Colors.orange.shade800
-                                        : Colors.green.shade800),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          isThreeLine: true,
-                          trailing: IconButton(
-                            icon: const Icon(Icons.more_vert),
-                            onPressed: () {
-                              _showLicenceOptions(context, doc.id, data);
-                            },
-                          ),
-                        ),
-                      );
-                    },
-                  );
-                },
+              child: _LicencesList(
+                licencesCollection: _licencesCollection,
+                statusFilter: _statusFilter,
+                typeFilter: _typeFilter,
+                periodeFilter: _periodeFilter,
+                onCopyLicence: (code) => _copyToClipboard(context, code),
+                onShowOptions: _showLicenceOptions,
               ),
             ),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          _showFilterOptions(context);
-        },
-        child: const Icon(Icons.filter_list),
-        tooltip: 'Filtrer les licences',
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showFilterOptions(context),
+        icon: const Icon(Icons.filter_list),
+        label: const Text('Filtrer'),
+      ),
+    );
+  }
+
+  // Widget pour la carte de génération de licence
+  Widget _buildLicenceGeneratorCard_OLD() {
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Générer une nouvelle licence',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 20),
+              // Choix du type de licence
+              DropdownButtonFormField<LicenceType>(
+                decoration: const InputDecoration(
+                  labelText: 'Type de licence',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.category),
+                ),
+                value: _selectedLicenceType,
+                items: LicenceType.values.map((type) {
+                  return DropdownMenuItem<LicenceType>(
+                    value: type,
+                    child: Text(type.label),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedLicenceType = value!;
+                  });
+                },
+              ),
+              const SizedBox(height: 16),
+              // Choix du type de période
+              DropdownButtonFormField<PeriodeType>(
+                decoration: const InputDecoration(
+                  labelText: 'Type de période',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.schedule),
+                ),
+                value: _selectedPeriodeType,
+                items: PeriodeType.values.map((type) {
+                  return DropdownMenuItem<PeriodeType>(
+                    value: type,
+                    child: Text(type.label),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedPeriodeType = value!;
+                  });
+                },
+              ),
+              const SizedBox(height: 16),
+              // Choix de la durée
+              DropdownButtonFormField<LicenceDuration>(
+                decoration: const InputDecoration(
+                  labelText: 'Durée de validité',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.timer),
+                ),
+                value: _selectedDuration,
+                items: LicenceDuration.values.map((duration) {
+                  return DropdownMenuItem<LicenceDuration>(
+                    value: duration,
+                    child: Text(duration.label),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedDuration = value!;
+                  });
+                },
+              ),
+              const SizedBox(height: 24),
+              // Bouton de génération
+              Center(
+                child: FilledButton.icon(
+                  icon: _isGenerating
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : const Icon(Icons.key),
+                  label: Text(_isGenerating
+                      ? 'Génération en cours...'
+                      : 'Générer une licence'),
+                  onPressed: _isGenerating ? null : _generateNewLicence,
+                ),
+              ),
+
+              // Affichage de la dernière licence générée
+              if (_lastGeneratedLicence != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 20.0),
+                  child: Container(
+                    padding: const EdgeInsets.all(16.0),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.check_circle,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Licence générée avec succès',
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).colorScheme.onPrimaryContainer,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        SelectableText(
+                          _lastGeneratedLicence!,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontFamily: 'monospace',
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        FilledButton.tonalIcon(
+                          icon: const Icon(Icons.copy),
+                          label: const Text('Copier'),
+                          onPressed: () {
+                            _copyToClipboard(context, _lastGeneratedLicence!);
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -366,10 +304,12 @@ class _LicenceManagerPageState extends State<LicenceManagerPage> {
     try {
       // Génération de la licence en utilisant la classe LicenceGenerator
       final result = await LicenceGenerator.generateUniqueLicence(
-          _durationDays,
-          _licenceType,
-          _PeriodeType
+        _selectedDuration.days,
+        _selectedLicenceType.value,
+        _selectedPeriodeType.value,
       );
+
+      if (!mounted) return;
 
       setState(() {
         _lastGeneratedLicence = result['code'];
@@ -377,20 +317,36 @@ class _LicenceManagerPageState extends State<LicenceManagerPage> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Licence générée avec succès'),
-          backgroundColor: Colors.green,
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 8),
+              Text('Licence générée avec succès'),
+            ],
+          ),
+          backgroundColor: Colors.green.shade600,
+          behavior: SnackBarBehavior.floating,
         ),
       );
     } catch (e) {
+      if (!mounted) return;
+
       setState(() {
         _isGenerating = false;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Erreur: $e'),
-          backgroundColor: Colors.red,
+          content: Row(
+            children: [
+              const Icon(Icons.error, color: Colors.white),
+              const SizedBox(width: 8),
+              Expanded(child: Text('Erreur: $e')),
+            ],
+          ),
+          backgroundColor: Colors.red.shade600,
+          behavior: SnackBarBehavior.floating,
         ),
       );
     }
@@ -517,84 +473,191 @@ class _LicenceManagerPageState extends State<LicenceManagerPage> {
   void _showFilterOptions(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Padding(
-                padding: EdgeInsets.all(16.0),
-                child: Text(
-                  'Filtrer les licences',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return SafeArea(
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 16.0),
+                            child: Text(
+                              'Filtrer les licences',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          if (_statusFilter != 'all' || _typeFilter != null || _periodeFilter != null)
+                            TextButton.icon(
+                              icon: const Icon(Icons.clear_all),
+                              label: const Text('Réinitialiser'),
+                              onPressed: () {
+                                setState(() {
+                                  _statusFilter = 'all';
+                                  _typeFilter = null;
+                                  _periodeFilter = null;
+                                });
+                                setModalState(() {});
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Filtres réinitialisés'),
+                                    duration: Duration(seconds: 1),
+                                  ),
+                                );
+                              },
+                            ),
+                        ],
+                      ),
+                      const Divider(),
+                      // Statut
+                      const Padding(
+                        padding: EdgeInsets.all(12.0),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Statut',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                      ),
+                      ListTile(
+                        leading: Icon(
+                          Icons.all_inclusive,
+                          color: _statusFilter == 'all' ? Theme.of(context).colorScheme.primary : null,
+                        ),
+                        title: const Text('Toutes les licences'),
+                        trailing: _statusFilter == 'all' ? const Icon(Icons.check) : null,
+                        selected: _statusFilter == 'all',
+                        onTap: () {
+                          setState(() => _statusFilter = 'all');
+                          setModalState(() {});
+                        },
+                      ),
+                      ListTile(
+                        leading: Icon(
+                          Icons.check_circle_outline,
+                          color: _statusFilter == 'valid' ? Colors.green : null,
+                        ),
+                        title: const Text('Licences valides'),
+                        trailing: _statusFilter == 'valid' ? const Icon(Icons.check, color: Colors.green) : null,
+                        selected: _statusFilter == 'valid',
+                        onTap: () {
+                          setState(() => _statusFilter = 'valid');
+                          setModalState(() {});
+                        },
+                      ),
+                      ListTile(
+                        leading: Icon(
+                          Icons.highlight_off,
+                          color: _statusFilter == 'expired' ? Colors.red : null,
+                        ),
+                        title: const Text('Licences expirées'),
+                        trailing: _statusFilter == 'expired' ? const Icon(Icons.check, color: Colors.red) : null,
+                        selected: _statusFilter == 'expired',
+                        onTap: () {
+                          setState(() => _statusFilter = 'expired');
+                          setModalState(() {});
+                        },
+                      ),
+                      const Divider(),
+                      // Type de licence
+                      const Padding(
+                        padding: EdgeInsets.all(12.0),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Type de licence',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                        child: Wrap(
+                          spacing: 8.0,
+                          runSpacing: 8.0,
+                          children: LicenceType.values.map((type) {
+                            return FilterChip(
+                              label: Text(type.label),
+                              selected: _typeFilter == type,
+                              onSelected: (selected) {
+                                setState(() {
+                                  _typeFilter = selected ? type : null;
+                                });
+                                setModalState(() {});
+                              },
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                      const Divider(),
+                      // Type de période
+                      const Padding(
+                        padding: EdgeInsets.all(12.0),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Type de période',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                        child: Wrap(
+                          spacing: 8.0,
+                          runSpacing: 8.0,
+                          children: PeriodeType.values.map((type) {
+                            return FilterChip(
+                              label: Text(type.label),
+                              selected: _periodeFilter == type,
+                              onSelected: (selected) {
+                                setState(() {
+                                  _periodeFilter = selected ? type : null;
+                                });
+                                setModalState(() {});
+                              },
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: FilledButton.icon(
+                          icon: const Icon(Icons.done),
+                          label: const Text('Appliquer les filtres'),
+                          onPressed: () => Navigator.pop(context),
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size(double.infinity, 48),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-              ListTile(
-                leading: const Icon(Icons.all_inclusive),
-                title: const Text('Toutes les licences'),
-                onTap: () {
-                  Navigator.pop(context);
-                  // Implémentez la logique de filtrage ici
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.check_circle_outline, color: Colors.green),
-                title: const Text('Licences valides'),
-                onTap: () {
-                  Navigator.pop(context);
-                  // Implémentez la logique de filtrage ici
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.highlight_off, color: Colors.red),
-                title: const Text('Licences expirées'),
-                onTap: () {
-                  Navigator.pop(context);
-                  // Implémentez la logique de filtrage ici
-                },
-              ),
-              const Divider(),
-              // Type de licence
-              const Padding(
-                padding: EdgeInsets.all(8.0),
-                child: Text('Filtrer par type'),
-              ),
-              Wrap(
-                spacing: 8.0,
-                children: _licenceTypes.map((type) {
-                  return ActionChip(
-                    label: Text(type),
-                    onPressed: () {
-                      Navigator.pop(context);
-                      // Implémentez la logique de filtrage ici
-                    },
-                  );
-                }).toList(),
-              ),
-              const Divider(),
-              // Type de période
-              const Padding(
-                padding: EdgeInsets.all(8.0),
-                child: Text('Filtrer par période'),
-              ),
-              Wrap(
-                spacing: 8.0,
-                children: _PeriodeTypes.map((type) {
-                  return ActionChip(
-                    label: Text(type),
-                    onPressed: () {
-                      Navigator.pop(context);
-                      // Implémentez la logique de filtrage ici
-                    },
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 16),
-            ],
-          ),
+            );
+          },
         );
       },
     );
@@ -602,69 +665,78 @@ class _LicenceManagerPageState extends State<LicenceManagerPage> {
 
   // Boîte de dialogue pour prolonger une licence
   void _showExtendLicence(BuildContext context, String docId, Map<String, dynamic> data) {
-    int extensionDays = 30;
-    String extensionPeriodeType = data['periodeType'] ?? 'month';
+    LicenceDuration extensionDuration = LicenceDuration.month;
+    PeriodeType extensionPeriodeType = PeriodeType.values.firstWhere(
+      (type) => type.value == (data['periodeType'] ?? 'month'),
+      orElse: () => PeriodeType.month,
+    );
 
     showDialog(
       context: context,
       builder: (context) {
         return StatefulBuilder(
-            builder: (context, setState) {
-              return AlertDialog(
-                title: const Text('Prolonger la licence'),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text('Choisissez la durée et le type de période:'),
-                    const SizedBox(height: 16),
-                    DropdownButton<int>(
-                      value: extensionDays,
-                      items: _durationOptions.map((days) {
-                        return DropdownMenuItem<int>(
-                          value: days,
-                          child: Text('$days jours'),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          extensionDays = value!;
-                        });
-                      },
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Prolonger la licence'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Choisissez la durée et le type de période:'),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<LicenceDuration>(
+                    decoration: const InputDecoration(
+                      labelText: 'Durée',
+                      border: OutlineInputBorder(),
                     ),
-                    const SizedBox(height: 12),
-                    DropdownButton<String>(
-                      value: extensionPeriodeType,
-                      items: _PeriodeTypes.map((type) {
-                        return DropdownMenuItem<String>(
-                          value: type,
-                          child: Text(type),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          extensionPeriodeType = value!;
-                        });
-                      },
-                    ),
-                  ],
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pop(context);
+                    value: extensionDuration,
+                    items: LicenceDuration.values.map((duration) {
+                      return DropdownMenuItem<LicenceDuration>(
+                        value: duration,
+                        child: Text(duration.label),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        extensionDuration = value!;
+                      });
                     },
-                    child: const Text('Annuler'),
                   ),
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _extendLicence(docId, extensionDays, extensionPeriodeType);
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<PeriodeType>(
+                    decoration: const InputDecoration(
+                      labelText: 'Type de période',
+                      border: OutlineInputBorder(),
+                    ),
+                    value: extensionPeriodeType,
+                    items: PeriodeType.values.map((type) {
+                      return DropdownMenuItem<PeriodeType>(
+                        value: type,
+                        child: Text(type.label),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        extensionPeriodeType = value!;
+                      });
                     },
-                    child: const Text('Prolonger'),
                   ),
                 ],
-              );
-            }
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Annuler'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _extendLicence(docId, extensionDuration.days, extensionPeriodeType.value);
+                  },
+                  child: const Text('Prolonger'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -711,21 +783,20 @@ class _LicenceManagerPageState extends State<LicenceManagerPage> {
       context: context,
       builder: (context) {
         return AlertDialog(
+          icon: const Icon(Icons.warning_amber_rounded, size: 48),
           title: const Text('Révoquer la licence'),
           content: const Text(
-              'Êtes-vous sûr de vouloir révoquer cette licence ? '
-                  'Elle sera marquée comme expirée immédiatement.'
+            'Êtes-vous sûr de vouloir révoquer cette licence ? '
+            'Elle sera marquée comme expirée immédiatement.',
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
+              onPressed: () => Navigator.pop(context),
               child: const Text('Annuler'),
             ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.orange,
               ),
               onPressed: () {
                 Navigator.pop(context);
@@ -769,20 +840,19 @@ class _LicenceManagerPageState extends State<LicenceManagerPage> {
       context: context,
       builder: (context) {
         return AlertDialog(
+          icon: Icon(Icons.delete_forever, size: 48, color: Colors.red.shade400),
           title: const Text('Supprimer la licence'),
           content: const Text(
-              'Êtes-vous sûr de vouloir supprimer définitivement cette licence ? '
-                  'Cette action est irréversible.'
+            'Êtes-vous sûr de vouloir supprimer définitivement cette licence ? '
+            'Cette action est irréversible.',
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
+              onPressed: () => Navigator.pop(context),
               child: const Text('Annuler'),
             ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
+            FilledButton(
+              style: FilledButton.styleFrom(
                 backgroundColor: Colors.red,
               ),
               onPressed: () {
@@ -828,4 +898,404 @@ class _LicenceManagerPageState extends State<LicenceManagerPage> {
     LicencePrinter.printLicence(context, licenceData);
   }
 }
+
+// Widget séparé pour la carte de génération de licence
+class _LicenceGeneratorCard extends StatelessWidget {
+  final GlobalKey<FormState> formKey;
+  final LicenceDuration selectedDuration;
+  final LicenceType selectedLicenceType;
+  final PeriodeType selectedPeriodeType;
+  final bool isGenerating;
+  final String? lastGeneratedLicence;
+  final ValueChanged<LicenceDuration> onDurationChanged;
+  final ValueChanged<LicenceType> onLicenceTypeChanged;
+  final ValueChanged<PeriodeType> onPeriodeTypeChanged;
+  final VoidCallback onGenerateLicence;
+  final ValueChanged<String> onCopyLicence;
+
+  const _LicenceGeneratorCard({
+    required this.formKey,
+    required this.selectedDuration,
+    required this.selectedLicenceType,
+    required this.selectedPeriodeType,
+    required this.isGenerating,
+    required this.lastGeneratedLicence,
+    required this.onDurationChanged,
+    required this.onLicenceTypeChanged,
+    required this.onPeriodeTypeChanged,
+    required this.onGenerateLicence,
+    required this.onCopyLicence,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Form(
+          key: formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Générer une nouvelle licence',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 20),
+              DropdownButtonFormField<LicenceType>(
+                decoration: const InputDecoration(
+                  labelText: 'Type de licence',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.category),
+                ),
+                value: selectedLicenceType,
+                items: LicenceType.values.map((type) {
+                  return DropdownMenuItem<LicenceType>(
+                    value: type,
+                    child: Text(type.label),
+                  );
+                }).toList(),
+                onChanged: (value) => onLicenceTypeChanged(value!),
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<PeriodeType>(
+                decoration: const InputDecoration(
+                  labelText: 'Type de période',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.schedule),
+                ),
+                value: selectedPeriodeType,
+                items: PeriodeType.values.map((type) {
+                  return DropdownMenuItem<PeriodeType>(
+                    value: type,
+                    child: Text(type.label),
+                  );
+                }).toList(),
+                onChanged: (value) => onPeriodeTypeChanged(value!),
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<LicenceDuration>(
+                decoration: const InputDecoration(
+                  labelText: 'Durée de validité',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.timer),
+                ),
+                value: selectedDuration,
+                items: LicenceDuration.values.map((duration) {
+                  return DropdownMenuItem<LicenceDuration>(
+                    value: duration,
+                    child: Text(duration.label),
+                  );
+                }).toList(),
+                onChanged: (value) => onDurationChanged(value!),
+              ),
+              const SizedBox(height: 24),
+              Center(
+                child: FilledButton.icon(
+                  icon: isGenerating
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : const Icon(Icons.key),
+                  label: Text(isGenerating ? 'Génération en cours...' : 'Générer une licence'),
+                  onPressed: isGenerating ? null : onGenerateLicence,
+                ),
+              ),
+              if (lastGeneratedLicence != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 20.0),
+                  child: Container(
+                    padding: const EdgeInsets.all(16.0),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.check_circle, color: theme.colorScheme.primary),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Licence générée avec succès',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: theme.colorScheme.onPrimaryContainer,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        SelectableText(
+                          lastGeneratedLicence!,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontFamily: 'monospace',
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        FilledButton.tonalIcon(
+                          icon: const Icon(Icons.copy),
+                          label: const Text('Copier'),
+                          onPressed: () => onCopyLicence(lastGeneratedLicence!),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// Widget séparé pour la liste des licences
+class _LicencesList extends StatelessWidget {
+  final CollectionReference licencesCollection;
+  final String statusFilter;
+  final LicenceType? typeFilter;
+  final PeriodeType? periodeFilter;
+  final ValueChanged<String> onCopyLicence;
+  final void Function(BuildContext, String, Map<String, dynamic>) onShowOptions;
+
+  const _LicencesList({
+    required this.licencesCollection,
+    required this.statusFilter,
+    required this.typeFilter,
+    required this.periodeFilter,
+    required this.onCopyLicence,
+    required this.onShowOptions,
+  });
+
+  bool _matchesFilters(Map<String, dynamic> data) {
+    final expiryDate = (data['expiryDate'] as Timestamp).toDate();
+    final isExpired = expiryDate.isExpired;
+
+    // Filtre par statut
+    if (statusFilter == 'valid' && isExpired) return false;
+    if (statusFilter == 'expired' && !isExpired) return false;
+
+    // Filtre par type de licence
+    if (typeFilter != null) {
+      final licenceType = data['licenceType'] as String?;
+      if (licenceType != typeFilter!.value) return false;
+    }
+
+    // Filtre par type de période
+    if (periodeFilter != null) {
+      final periodeType = data['periodeType'] as String?;
+      if (periodeType != periodeFilter!.value) return false;
+    }
+
+    return true;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: licencesCollection.orderBy('generationDate', descending: true).snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline, size: 48, color: Colors.red.shade300),
+                const SizedBox(height: 16),
+                Text('Erreur: ${snapshot.error}'),
+              ],
+            ),
+          );
+        }
+
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.inbox_outlined, size: 64, color: Colors.grey.shade300),
+                const SizedBox(height: 16),
+                Text(
+                  'Aucune licence trouvée',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        // Appliquer les filtres
+        final filteredDocs = snapshot.data!.docs.where((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          return _matchesFilters(data);
+        }).toList();
+
+        if (filteredDocs.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.filter_list_off, size: 64, color: Colors.grey.shade300),
+                const SizedBox(height: 16),
+                Text(
+                  'Aucune licence ne correspond aux filtres',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Essayez de modifier vos critères de filtrage',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Colors.grey.shade500,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return ListView.builder(
+          itemCount: filteredDocs.length,
+          itemBuilder: (context, index) {
+            final doc = filteredDocs[index];
+            final data = doc.data() as Map<String, dynamic>;
+            return _LicenceCard(
+              data: data,
+              docId: doc.id,
+              onCopyLicence: onCopyLicence,
+              onShowOptions: (docId, data) => onShowOptions(context, docId, data),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+// Widget séparé pour chaque carte de licence
+class _LicenceCard extends StatelessWidget {
+  final Map<String, dynamic> data;
+  final String docId;
+  final ValueChanged<String> onCopyLicence;
+  final void Function(String, Map<String, dynamic>) onShowOptions;
+
+  const _LicenceCard({
+    required this.data,
+    required this.docId,
+    required this.onCopyLicence,
+    required this.onShowOptions,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final generationDate = (data['generationDate'] as Timestamp).toDate();
+    final expiryDate = (data['expiryDate'] as Timestamp).toDate();
+    final isExpired = expiryDate.isExpired;
+    final daysLeft = expiryDate.daysUntil;
+    final dateFormat = DateFormat('dd/MM/yyyy');
+
+    Color getStatusColor() {
+      if (isExpired) return theme.colorScheme.error;
+      if (daysLeft < 30) return Colors.orange;
+      return theme.colorScheme.primary;
+    }
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      elevation: isExpired ? 0 : 1,
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        title: Row(
+          children: [
+            Expanded(
+              child: SelectableText(
+                data['code'] ?? '',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                  color: isExpired ? theme.disabledColor : theme.colorScheme.onSurface,
+                  decoration: isExpired ? TextDecoration.lineThrough : null,
+                ),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.copy, size: 20),
+              onPressed: () => onCopyLicence(data['code']),
+              tooltip: 'Copier la clé',
+            ),
+          ],
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(Icons.label, size: 16, color: theme.colorScheme.secondary),
+                const SizedBox(width: 4),
+                Text('${data['licenceType'] ?? 'Non spécifié'}'),
+                const SizedBox(width: 16),
+                Icon(Icons.schedule, size: 16, color: theme.colorScheme.secondary),
+                const SizedBox(width: 4),
+                Text('${data['periodeType'] ?? 'Non spécifié'}'),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text('Généré: ${dateFormat.format(generationDate)}'),
+            Text('Expire: ${dateFormat.format(expiryDate)}'),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: getStatusColor().withOpacity(0.1),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: getStatusColor().withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Text(
+                isExpired ? 'Expirée' : 'Valide ($daysLeft j restants)',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: getStatusColor(),
+                ),
+              ),
+            ),
+          ],
+        ),
+        isThreeLine: true,
+        trailing: IconButton(
+          icon: const Icon(Icons.more_vert),
+          onPressed: () => onShowOptions(docId, data),
+        ),
+      ),
+    );
+  }
+}
+
 

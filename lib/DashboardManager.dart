@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'DashboardScreen.dart';
 import 'RestaurantDashboard.dart';
 import 'Screens/manager/CheckInPage.dart';
@@ -17,11 +18,17 @@ import 'Screens/manager/TaskManagementPage.dart';
 import 'Screens/manager/UserManagementScreen.dart';
 import 'Screens/manager/renew_licence_page.dart';
 import 'Screens/manager/help/help_documentation_page.dart';
+import 'Screens/manager/roadmap_page.dart';
+import 'Screens/manager/roadmap_admin_page.dart';
+import 'Screens/manager/support_client_page.dart';
+import 'Screens/manager/support_admin_page.dart';
+import 'services/support_service.dart';
 import 'Screens/manager/onboarding/components/tutorial/tutorial_overlay.dart';
 import 'Screens/manager/onboarding/services/tutorial_service.dart';
 import 'Screens/manager/onboarding/services/initial_setup_tutorial_manager.dart';
 import 'Screens/manager/onboarding/models/tutorial_step.dart';
 import 'components/dashboard/licence_Ui.dart';
+import 'components/dashboard/hotel_profile_drawer.dart';
 import 'components/messagerie/NotificationPanel.dart';
 import 'components/messagerie/NotificationProvider.dart';
 import 'components/reservation/ModernReservationPage.dart';
@@ -60,6 +67,9 @@ class DashboardManagerState extends State<DashboardManager> {
   TutorialService? _tutorialService;
   String? _userId;
 
+  // Support service pour les notifications
+  final SupportService _supportService = SupportService();
+
   // Liste complète des pages disponibles
   final List<Widget Function()> _allPages = [
         () => const Dashboard(),
@@ -76,6 +86,9 @@ class DashboardManagerState extends State<DashboardManager> {
         () => GestionPersonnelPage(),
         () => RenewLicencePage(),
         () => UserManagementScreen(),
+        () => const SupportClientPage(),
+        () => const SupportAdminPage(),
+        () => const RoadmapAdminPage(),
         () => SettingsPage(),
   ];
 
@@ -95,6 +108,9 @@ class DashboardManagerState extends State<DashboardManager> {
     'Personnel',
     'Licences',
     'Administration',
+    'Support',
+    'Support Admin',
+    'Roadmap Admin',
     'Paramètres',
   ];
 
@@ -114,6 +130,9 @@ class DashboardManagerState extends State<DashboardManager> {
     Icons.groups_rounded,
     Icons.workspace_premium_rounded,
     Icons.admin_panel_settings_rounded,
+    Icons.support_agent_rounded,
+    Icons.admin_panel_settings_rounded,
+    Icons.map_rounded,
     Icons.settings_rounded,
   ];
 
@@ -173,8 +192,14 @@ class DashboardManagerState extends State<DashboardManager> {
   Future<void> _checkAndInitializeTutorial() async {
     try {
       final authService = Provider.of<AuthService>(context, listen: false);
-      final user = await authService.getCurrentUser();
-      _userId = user?.email ?? 'anonymous';
+      final currentUser = FirebaseAuth.instance.currentUser;
+      
+      // Utiliser uid de FirebaseAuth pour les notifications support
+      if (mounted) {
+        setState(() {
+          _userId = currentUser?.uid ?? 'anonymous';
+        });
+      }
 
       final prefs = await SharedPreferences.getInstance();
       _tutorialService = TutorialService(prefs);
@@ -259,19 +284,24 @@ class DashboardManagerState extends State<DashboardManager> {
 
       switch (_userRole) {
         case UserRole.admin:
+          // Super admin du SaaS : accès complet incluant Support Admin et Roadmap Admin
           roleBasedIndices = List.generate(_allPages.length, (index) => index);
           break;
         case UserRole.manager:
-          roleBasedIndices = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14];
+          // Manager d'établissement : accès au Support Client uniquement
+          roleBasedIndices = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 17];
           break;
         case UserRole.receptionist:
-          roleBasedIndices = [0, 1, 2, 3, 4, 5, 6, 14];
+          // Pas d'accès au support ni administration
+          roleBasedIndices = [0, 1, 2, 3, 4, 5, 6, 17];
           break;
         case UserRole.employee:
-          roleBasedIndices = [0, 3, 9, 10, 14];
+          // Pas d'accès au support ni administration
+          roleBasedIndices = [0, 3, 9, 10, 17];
           break;
         case UserRole.kitchen:
-          roleBasedIndices = [0, 8, 9, 10, 14];
+          // Pas d'accès au support ni administration
+          roleBasedIndices = [0, 8, 9, 10, 17];
           break;
       }
 
@@ -279,19 +309,39 @@ class DashboardManagerState extends State<DashboardManager> {
 
       if (licenseManager.isExpired) {
         print('[DASHBOARD] ⏰ Licence expirée, accès limité');
-        roleBasedIndices = roleBasedIndices.where((index) =>
-        _allPageTitles[index] == 'Tableau de bord' ||
-            _allPageTitles[index] == 'Licences' ||
-            _allPageTitles[index] == 'Paramètres'
-        ).toList();
+        roleBasedIndices = roleBasedIndices.where((index) {
+          final pageTitle = _allPageTitles[index];
+          if (pageTitle == 'Tableau de bord' || pageTitle == 'Licences' || pageTitle == 'Paramètres') {
+            return true;
+          }
+          // Support et Support Admin / Roadmap Admin uniquement pour les admins
+          if (_userRole == UserRole.admin && (pageTitle == 'Support Admin' || pageTitle == 'Roadmap Admin')) {
+            return true;
+          }
+          // Support Client pour les managers
+          if (_userRole == UserRole.manager && pageTitle == 'Support') {
+            return true;
+          }
+          return false;
+        }).toList();
 
         if (!roleBasedIndices.contains(12)) {
           roleBasedIndices.add(12);
         }
       } else {
-        roleBasedIndices = roleBasedIndices.where((index) =>
-            licenseManager.canAccessPage(_allPageTitles[index])
-        ).toList();
+        // Filtrer par licence
+        roleBasedIndices = roleBasedIndices.where((index) {
+          final pageTitle = _allPageTitles[index];
+          // Le support client est toujours accessible pour les managers, même avec licence de base
+          if (_userRole == UserRole.manager && pageTitle == 'Support') {
+            return true;
+          }
+          // Support Admin et Roadmap Admin uniquement pour les admins
+          if (_userRole == UserRole.admin && (pageTitle == 'Support Admin' || pageTitle == 'Roadmap Admin')) {
+            return true;
+          }
+          return licenseManager.canAccessPage(pageTitle);
+        }).toList();
       }
 
       if (mounted) {
@@ -311,6 +361,8 @@ class DashboardManagerState extends State<DashboardManager> {
           }
 
           print('[DASHBOARD] 📄 ${_pages.length} pages accessibles initialisées');
+          print('[DASHBOARD] 📋 Pages disponibles: ${_pageTitles.join(", ")}');
+          print('[DASHBOARD] 👤 Rôle actuel: $_userRole');
         });
       }
     } catch (e) {
@@ -398,6 +450,7 @@ class DashboardManagerState extends State<DashboardManager> {
     );
   }
 
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -446,6 +499,15 @@ class DashboardManagerState extends State<DashboardManager> {
             actions: <Widget>[
               // Icones avec labels en haut
               if (isLargeScreen) ...[
+                _buildTopBarIcon('Roadmap', Icons.rocket_launch_rounded, () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const RoadmapPage(),
+                    ),
+                  );
+                }, showLabel: _showTopBarLabels),
+                
                 _buildTopBarIcon('Tutorial', Icons.school_outlined, () async {
                   if (_tutorialService != null && _userId != null) {
                     await _tutorialService!.resetTutorial(_userId!, 'initial_setup_tutorial');
@@ -546,6 +608,18 @@ class DashboardManagerState extends State<DashboardManager> {
 
               ] else ...[
                 // Pour petits écrans, seulement les icônes
+                IconButton(
+                  icon: const Icon(Icons.rocket_launch_rounded),
+                  tooltip: 'Roadmap',
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const RoadmapPage(),
+                      ),
+                    );
+                  },
+                ),
                 IconButton(
                   icon: const Icon(Icons.school_outlined),
                   tooltip: 'Relancer le tutorial',
@@ -707,6 +781,15 @@ class DashboardManagerState extends State<DashboardManager> {
               ),
             ],
           ),
+          endDrawer: HotelProfileDrawer(
+            onNavigateToSettings: () {
+              // Trouver l'index de la page Paramètres dans les pages accessibles
+              final settingsPageIndex = _accessiblePageIndices.indexOf(14);
+              if (settingsPageIndex != -1) {
+                changeSelectedIndex(settingsPageIndex);
+              }
+            },
+          ),
           body: Row(
             children: [
               // Navigation latérale pour écrans larges
@@ -804,6 +887,10 @@ class DashboardManagerState extends State<DashboardManager> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primaryColor = const Color(0xFF3F51B5);
+    
+    // Vérifier si c'est la page Support ou Support Admin pour afficher le badge
+    final isSupportPage = pageTitle == 'Support';
+    final isSupportAdminPage = pageTitle == 'Support Admin';
 
     return Material(
       color: isSelected
@@ -815,8 +902,9 @@ class DashboardManagerState extends State<DashboardManager> {
           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
           child: Row(
             children: [
-              // Icône avec badge premium
+              // Icône avec badge premium et/ou notifications
               Stack(
+                clipBehavior: Clip.none,
                 children: [
                   Icon(
                     _pageIcons[index],
@@ -837,6 +925,76 @@ class DashboardManagerState extends State<DashboardManager> {
                         ),
                         child: const Text('⭐', style: TextStyle(fontSize: 8)),
                       ),
+                    ),
+                  // Badge de notifications pour la page Support
+                  if (isSupportPage && _userId != null)
+                    StreamBuilder<int>(
+                      stream: _supportService.getTotalNotificationsCount(_userId!),
+                      initialData: 0,
+                      builder: (context, snapshot) {
+                        final count = snapshot.data ?? 0;
+                        if (count == 0) return const SizedBox.shrink();
+                        
+                        return Positioned(
+                          right: isPremium ? -4 : -6,
+                          top: isPremium ? 8 : -4,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                            ),
+                            constraints: const BoxConstraints(
+                              minWidth: 16,
+                              minHeight: 16,
+                            ),
+                            child: Text(
+                              count > 99 ? '99+' : count.toString(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 8,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  // Badge de notifications pour la page Support Admin (nouveaux messages utilisateur)
+                  if (isSupportAdminPage)
+                    StreamBuilder<int>(
+                      stream: _supportService.getAdminNotificationsCount(),
+                      initialData: 0,
+                      builder: (context, snapshot) {
+                        final count = snapshot.data ?? 0;
+                        if (count == 0) return const SizedBox.shrink();
+                        
+                        return Positioned(
+                          right: isPremium ? -4 : -6,
+                          top: isPremium ? 8 : -4,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: Colors.orange,
+                              shape: BoxShape.circle,
+                            ),
+                            constraints: const BoxConstraints(
+                              minWidth: 16,
+                              minHeight: 16,
+                            ),
+                            child: Text(
+                              count > 99 ? '99+' : count.toString(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 8,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        );
+                      },
                     ),
                 ],
               ),

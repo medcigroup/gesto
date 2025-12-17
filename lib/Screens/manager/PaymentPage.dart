@@ -180,145 +180,388 @@ class _PaymentPageState extends State<PaymentPage> {
     // Afficher le dialogue de paiement
     await showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Paiement pour ${data['customerName']}'),
-        content: StatefulBuilder(
-          builder: (BuildContext context, StateSetter setState) {
-            // Calculer le montant de la réduction
-            void calculateDiscount() {
-              if (applyDiscount && discountRate > 0) {
-                // Calculer le montant de la réduction basé sur le montant à payer
-                discountAmount = isFullPayment
-                    ? (remainingAmount * discountRate / 100)
-                    : (amountToPay * discountRate / 100);
-              } else {
-                discountAmount = 0;
-              }
-            }
-
-            return SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('Montant total: ${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(totalAmount)}'),
-                  Text('Acompte: ${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(depositAmount)} (${depositPaid ? 'Payé' : 'En attente'})'),
-                  Text('Déjà payé: ${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(paidAmount)}'),
-                  if (totalDiscountApplied > 0)
-                    Text('Réductions précédentes: ${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(totalDiscountApplied)}'),
-                  Text('Montant restant: ${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(remainingAmount)}'),
-                  Text('Nombre de nuits: $nights'),
-                  const SizedBox(height: 16),
-
-                  // Option de paiement complet ou partiel
-                  CheckboxListTile(
-                    title: const Text('Paiement complet'),
-                    value: isFullPayment,
-                    onChanged: (value) {
-                      setState(() {
-                        isFullPayment = value ?? true;
-                        if (isFullPayment) {
-                          amountToPay = remainingAmount;
-                        }
-                        calculateDiscount(); // Recalculer la réduction
-                      });
-                    },
+      barrierDismissible: false,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Container(
+          width: MediaQuery.of(context).size.width * 0.9,
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // En-tête coloré
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.blue.shade700, Colors.blue.shade500],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
-
-                  // Montant à payer (éditable si paiement partiel)
-                  if (!isFullPayment)
-                    TextFormField(
-                      decoration: const InputDecoration(
-                        labelText: 'Montant à payer',
-                        prefixText: 'FCFA ',
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(20),
+                    topRight: Radius.circular(20),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      keyboardType: TextInputType.number,
-                      initialValue: amountToPay.toStringAsFixed(0),
-                      onChanged: (value) {
-                        setState(() {
-                          amountToPay = double.tryParse(value) ?? 0;
-                          calculateDiscount(); // Recalculer la réduction
-                        });
-                      },
+                      child: const Icon(Icons.payment, color: Colors.white, size: 24),
                     ),
-
-                  // Option d'application de réduction
-                  CheckboxListTile(
-                    title: const Text('Appliquer une réduction'),
-                    value: applyDiscount,
-                    onChanged: (value) {
-                      setState(() {
-                        applyDiscount = value ?? false;
-                        calculateDiscount(); // Recalculer la réduction
-                      });
-                    },
-                  ),
-
-                  // Taux de réduction (visible si réduction activée)
-                  if (applyDiscount)
-                    Column(
-                      children: [
-                        TextFormField(
-                          decoration: const InputDecoration(
-                            labelText: 'Taux de réduction',
-                            suffixText: '%',
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Paiement',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                          keyboardType: TextInputType.number,
-                          initialValue: discountRate.toString(),
-                          onChanged: (value) {
-                            setState(() {
-                              discountRate = double.tryParse(value) ?? 0;
-                              calculateDiscount(); // Recalculer la réduction
-                            });
-                          },
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Réduction: ${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(discountAmount)}',
-                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Montant après réduction: ${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(isFullPayment ? (remainingAmount - discountAmount) : (amountToPay - discountAmount))}',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ],
+                          Text(
+                            data['customerName'],
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w300,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-
-                  // Méthode de paiement
-                  DropdownButtonFormField<String>(
-                    decoration: const InputDecoration(labelText: 'Méthode de paiement'),
-                    value: paymentMethod,
-                    items: ['Espèces', 'Carte bancaire', 'Mobile Money', 'Virement', 'Autre']
-                        .map((method) => DropdownMenuItem(
-                      value: method,
-                      child: Text(method),
-                    ))
-                        .toList(),
-                    onChanged: (value) {
-                      paymentMethod = value ?? 'Espèces';
-                    },
-                  ),
-
-                  // Description du paiement
-                  TextFormField(
-                    decoration: const InputDecoration(labelText: 'Description (optionnel)'),
-                    maxLines: 2,
-                    onChanged: (value) {
-                      description = value;
-                    },
-                  ),
-                ],
+                  ],
+                ),
               ),
-            );
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Annuler'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
+              // Contenu
+              Expanded(
+                child: StatefulBuilder(
+                  builder: (BuildContext context, StateSetter setState) {
+                    // Calculer le montant de la réduction
+                    void calculateDiscount() {
+                      if (applyDiscount && discountRate > 0) {
+                        // Calculer le montant de la réduction basé sur le montant à payer
+                        discountAmount = isFullPayment
+                            ? (remainingAmount * discountRate / 100)
+                            : (amountToPay * discountRate / 100);
+                      } else {
+                        discountAmount = 0;
+                      }
+                    }
+
+                    return SingleChildScrollView(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Carte récapitulatif
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [Colors.blue.shade50, Colors.blue.shade100.withOpacity(0.3)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.blue.shade200, width: 1),
+                            ),
+                            child: Column(
+                              children: [
+                                _buildPaymentInfoRow('Montant total', NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(totalAmount), Icons.monetization_on, Colors.blue),
+                                const Divider(height: 16),
+                                _buildPaymentInfoRow('Acompte', '${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(depositAmount)} (${depositPaid ? 'Payé' : 'En attente'})', Icons.payment, depositPaid ? Colors.green : Colors.orange),
+                                const Divider(height: 16),
+                                _buildPaymentInfoRow('Déjà payé', NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(paidAmount), Icons.check_circle, Colors.green),
+                                if (totalDiscountApplied > 0) ...[
+                                  const Divider(height: 16),
+                                  _buildPaymentInfoRow('Réductions précédentes', NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(totalDiscountApplied), Icons.discount, Colors.purple),
+                                ],
+                                const Divider(height: 16),
+                                _buildPaymentInfoRow('Montant restant', NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(remainingAmount), Icons.account_balance_wallet, Colors.red.shade700),
+                                const Divider(height: 16),
+                                _buildPaymentInfoRow('Nombre de nuits', '$nights', Icons.hotel, Colors.indigo),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+
+                          // Option de paiement complet ou partiel
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey.shade200),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.payments_outlined, color: Colors.blue.shade700),
+                                const SizedBox(width: 12),
+                                const Expanded(
+                                  child: Text(
+                                    'Paiement complet',
+                                    style: TextStyle(fontWeight: FontWeight.w500, fontSize: 15),
+                                  ),
+                                ),
+                                Switch(
+                                  value: isFullPayment,
+                                  activeColor: Colors.blue.shade700,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      isFullPayment = value;
+                                      if (isFullPayment) {
+                                        amountToPay = remainingAmount;
+                                      }
+                                      calculateDiscount();
+                                    });
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          // Montant à payer (éditable si paiement partiel)
+                          if (!isFullPayment) ...[
+                            const SizedBox(height: 16),
+                            TextFormField(
+                              decoration: InputDecoration(
+                                labelText: 'Montant à payer',
+                                prefixIcon: Icon(Icons.attach_money, color: Colors.blue.shade700),
+                                prefixText: 'FCFA ',
+                                filled: true,
+                                fillColor: Colors.grey.shade50,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(color: Colors.grey.shade300),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(color: Colors.blue.shade700, width: 2),
+                                ),
+                              ),
+                              keyboardType: TextInputType.number,
+                              initialValue: amountToPay.toStringAsFixed(0),
+                              onChanged: (value) {
+                                setState(() {
+                                  amountToPay = double.tryParse(value) ?? 0;
+                                  calculateDiscount();
+                                });
+                              },
+                            ),
+                          ],
+                          const SizedBox(height: 16),
+
+                          // Option d'application de réduction
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey.shade200),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.discount_outlined, color: Colors.purple.shade700),
+                                const SizedBox(width: 12),
+                                const Expanded(
+                                  child: Text(
+                                    'Appliquer une réduction',
+                                    style: TextStyle(fontWeight: FontWeight.w500, fontSize: 15),
+                                  ),
+                                ),
+                                Switch(
+                                  value: applyDiscount,
+                                  activeColor: Colors.purple.shade700,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      applyDiscount = value;
+                                      calculateDiscount();
+                                    });
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          // Taux de réduction (visible si réduction activée)
+                          if (applyDiscount) ...[
+                            const SizedBox(height: 16),
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [Colors.purple.shade50, Colors.purple.shade100.withOpacity(0.3)],
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.purple.shade200),
+                              ),
+                              child: Column(
+                                children: [
+                                  TextFormField(
+                                    decoration: InputDecoration(
+                                      labelText: 'Taux de réduction',
+                                      prefixIcon: Icon(Icons.percent, color: Colors.purple.shade700),
+                                      suffixText: '%',
+                                      filled: true,
+                                      fillColor: Colors.white,
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide(color: Colors.grey.shade300),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide(color: Colors.purple.shade700, width: 2),
+                                      ),
+                                    ),
+                                    keyboardType: TextInputType.number,
+                                    initialValue: discountRate.toString(),
+                                    onChanged: (value) {
+                                      setState(() {
+                                        discountRate = double.tryParse(value) ?? 0;
+                                        calculateDiscount();
+                                      });
+                                    },
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green.shade50,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.savings, color: Colors.green.shade700, size: 20),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'Réduction: ${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(discountAmount)}',
+                                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green.shade700, fontSize: 15),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.blue.shade50,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.price_check, color: Colors.blue.shade700, size: 20),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            'Montant à payer: ${NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(isFullPayment ? (remainingAmount - discountAmount) : (amountToPay - discountAmount))}',
+                                            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue.shade700, fontSize: 15),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 16),
+
+                          // Méthode de paiement
+                          DropdownButtonFormField<String>(
+                            decoration: InputDecoration(
+                              labelText: 'Méthode de paiement',
+                              prefixIcon: Icon(Icons.credit_card, color: Colors.blue.shade700),
+                              filled: true,
+                              fillColor: Colors.grey.shade50,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(color: Colors.grey.shade300),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(color: Colors.blue.shade700, width: 2),
+                              ),
+                            ),
+                            value: paymentMethod,
+                            items: ['Espèces', 'Carte bancaire', 'Mobile Money', 'Virement', 'Autre']
+                                .map((method) => DropdownMenuItem(
+                              value: method,
+                              child: Text(method),
+                            ))
+                                .toList(),
+                            onChanged: (value) {
+                              paymentMethod = value ?? 'Espèces';
+                            },
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Description du paiement
+                          TextFormField(
+                            decoration: InputDecoration(
+                              labelText: 'Description (optionnel)',
+                              prefixIcon: Icon(Icons.notes, color: Colors.blue.shade700),
+                              filled: true,
+                              fillColor: Colors.grey.shade50,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(color: Colors.grey.shade300),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(color: Colors.blue.shade700, width: 2),
+                              ),
+                            ),
+                            maxLines: 2,
+                            onChanged: (value) {
+                              description = value;
+                            },
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+              // Actions
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(20),
+                    bottomRight: Radius.circular(20),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text(
+                          'Annuler',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
               // Validation du montant
               double cashAmount = isFullPayment ? remainingAmount : amountToPay;
               double finalAmount = cashAmount;
@@ -444,10 +687,67 @@ class _PaymentPageState extends State<PaymentPage> {
                 );
               }
             },
-            child: const Text('Enregistrer le paiement'),
+                        icon: const Icon(Icons.check_circle_outline),
+                        label: const Text('Enregistrer'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green.shade600,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
+    );
+  }
+
+  // Widget helper pour les lignes d'information de paiement
+  Widget _buildPaymentInfoRow(String label, String value, IconData icon, Color color) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: color, size: 18),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey.shade600,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey.shade800,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -674,62 +974,154 @@ class _PaymentPageState extends State<PaymentPage> {
 
       body: Column(
         children: [
-          // Carte de recherche et filtres
+          // En-tête avec gradient
           Container(
-            margin: const EdgeInsets.all(16.0),
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
+              gradient: LinearGradient(
+                colors: [Colors.blue.shade700, Colors.blue.shade500],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
+                  color: Colors.blue.withOpacity(0.3),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(Icons.account_balance_wallet, color: Colors.white, size: 28),
+                        ),
+                        const SizedBox(width: 16),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Gestion des Paiements',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                'Suivez et gérez tous vos paiements',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w300,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          // Carte de recherche et filtres
+          Container(
+            margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
                 ),
               ],
             ),
             child: Padding(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.all(20.0),
               child: Column(
                 children: [
-                  TextField(
-                    controller: searchController,
-                    decoration: InputDecoration(
-                      hintText: 'Rechercher par nom ou code',
-                      hintStyle: TextStyle(color: Colors.grey.shade400),
-                      prefixIcon: Icon(Icons.search, color: Colors.grey.shade500),
-                      filled: true,
-                      fillColor: Colors.grey.shade50,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                  // Barre de recherche élégante
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: Colors.grey.shade200),
                     ),
-                    onSubmitted: (_) => fetchBookings(),
+                    child: TextField(
+                      controller: searchController,
+                      decoration: InputDecoration(
+                        hintText: 'Rechercher par nom ou code d\'enregistrement',
+                        hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+                        prefixIcon: Icon(Icons.search_rounded, color: Colors.blue.shade700, size: 22),
+                        suffixIcon: searchController.text.isNotEmpty
+                            ? IconButton(
+                                icon: Icon(Icons.clear, color: Colors.grey.shade400),
+                                onPressed: () {
+                                  searchController.clear();
+                                  fetchBookings();
+                                },
+                              )
+                            : null,
+                        filled: false,
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      onSubmitted: (_) => fetchBookings(),
+                    ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
                   Row(
                     children: [
                       Expanded(
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
                           decoration: BoxDecoration(
                             color: Colors.grey.shade50,
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: Colors.grey.shade200),
                           ),
                           child: DropdownButtonHideUnderline(
                             child: DropdownButton<String>(
                               isExpanded: true,
                               value: filterStatus ?? 'tous',
                               hint: const Text('Statut'),
-                              icon: const Icon(Icons.arrow_drop_down_rounded),
+                              icon: Icon(Icons.arrow_drop_down_rounded, color: Colors.blue.shade700),
                               items: statusOptions.map((status) {
                                 return DropdownMenuItem<String>(
                                   value: status,
-                                  child: Text(
-                                    capitalizeFirst(status),
-                                    style: const TextStyle(fontSize: 14),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 8,
+                                        height: 8,
+                                        decoration: BoxDecoration(
+                                          color: _getStatusColor(status),
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        capitalizeFirst(status),
+                                        style: const TextStyle(fontSize: 14),
+                                      ),
+                                    ],
                                   ),
                                 );
                               }).toList(),
@@ -746,15 +1138,15 @@ class _PaymentPageState extends State<PaymentPage> {
                       const SizedBox(width: 12),
                       ElevatedButton.icon(
                         onPressed: fetchBookings,
-                        icon: const Icon(Icons.search, size: 18),
-                        label: const Text('Filtrer'),
+                        icon: const Icon(Icons.filter_alt, size: 20),
+                        label: const Text('Filtrer', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Theme.of(context).primaryColor,
+                          backgroundColor: Colors.blue.shade700,
                           foregroundColor: Colors.white,
                           elevation: 0,
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(14),
                           ),
                         ),
                       ),
@@ -831,81 +1223,139 @@ class _PaymentPageState extends State<PaymentPage> {
                       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.03),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
+                            color: Colors.black.withOpacity(0.06),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
                           ),
                         ],
                       ),
                       child: Material(
                         color: Colors.transparent,
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(20),
                         child: InkWell(
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(20),
                           onTap: () => showBookingDetails(booking),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    CircleAvatar(
-                                      backgroundColor: _getStatusColor(data['status']).withOpacity(0.1),
-                                      radius: 20,
-                                      child: Icon(
-                                        Icons.person,
-                                        color: _getStatusColor(data['status']),
-                                        size: 18,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            data['customerName'] ?? 'Client inconnu',
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 16,
-                                            ),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: remainingAmount <= 0 ? Colors.green.shade200 : Colors.orange.shade200,
+                                width: 2,
+                              ),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(18.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Container(
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                            colors: [
+                                              _getStatusColor(data['status']).withOpacity(0.8),
+                                              _getStatusColor(data['status']),
+                                            ],
                                           ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            'Code: ${data['EnregistrementCode'] ?? ''} - Chambre: ${data['roomNumber'] ?? ''}',
-                                            style: TextStyle(
-                                              color: Colors.grey.shade600,
-                                              fontSize: 14,
+                                          borderRadius: BorderRadius.circular(14),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: _getStatusColor(data['status']).withOpacity(0.3),
+                                              blurRadius: 8,
+                                              offset: const Offset(0, 2),
                                             ),
+                                          ],
+                                        ),
+                                        child: CircleAvatar(
+                                          backgroundColor: Colors.transparent,
+                                          radius: 24,
+                                          child: const Icon(
+                                            Icons.person,
+                                            color: Colors.white,
+                                            size: 22,
                                           ),
-                                        ],
-                                      ),
-                                    ),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                      decoration: BoxDecoration(
-                                        color: _getStatusColor(data['status']).withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Text(
-                                        formatStatus(data['status']),
-                                        style: TextStyle(
-                                          color: _getStatusColor(data['status']),
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w500,
                                         ),
                                       ),
-                                    ),
-                                  ],
-                                ),
-                                const Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 12),
-                                  child: Divider(),
-                                ),
+                                      const SizedBox(width: 14),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              data['customerName'] ?? 'Client inconnu',
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 17,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 6),
+                                            Row(
+                                              children: [
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.blue.shade50,
+                                                    borderRadius: BorderRadius.circular(6),
+                                                  ),
+                                                  child: Text(
+                                                    data['EnregistrementCode'] ?? '',
+                                                    style: TextStyle(
+                                                      color: Colors.blue.shade700,
+                                                      fontSize: 12,
+                                                      fontWeight: FontWeight.w600,
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 6),
+                                                Icon(Icons.room, size: 14, color: Colors.grey.shade500),
+                                                const SizedBox(width: 2),
+                                                Text(
+                                                  'Ch. ${data['roomNumber'] ?? ''}',
+                                                  style: TextStyle(
+                                                    color: Colors.grey.shade600,
+                                                    fontSize: 13,
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                            colors: [
+                                              _getStatusColor(data['status']).withOpacity(0.1),
+                                              _getStatusColor(data['status']).withOpacity(0.2),
+                                            ],
+                                          ),
+                                          borderRadius: BorderRadius.circular(14),
+                                          border: Border.all(
+                                            color: _getStatusColor(data['status']).withOpacity(0.3),
+                                            width: 1.5,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          formatStatus(data['status']),
+                                          style: TextStyle(
+                                            color: _getStatusColor(data['status']),
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 14),
+                                    child: Divider(color: Colors.grey.shade200, thickness: 1),
+                                  ),
                                 Row(
                                   children: [
                                     Expanded(
@@ -979,42 +1429,64 @@ class _PaymentPageState extends State<PaymentPage> {
                                       ],
                                     ),
                                   ),
-                                if (data['status'] != 'annulé' && remainingAmount > 0)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 16),
-                                    child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.end,
-                                      children: [
-                                        ElevatedButton.icon(
-                                          onPressed: () => makePayment(booking),
-                                          icon: const Icon(
-                                            Icons.payment,
-                                            size: 18,
+                                  if (data['status'] != 'annulé' && remainingAmount > 0)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 18),
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                            colors: [Colors.green.shade600, Colors.green.shade700],
                                           ),
-                                          label: const Text('Effectuer un paiement'),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: Colors.green,
-                                            foregroundColor: Colors.white,
-                                            elevation: 0,
-                                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(10),
+                                          borderRadius: BorderRadius.circular(14),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.green.withOpacity(0.3),
+                                              blurRadius: 8,
+                                              offset: const Offset(0, 4),
+                                            ),
+                                          ],
+                                        ),
+                                        child: Material(
+                                          color: Colors.transparent,
+                                          child: InkWell(
+                                            borderRadius: BorderRadius.circular(14),
+                                            onTap: () => makePayment(booking),
+                                            child: Padding(
+                                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                                              child: Row(
+                                                mainAxisAlignment: MainAxisAlignment.center,
+                                                children: [
+                                                  const Icon(
+                                                    Icons.payment_rounded,
+                                                    color: Colors.white,
+                                                    size: 22,
+                                                  ),
+                                                  const SizedBox(width: 10),
+                                                  const Text(
+                                                    'Effectuer un paiement',
+                                                    style: TextStyle(
+                                                      color: Colors.white,
+                                                      fontSize: 15,
+                                                      fontWeight: FontWeight.bold,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
                                             ),
                                           ),
                                         ),
-                                      ],
+                                      ),
                                     ),
-                                  ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
+                      ));
+                    },
+                  );
+                },
+              ),
           ),
         ],
       ),

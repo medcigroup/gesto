@@ -3,6 +3,7 @@ import 'package:animate_do/animate_do.dart';
 import 'package:intl/intl.dart';
 import 'config/AppConstants.dart';
 import 'config/routes.dart';
+import 'gesto_mobile_download_page.dart';
 
 class GestoLandingPage extends StatefulWidget {
   const GestoLandingPage({Key? key}) : super(key: key);
@@ -73,15 +74,10 @@ class _GestoLandingPageState extends State<GestoLandingPage> {
       shadowColor: Colors.black.withOpacity(0.1),
       title: Row(
         children: [
-          Container(
-            padding: EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [AppConstants.primaryColor, AppConstants.secondaryColor],
-              ),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(Icons.hotel, color: Colors.white, size: 24),
+          Image.asset(
+            'assets/images/gesto_logo2.png',
+            height: 40,
+            fit: BoxFit.contain,
           ),
           SizedBox(width: 12),
           Text(
@@ -104,6 +100,29 @@ class _GestoLandingPageState extends State<GestoLandingPage> {
             ),
           ),
         )),
+        SizedBox(width: 10),
+        // Bouton Télécharger l'App
+        TextButton.icon(
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const GestoMobileDownloadPage()),
+            );
+          },
+          icon: Icon(
+            Icons.phone_android,
+            color: _isScrolled ? AppConstants.primaryColor : Colors.white,
+            size: 18,
+          ),
+          label: Text(
+            'App Mobile',
+            style: TextStyle(
+              color: _isScrolled ? AppConstants.primaryColor : Colors.white,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
         SizedBox(width: 10),
         Container(
           decoration: BoxDecoration(
@@ -280,14 +299,6 @@ class _GestoLandingPageState extends State<GestoLandingPage> {
                       icon: Icons.rocket_launch,
                       isPrimary: true,
                       onPressed: () => Navigator.pushNamed(context, AppRoutes.register),
-                    ),
-                    SizedBox(width: 20),
-                    _buildModernButton(
-                      context: context,
-                      label: 'Voir la démo',
-                      icon: Icons.play_circle_outline,
-                      isPrimary: false,
-                      onPressed: () {},
                     ),
                   ],
                 ),
@@ -1430,6 +1441,30 @@ class _GestoLandingPageState extends State<GestoLandingPage> {
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
                               ),
+                            ),
+                          ),
+                        ),
+                        OutlinedButton.icon(
+                          icon: Icon(Icons.phone_android, size: 24),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            padding: EdgeInsets.symmetric(horizontal: 50, vertical: 24),
+                            side: BorderSide(color: Colors.white, width: 2),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(30),
+                            ),
+                          ),
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => const GestoMobileDownloadPage()),
+                            );
+                          },
+                          label: Text(
+                            'Télécharger l\'App Mobile',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ),

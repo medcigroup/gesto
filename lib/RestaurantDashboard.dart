@@ -1,14 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/getConnectedUserAdminId.dart';
 import 'Screens/restaurant/ActiveOrders.dart';
 import 'Screens/restaurant/MenuManagement.dart';
 import 'Screens/restaurant/OrderTaking.dart';
 import 'Screens/restaurant/TablesManagement.dart';
-import 'Screens/restaurant/RestaurantExportReports.dart';  // ✅ Phase 4 - Export
-import 'Screens/restaurant/RestaurantTransactions.dart';  // ✅ Phase 4 - Transactions
+import 'Screens/restaurant/RestaurantExportReports.dart';  
+import 'Screens/restaurant/RestaurantTransactions.dart';  
 import 'Screens/restaurant/restaurant_reports.dart';
 import 'Screens/restaurant/table_reservations.dart';
 import 'config/restaurant_models.dart';
+import 'config/AuthService.dart';
+import 'Screens/manager/onboarding/components/tutorial/tutorial_overlay.dart';
+import 'Screens/manager/onboarding/services/tutorial_service.dart';
+import 'Screens/manager/onboarding/services/restaurant_tutorial_manager.dart';
+import 'Screens/manager/onboarding/models/tutorial_step.dart';
 
 class RestaurantDashboard extends StatefulWidget {
   @override
@@ -27,11 +34,18 @@ class _RestaurantDashboardState extends State<RestaurantDashboard>
   List<RestaurantOrder> _activeOrders = [];
   Map<String, dynamic> _todayStats = {};
 
+  // Variables pour le tutorial
+  bool _showTutorial = false;
+  List<TutorialStep> _tutorialSteps = [];
+  TutorialService? _tutorialService;
+  String? _tutorialUserId;
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
     _initializeData();
+    _checkAndInitializeTutorial();
   }
 
   @override
@@ -79,9 +93,69 @@ class _RestaurantDashboardState extends State<RestaurantDashboard>
     }
   }
 
+  Future<void> _checkAndInitializeTutorial() async {
+    try {
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final user = await authService.getCurrentUser();
+      _tutorialUserId = user?.email ?? 'anonymous';
+
+      final prefs = await SharedPreferences.getInstance();
+      _tutorialService = TutorialService(prefs);
+
+      // Vérifier si le tutorial restaurant a déjà été complété
+      final hasCompleted = await _tutorialService!.hasCompletedTutorial(
+        _tutorialUserId!, 
+        'restaurant_tutorial'
+      );
+
+      if (!hasCompleted && mounted) {
+        setState(() {
+          _tutorialSteps = RestaurantTutorialManager.getRestaurantTutorialSteps();
+          _showTutorial = true;
+        });
+        print('[RESTAURANT] 📖 Tutorial initialisé');
+      } else {
+        print('[RESTAURANT] ✅ Tutorial déjà complété');
+      }
+    } catch (e) {
+      print('[RESTAURANT] ⚠️ Erreur initialisation tutorial: $e');
+    }
+  }
+
+  void _completeTutorial() {
+    setState(() {
+      _showTutorial = false;
+    });
+    print('[RESTAURANT] ✅ Tutorial complété');
+  }
+
+  void _skipTutorial() async {
+    if (_tutorialService != null && _tutorialUserId != null) {
+      await _tutorialService!.completeTutorial(_tutorialUserId!, 'restaurant_tutorial');
+    }
+    setState(() {
+      _showTutorial = false;
+    });
+    print('[RESTAURANT] ⏭️ Tutorial ignoré');
+  }
+
+  void _restartTutorial() async {
+    if (_tutorialService != null && _tutorialUserId != null) {
+      await _tutorialService!.resetTutorial(_tutorialUserId!, 'restaurant_tutorial');
+      setState(() {
+        _tutorialSteps = RestaurantTutorialManager.getRestaurantTutorialSteps();
+        _showTutorial = true;
+        _tabController.index = 0; // Retour à l'onglet Accueil
+      });
+      print('[RESTAURANT] 🔄 Tutorial relancé');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return Stack(
+      children: [
+        Scaffold(
       backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
         elevation: 0,
@@ -102,6 +176,11 @@ class _RestaurantDashboardState extends State<RestaurantDashboard>
           ],
         ),
         actions: [
+          IconButton(
+            icon: Icon(Icons.school_outlined),
+            tooltip: 'Relancer le tutorial',
+            onPressed: _restartTutorial,
+          ),
           IconButton(
             icon: Icon(Icons.refresh),
             onPressed: _loadDashboardData,
@@ -124,6 +203,24 @@ class _RestaurantDashboardState extends State<RestaurantDashboard>
         backgroundColor: Colors.deepOrange,
         child: Icon(Icons.add, color: Colors.white),
       ),
+    ),
+        // Afficher le tutorial si activé
+        if (_showTutorial && _tutorialSteps.isNotEmpty)
+          TutorialOverlay(
+            steps: _tutorialSteps,
+            tutorialId: 'restaurant_tutorial',
+            onComplete: _completeTutorial,
+            onSkip: _skipTutorial,
+            showSkipButton: true,
+            showProgress: true,
+            onNavigateToPage: (pageIndex) {
+              // Naviguer vers l'onglet correspondant
+              if (pageIndex >= 0 && pageIndex < 4) {
+                _tabController.animateTo(pageIndex);
+              }
+            },
+          ),
+      ],
     );
   }
 

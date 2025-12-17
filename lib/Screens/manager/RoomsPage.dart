@@ -19,7 +19,9 @@ class RoomsPage extends StatefulWidget {
 
 class _RoomsPageState extends State<RoomsPage> {
   List<Room> rooms = [];
+  List<Booking> bookings = [];
   String view = 'grid';
+  String _previousView = 'grid';
   String searchTerm = '';
   String filterStatus = 'tout';
   String filterType = 'tout';
@@ -32,6 +34,23 @@ class _RoomsPageState extends State<RoomsPage> {
     super.initState();
     userId = FirebaseAuth.instance.currentUser?.uid; // Récupérer l'ID de l'utilisateur
     fetchRooms(); // Charger les chambres depuis Firebase au démarrage
+    fetchBookings(); // Charger les réservations
+  }
+
+  // Méthode pour rafraîchir les données
+  Future<void> _refreshData() async {
+    await Future.wait([
+      fetchRooms(),
+      fetchBookings(),
+    ]);
+  }
+
+  // Méthode pour détecter le changement de vue et actualiser
+  void _onViewChanged(String newView) {
+    if (_previousView != newView) {
+      _previousView = newView;
+      _refreshData();
+    }
   }
 
   // Fonction pour ouvrir le bottom sheet d'ajout
@@ -153,6 +172,88 @@ class _RoomsPageState extends State<RoomsPage> {
     }
   }
 
+  // Récupérer les réservations depuis Firebase
+  Future<void> fetchBookings() async {
+    if (userId == null) return;
+
+    try {
+      List<Booking> allBookings = [];
+
+      // Récupérer les réservations depuis la collection 'bookings'
+      final bookingsSnapshot = await FirebaseFirestore.instance
+          .collection('bookings')
+          .where('userId', isEqualTo: userId)
+          .where('status', whereIn: ['enregistré', 'hourly']).get();
+
+      // Récupérer les réservations depuis la collection 'reservations'
+      final reservationsSnapshot = await FirebaseFirestore.instance
+          .collection('reservations')
+          .where('userId', isEqualTo: userId)
+          .where('status', whereIn: ['réservée', 'Enregistré']).get();
+
+      // Récupérer les réservations horaires depuis 'bookingshours'
+      final hourlyBookingsSnapshot = await FirebaseFirestore.instance
+          .collection('bookingshours')
+          .where('userId', isEqualTo: userId)
+          .where('status', isEqualTo: 'hourly')
+          .get();
+
+      // Transformer les documents 'bookings' en objets Booking
+      for (var doc in bookingsSnapshot.docs) {
+        final data = doc.data();
+        if (data['checkInDate'] != null && data['checkOutDate'] != null) {
+          allBookings.add(Booking(
+            id: doc.id,
+            roomId: data['roomId'] ?? '',
+            guestName: data['customerName'] ?? 'Client',
+            checkIn: (data['checkInDate'] as Timestamp).toDate(),
+            checkOut: (data['checkOutDate'] as Timestamp).toDate(),
+            status: data['status'] ?? 'enregistré',
+          ));
+        }
+      }
+
+      // Transformer les documents 'reservations' en objets Booking
+      for (var doc in reservationsSnapshot.docs) {
+        final data = doc.data();
+        if (data['checkInDate'] != null && data['checkOutDate'] != null) {
+          allBookings.add(Booking(
+            id: doc.id,
+            roomId: data['roomId'] ?? '',
+            guestName: data['customerName'] ?? 'Client',
+            checkIn: (data['checkInDate'] as Timestamp).toDate(),
+            checkOut: (data['checkOutDate'] as Timestamp).toDate(),
+            status: data['status'] ?? 'réservée',
+          ));
+        }
+      }
+
+      // Transformer les documents 'bookingshours' en objets Booking
+      for (var doc in hourlyBookingsSnapshot.docs) {
+        final data = doc.data();
+        if (data['checkInDate'] != null && data['checkOutDate'] != null) {
+          allBookings.add(Booking(
+            id: doc.id,
+            roomId: data['roomId'] ?? '',
+            guestName: data['customerName'] ?? 'Client',
+            checkIn: (data['checkInDate'] as Timestamp).toDate(),
+            checkOut: (data['checkOutDate'] as Timestamp).toDate(),
+            status: data['status'] ?? 'hourly',
+          ));
+        }
+      }
+
+      setState(() {
+        bookings = allBookings;
+      });
+    } catch (e) {
+      print('Erreur lors de la récupération des réservations: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur lors du chargement des réservations: $e')),
+      );
+    }
+  }
+
 
 
   void handleEditRoom(String id) {
@@ -231,12 +332,18 @@ class _RoomsPageState extends State<RoomsPage> {
                   IconButton(
                     icon: Icon(LucideIcons.layoutGrid,
                         color: view == 'grid' ? Colors.black87 : Colors.grey),
-                    onPressed: () => setState(() => view = 'grid'),
+                    onPressed: () {
+                      setState(() => view = 'grid');
+                      _onViewChanged('grid');
+                    },
                   ),
                   IconButton(
                     icon: Icon(LucideIcons.calendar,
                         color: view == 'calendar' ? Colors.black87 : Colors.grey),
-                    onPressed: () => setState(() => view = 'calendar'),
+                    onPressed: () {
+                      setState(() => view = 'calendar');
+                      _onViewChanged('calendar');
+                    },
                   ),
                   Expanded(
                     child: Padding(
@@ -308,12 +415,18 @@ class _RoomsPageState extends State<RoomsPage> {
                 IconButton(
                   icon: Icon(LucideIcons.layoutGrid,
                       color: view == 'grid' ? Colors.black87 : Colors.grey),
-                  onPressed: () => setState(() => view = 'grid'),
+                  onPressed: () {
+                    setState(() => view = 'grid');
+                    _onViewChanged('grid');
+                  },
                 ),
                 IconButton(
                   icon: Icon(LucideIcons.calendar,
                       color: view == 'calendar' ? Colors.black87 : Colors.grey),
-                  onPressed: () => setState(() => view = 'calendar'),
+                  onPressed: () {
+                    setState(() => view = 'calendar');
+                    _onViewChanged('calendar');
+                  },
                 ),
                 SizedBox(width: 12),
                 Expanded(
@@ -490,7 +603,7 @@ class _RoomsPageState extends State<RoomsPage> {
                     )
                         : RoomCalendar(
                       rooms: rooms,
-                      bookings: [],  // Ajoutez vos données de réservations ici
+                      bookings: bookings,
                     ),
                   ),
                 ],

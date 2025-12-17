@@ -180,6 +180,7 @@ class _GestionPersonnelPageState extends State<GestionPersonnelPage> {
 
   Widget _buildBottomSheetContent() {
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return DraggableScrollableSheet(
       initialChildSize: 0.9,
@@ -188,62 +189,104 @@ class _GestionPersonnelPageState extends State<GestionPersonnelPage> {
       builder: (_, scrollController) {
         return Container(
           decoration: BoxDecoration(
-            color: theme.colorScheme.surface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            color: colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: Column(
             children: [
               // Barre de drag
               Container(
-                margin: const EdgeInsets.only(top: 10),
+                margin: const EdgeInsets.only(top: 12),
                 width: 40,
-                height: 5,
+                height: 4,
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.onSurface.withOpacity(0.3),
+                  color: colorScheme.onSurfaceVariant.withAlpha(80),
                   borderRadius: BorderRadius.circular(10),
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.all(16.0),
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      children: [
-                        Icon(Icons.person_add, color: theme.colorScheme.primary),
-                        const SizedBox(width: 10),
-                        Text(
-                          'Ajouter un employé',
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: theme.colorScheme.primary,
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: colorScheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        Icons.person_add_rounded,
+                        color: colorScheme.primary,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Ajouter un employé',
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.onSurface,
+                            ),
                           ),
-                        ),
-                      ],
+                          Text(
+                            'Remplissez les informations ci-dessous',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.close),
+                      icon: const Icon(Icons.close_rounded),
                       onPressed: () => Navigator.of(context).pop(),
+                      style: IconButton.styleFrom(
+                        backgroundColor: colorScheme.surfaceContainerHighest,
+                      ),
                     ),
                   ],
                 ),
               ),
-              Divider(thickness: 1, color: theme.colorScheme.onSurface.withOpacity(0.1)),
+              Divider(height: 1, color: colorScheme.outline.withAlpha(30)),
               Expanded(
                 child: SingleChildScrollView(
                   controller: scrollController,
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(20),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Information personnelles',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          color: theme.colorScheme.primary,
-                          fontWeight: FontWeight.w600,
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: colorScheme.primaryContainer.withAlpha(60),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: colorScheme.primary.withAlpha(60),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.person_outline_rounded,
+                              color: colorScheme.primary,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              'Informations personnelles',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                color: colorScheme.primary,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 20),
                       // Informations de base
                       Row(
                         children: [
@@ -274,16 +317,36 @@ class _GestionPersonnelPageState extends State<GestionPersonnelPage> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 24),
                       // Email et Mot de passe
-                      Text(
-                        'Informations de connexion',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          color: theme.colorScheme.primary,
-                          fontWeight: FontWeight.w600,
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: colorScheme.secondaryContainer.withAlpha(60),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: colorScheme.secondary.withAlpha(60),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.lock_outline_rounded,
+                              color: colorScheme.secondary,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              'Informations de connexion',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                color: colorScheme.secondary,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 20),
                       TextField(
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
@@ -307,16 +370,36 @@ class _GestionPersonnelPageState extends State<GestionPersonnelPage> {
                           prefixIcon: const Icon(Icons.lock_outline),
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 24),
                       // Informations professionnelles
-                      Text(
-                        'Informations professionnelles',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          color: theme.colorScheme.primary,
-                          fontWeight: FontWeight.w600,
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: colorScheme.tertiaryContainer.withAlpha(60),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: colorScheme.tertiary.withAlpha(60),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.work_outline_rounded,
+                              color: colorScheme.tertiary,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              'Informations professionnelles',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                color: colorScheme.tertiary,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 20),
                       DropdownButtonFormField<String>(
                         value: _selectedPoste,
                         decoration: InputDecoration(
@@ -361,9 +444,26 @@ class _GestionPersonnelPageState extends State<GestionPersonnelPage> {
                         },
                       ),
                       const SizedBox(height: 32),
-                      SizedBox(
+                      Container(
                         width: double.infinity,
-                        height: 50,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          gradient: LinearGradient(
+                            colors: _isLoading
+                                ? [colorScheme.surfaceContainerHighest, colorScheme.surfaceContainerHighest]
+                                : [colorScheme.primary, colorScheme.primary.withAlpha(200)],
+                          ),
+                          boxShadow: _isLoading
+                              ? null
+                              : [
+                                  BoxShadow(
+                                    color: colorScheme.primary.withAlpha(60),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                        ),
                         child: ElevatedButton(
                           onPressed: _isLoading
                               ? null
@@ -376,22 +476,55 @@ class _GestionPersonnelPageState extends State<GestionPersonnelPage> {
                             _nouveauDepartement,
                           ),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: theme.colorScheme.primary,
-                            foregroundColor: theme.colorScheme.onPrimary,
+                            backgroundColor: Colors.transparent,
+                            foregroundColor: colorScheme.onPrimary,
+                            shadowColor: Colors.transparent,
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(16),
                             ),
                             elevation: 0,
                           ),
                           child: _isLoading
-                              ? const SizedBox(
-                            height: 24,
-                            width: 24,
-                            child: CircularProgressIndicator(color: Colors.white),
-                          )
-                              : const Text('AJOUTER L\'EMPLOYÉ'),
+                              ? Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    SizedBox(
+                                      height: 24,
+                                      width: 24,
+                                      child: CircularProgressIndicator(
+                                        color: colorScheme.onPrimary,
+                                        strokeWidth: 2.5,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Text(
+                                      'Création en cours...',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: colorScheme.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(Icons.person_add_rounded, size: 22),
+                                    const SizedBox(width: 12),
+                                    const Text(
+                                      'Ajouter l\'employé',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                         ),
                       ),
+                      const SizedBox(height: 20),
                     ],
                   ),
                 ),
@@ -499,23 +632,70 @@ class _GestionPersonnelPageState extends State<GestionPersonnelPage> {
   }
 
   void _toggleEmployeeStatus(UserModelPersonnel employee) async {
+    final colorScheme = Theme.of(context).colorScheme;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Confirmer la modification'),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: employee.statut == 'actif'
+                    ? Colors.red.withAlpha(40)
+                    : Colors.green.withAlpha(40),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                employee.statut == 'actif'
+                    ? Icons.block_rounded
+                    : Icons.check_circle_rounded,
+                color: employee.statut == 'actif'
+                    ? Colors.red.shade700
+                    : Colors.green.shade700,
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Text('Confirmer l\'action'),
+          ],
+        ),
         content: Text(
-            'Voulez-vous vraiment ${employee.statut == 'actif' ? 'désactiver' : 'activer'} ce compte ?'
+          'Voulez-vous vraiment ${employee.statut == 'actif' ? 'désactiver' : 'activer'} le compte de ${employee.prenom} ${employee.nom} ?',
+          style: TextStyle(fontSize: 16, color: colorScheme.onSurfaceVariant),
         ),
         actions: [
-          TextButton(
+          OutlinedButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annuler'),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Text('Annuler', style: TextStyle(fontWeight: FontWeight.w600)),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Confirmer'),
+            style: FilledButton.styleFrom(
+              backgroundColor: employee.statut == 'actif'
+                  ? Colors.red.shade700
+                  : Colors.green.shade700,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: Text(
+              employee.statut == 'actif' ? 'Désactiver' : 'Activer',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
           ),
         ],
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        backgroundColor: colorScheme.surface,
+        elevation: 8,
+        actionsPadding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
       ),
     );
 
@@ -545,27 +725,54 @@ class _GestionPersonnelPageState extends State<GestionPersonnelPage> {
       appBar: AppBar(
         title: Row(
           children: [
-            const Icon(Icons.people_alt_outlined, size: 28),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.people_alt_rounded,
+                size: 24,
+                color: colorScheme.primary,
+              ),
+            ),
             const SizedBox(width: 12),
             Text(
               'Gestion du Personnel',
               style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: Colors.black,
+                fontWeight: FontWeight.bold,
+                color: colorScheme.onSurface,
               ),
             ),
           ],
         ),
-        backgroundColor: Colors.white38,
+        backgroundColor: colorScheme.surface,
+        elevation: 0,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                colorScheme.primaryContainer.withOpacity(0.3),
+                colorScheme.surface,
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh_rounded),
+            icon: Icon(Icons.refresh_rounded, color: colorScheme.primary),
             onPressed: _loadPersonnel,
             tooltip: 'Actualiser',
+            style: IconButton.styleFrom(
+              backgroundColor: colorScheme.primaryContainer.withOpacity(0.5),
+            ),
           ),
-          // Afficher une icône d'information sur la licence
+          const SizedBox(width: 8),
           IconButton(
-            icon: const Icon(Icons.info_outline),
+            icon: Icon(Icons.info_outline_rounded, color: colorScheme.primary),
             onPressed: () async {
               final currentUser = _authService.currentUser;
               if (currentUser != null) {
@@ -576,15 +783,20 @@ class _GestionPersonnelPageState extends State<GestionPersonnelPage> {
               }
             },
             tooltip: 'Infos licence',
+            style: IconButton.styleFrom(
+              backgroundColor: colorScheme.primaryContainer.withOpacity(0.5),
+            ),
           ),
+          const SizedBox(width: 16),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showAddEmployeeBottomSheet,
-        icon: const Icon(Icons.person_add),
-        label: const Text('Ajouter un employé'),
-        backgroundColor: theme.colorScheme.primary,
-        foregroundColor: theme.colorScheme.onPrimary,
+        icon: const Icon(Icons.person_add_rounded),
+        label: const Text('Ajouter', style: TextStyle(fontWeight: FontWeight.w600)),
+        backgroundColor: colorScheme.primary,
+        foregroundColor: colorScheme.onPrimary,
+        elevation: 4,
       ),
       body: Container(
         decoration: BoxDecoration(
@@ -594,13 +806,13 @@ class _GestionPersonnelPageState extends State<GestionPersonnelPage> {
             colors: isDarkMode
                 ? [
               colorScheme.surface,
-              colorScheme.surfaceVariant,
+              colorScheme.surfaceVariant.withOpacity(0.3),
               colorScheme.surface,
             ]
                 : [
-              colorScheme.primaryContainer.withOpacity(0.2),
-              colorScheme.background,
               colorScheme.primaryContainer.withOpacity(0.1),
+              colorScheme.surface,
+              colorScheme.secondaryContainer.withOpacity(0.05),
             ],
           ),
         ),
@@ -625,116 +837,177 @@ class _GestionPersonnelPageState extends State<GestionPersonnelPage> {
     final String displayValue = _selectedDepartement == 'Tous'
         ? 'Tous les départements'
         : _selectedDepartement;
+    final colorScheme = theme.colorScheme;
 
     return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            SearchBar(
-              controller: _searchController,
-              hintText: 'Rechercher un employé...',
-              leading: Icon(Icons.search_rounded, color: theme.colorScheme.onSurfaceVariant),
-              trailing: [
-                IconButton(
-                  icon: const Icon(Icons.close_rounded),
-                  onPressed: () {
-                    _searchController.clear();
-                    _loadPersonnel();
-                  },
-                )
-              ],
-              onChanged: (value) => _loadPersonnel(),
-              elevation: MaterialStateProperty.all(0),
-              shape: MaterialStateProperty.all(
-                RoundedRectangleBorder(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: colorScheme.surface,
+      shadowColor: colorScheme.shadow.withAlpha(25),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: colorScheme.outline.withAlpha(30),
+            width: 1,
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.filter_list_rounded,
+                    color: colorScheme.primary,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Recherche et Filtres',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Container(
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerHighest.withAlpha(60),
                   borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(color: theme.colorScheme.outline.withOpacity(0.5)),
+                  border: Border.all(
+                    color: colorScheme.outline.withAlpha(40),
+                  ),
+                ),
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: (value) => _loadPersonnel(),
+                  decoration: InputDecoration(
+                    hintText: 'Rechercher par nom, prénom, email ou poste...',
+                    hintStyle: TextStyle(color: colorScheme.onSurfaceVariant),
+                    prefixIcon: Icon(Icons.search_rounded, color: colorScheme.primary),
+                    suffixIcon: _searchController.text.isNotEmpty
+                        ? IconButton(
+                            icon: Icon(Icons.close_rounded, color: colorScheme.onSurfaceVariant),
+                            onPressed: () {
+                              _searchController.clear();
+                              _loadPersonnel();
+                            },
+                          )
+                        : null,
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Text(
-                  'Filtrer par département :',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurface.withOpacity(0.8),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Icon(
+                    Icons.business_rounded,
+                    size: 18,
+                    color: colorScheme.onSurfaceVariant,
                   ),
-                ),
-                const SizedBox(width: 12),
-                Flexible(
-                  child: DropdownMenu<String>(
-                    initialSelection: displayValue,
-                    onSelected: (value) {
-                      if (value != null) {
-                        setState(() {
-                          _selectedDepartement = value == 'Tous les départements' ? 'Tous' : value;
-                        });
-                        _loadPersonnel();
-                      }
-                    },
-                    dropdownMenuEntries: departments.map((dept) =>
-                        DropdownMenuEntry<String>(value: dept, label: dept)
-                    ).toList(),
-                    textStyle: theme.textTheme.bodyMedium,
-                    menuStyle: MenuStyle(
-                      backgroundColor: MaterialStatePropertyAll(theme.colorScheme.surface),
-                      elevation: const MaterialStatePropertyAll(4),
-                      shape: MaterialStatePropertyAll(
-                        RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Département :',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onSurface,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Flexible(
+                    child: DropdownMenu<String>(
+                      initialSelection: displayValue,
+                      onSelected: (value) {
+                        if (value != null) {
+                          setState(() {
+                            _selectedDepartement = value == 'Tous les départements' ? 'Tous' : value;
+                          });
+                          _loadPersonnel();
+                        }
+                      },
+                      dropdownMenuEntries: departments.map((dept) =>
+                          DropdownMenuEntry<String>(
+                            value: dept,
+                            label: dept,
+                            leadingIcon: Icon(
+                              Icons.label_rounded,
+                              size: 18,
+                              color: _getDepartmentColor(dept == 'Tous les départements' ? 'Tous' : dept),
+                            ),
+                          )
+                      ).toList(),
+                      textStyle: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w500,
+                      ),
+                      menuStyle: MenuStyle(
+                        backgroundColor: WidgetStatePropertyAll(colorScheme.surface),
+                        elevation: const WidgetStatePropertyAll(8),
+                        shape: WidgetStatePropertyAll(
+                          RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                       ),
-                    ),
-                    inputDecorationTheme: InputDecorationTheme(
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide.none,
+                      inputDecorationTheme: InputDecorationTheme(
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(color: colorScheme.outline),
+                        ),
+                        filled: true,
+                        fillColor: colorScheme.surfaceContainerHighest.withAlpha(80),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       ),
-                      filled: true,
-                      fillColor: theme.colorScheme.surfaceVariant.withOpacity(0.5),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                     ),
                   ),
-                ),
-              ],
-            ),
-          ],
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildPersonnelTable(ThemeData theme) {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+  Color _getDepartmentColor(String department) {
+    switch (department) {
+      case 'Accueil':
+        return Colors.blue;
+      case 'Cuisine':
+        return Colors.pink;
+      case 'Service':
+        return Colors.orange;
+      case 'Chambres':
+        return Colors.purple;
+      case 'Maintenance':
+        return Colors.teal;
+      case 'Restaurant':
+        return Colors.deepOrange;
+      default:
+        return Colors.grey;
     }
+  }
 
-    if (_personnelList.isEmpty) {
+  Widget _buildPersonnelTable(ThemeData theme) {
+    final colorScheme = theme.colorScheme;
+
+    if (_isLoading) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.people_outline,
-              size: 64,
-              color: theme.colorScheme.primary.withOpacity(0.6),
-            ),
+            CircularProgressIndicator(color: colorScheme.primary),
             const SizedBox(height: 16),
             Text(
-              'Aucun personnel trouvé',
-              style: theme.textTheme.titleMedium?.copyWith(
-                color: theme.colorScheme.onSurface.withOpacity(0.7),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Ajoutez des employés ou modifiez vos filtres',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurface.withOpacity(0.5),
+              'Chargement du personnel...',
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: colorScheme.onSurfaceVariant,
               ),
             ),
           ],
@@ -742,51 +1015,201 @@ class _GestionPersonnelPageState extends State<GestionPersonnelPage> {
       );
     }
 
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: PaginatedDataTable(
-            header: Text(
-              'Liste du personnel (${_personnelList.length})',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: theme.colorScheme.primary,
-              ),
-            ),
-            rowsPerPage: 8,
-            columnSpacing: 16,
-            horizontalMargin: 10,
-            showCheckboxColumn: false,
-            columns: [
-              DataColumn(
-                label: Text('NOM', style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-              DataColumn(
-                label: Text('PRÉNOM', style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-              DataColumn(
-                label: Text('POSTE', style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-              DataColumn(
-                label: Text('DÉPARTEMENT', style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-              DataColumn(
-                label: Text('STATUT', style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-              DataColumn(
-                label: Text('ACTIONS', style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-            ],
-            source: _EmployeeDataSource(
-              context: context,
-              employees: _personnelList,
-              onEdit: _editEmployee,
-              onToggleStatus: _toggleEmployeeStatus,
+    if (_personnelList.isEmpty) {
+      return Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        color: colorScheme.surfaceContainerLowest,
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: colorScheme.outline.withAlpha(30),
             ),
           ),
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(48.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: colorScheme.primaryContainer.withAlpha(80),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.people_outline_rounded,
+                      size: 64,
+                      color: colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Aucun personnel trouvé',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      color: colorScheme.onSurface,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Ajoutez des employés ou modifiez vos filtres',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  FilledButton.icon(
+                    onPressed: _showAddEmployeeBottomSheet,
+                    icon: const Icon(Icons.person_add_rounded),
+                    label: const Text('Ajouter un employé'),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: colorScheme.surface,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: colorScheme.outline.withAlpha(30),
+          ),
+        ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      Icons.badge_rounded,
+                      size: 20,
+                      color: colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Liste du personnel',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '${_personnelList.length}',
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Divider(height: 1, color: colorScheme.outline.withAlpha(30)),
+            Expanded(
+              child: SingleChildScrollView(
+                child: PaginatedDataTable(
+                  rowsPerPage: 8,
+                  columnSpacing: 24,
+                  horizontalMargin: 20,
+                  showCheckboxColumn: false,
+                  headingRowColor: WidgetStateProperty.all(
+                    colorScheme.surfaceContainerHighest.withAlpha(60),
+                  ),
+                  columns: [
+                    DataColumn(
+                      label: Text(
+                        'NOM',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
+                    DataColumn(
+                      label: Text(
+                        'PRÉNOM',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
+                    DataColumn(
+                      label: Text(
+                        'POSTE',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
+                    DataColumn(
+                      label: Text(
+                        'DÉPARTEMENT',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
+                    DataColumn(
+                      label: Text(
+                        'STATUT',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
+                    DataColumn(
+                      label: Text(
+                        'ACTIONS',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
+                  ],
+                  source: _EmployeeDataSource(
+                    context: context,
+                    employees: _personnelList,
+                    onEdit: _editEmployee,
+                    onToggleStatus: _toggleEmployeeStatus,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -810,43 +1233,113 @@ class _EmployeeDataSource extends DataTableSource {
   DataRow getRow(int index) {
     final employee = employees[index];
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return DataRow(
       cells: [
-        DataCell(Text(employee.nom)),
-        DataCell(Text(employee.prenom)),
-        DataCell(Text(employee.poste)),
+        DataCell(
+          Text(
+            employee.nom,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: colorScheme.onSurface,
+            ),
+          ),
+        ),
+        DataCell(
+          Text(
+            employee.prenom,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: colorScheme.onSurface,
+            ),
+          ),
+        ),
+        DataCell(
+          Row(
+            children: [
+              Icon(
+                Icons.work_outline_rounded,
+                size: 16,
+                color: colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                employee.poste,
+                style: TextStyle(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
         DataCell(
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: _getDepartmentColor(employee.departement).withOpacity(0.2),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              employee.departement,
-              style: TextStyle(
-                color: _getDepartmentColor(employee.departement),
-                fontWeight: FontWeight.w500,
+              color: _getDepartmentColor(employee.departement).withAlpha(40),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: _getDepartmentColor(employee.departement).withAlpha(100),
+                width: 1,
               ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.business_rounded,
+                  size: 14,
+                  color: _getDepartmentColor(employee.departement),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  employee.departement,
+                  style: TextStyle(
+                    color: _getDepartmentColor(employee.departement),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
         DataCell(
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
               color: employee.statut == 'actif'
-                  ? Colors.green.withOpacity(0.2)
-                  : Colors.red.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              employee.statut == 'actif' ? 'Actif' : 'Inactif',
-              style: TextStyle(
-                color: employee.statut == 'actif' ? Colors.green : Colors.red,
-                fontWeight: FontWeight.w500,
+                  ? Colors.green.withAlpha(40)
+                  : Colors.red.withAlpha(40),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: employee.statut == 'actif'
+                    ? Colors.green.withAlpha(100)
+                    : Colors.red.withAlpha(100),
+                width: 1,
               ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  employee.statut == 'actif'
+                      ? Icons.check_circle_rounded
+                      : Icons.cancel_rounded,
+                  size: 14,
+                  color: employee.statut == 'actif' ? Colors.green.shade700 : Colors.red.shade700,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  employee.statut == 'actif' ? 'Actif' : 'Inactif',
+                  style: TextStyle(
+                    color: employee.statut == 'actif' ? Colors.green.shade700 : Colors.red.shade700,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -854,22 +1347,41 @@ class _EmployeeDataSource extends DataTableSource {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              IconButton(
-                icon: const Icon(Icons.edit_outlined, size: 20),
-                onPressed: () => onEdit(employee),
-                tooltip: 'Modifier',
-                color: theme.colorScheme.primary,
-              ),
-              IconButton(
-                icon: Icon(
-                  employee.statut == 'actif'
-                      ? Icons.block_outlined
-                      : Icons.check_circle_outline,
-                  size: 20,
+              Container(
+                decoration: BoxDecoration(
+                  color: colorScheme.primaryContainer.withAlpha(80),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                onPressed: () => onToggleStatus(employee),
-                tooltip: employee.statut == 'actif' ? 'Désactiver' : 'Activer',
-                color: employee.statut == 'actif' ? Colors.red : Colors.green,
+                child: IconButton(
+                  icon: const Icon(Icons.edit_rounded, size: 18),
+                  onPressed: () => onEdit(employee),
+                  tooltip: 'Modifier',
+                  color: colorScheme.primary,
+                  padding: const EdgeInsets.all(8),
+                  constraints: const BoxConstraints(),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                decoration: BoxDecoration(
+                  color: employee.statut == 'actif'
+                      ? Colors.red.withAlpha(40)
+                      : Colors.green.withAlpha(40),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: IconButton(
+                  icon: Icon(
+                    employee.statut == 'actif'
+                        ? Icons.block_rounded
+                        : Icons.check_circle_rounded,
+                    size: 18,
+                  ),
+                  onPressed: () => onToggleStatus(employee),
+                  tooltip: employee.statut == 'actif' ? 'Désactiver' : 'Activer',
+                  color: employee.statut == 'actif' ? Colors.red.shade700 : Colors.green.shade700,
+                  padding: const EdgeInsets.all(8),
+                  constraints: const BoxConstraints(),
+                ),
               ),
             ],
           ),
@@ -890,19 +1402,19 @@ class _EmployeeDataSource extends DataTableSource {
   Color _getDepartmentColor(String department) {
     switch (department) {
       case 'Accueil':
-        return Colors.blue;
+        return Colors.blue.shade700;
       case 'Cuisine':
-        return Colors.pink;
+        return Colors.pink.shade700;
       case 'Service':
-        return Colors.orange;
+        return Colors.orange.shade700;
       case 'Chambres':
-        return Colors.purple;
+        return Colors.purple.shade700;
       case 'Maintenance':
-        return Colors.teal;
+        return Colors.teal.shade700;
       case 'Restaurant':
-        return Colors.deepOrangeAccent;
+        return Colors.deepOrange.shade700;
       default:
-        return Colors.grey;
+        return Colors.grey.shade700;
     }
   }
 }
@@ -965,12 +1477,29 @@ class __EmployeeEditDialogState extends State<_EmployeeEditDialog> {
     final colorScheme = widget.theme.colorScheme;
 
     return AlertDialog(
-      title: Text(
-        'Modifier employé',
-        style: widget.theme.textTheme.titleMedium?.copyWith(
-          fontWeight: FontWeight.w600,
-          color: colorScheme.primary,
-        ),
+      title: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              Icons.edit_rounded,
+              color: colorScheme.primary,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            'Modifier l\'employé',
+            style: widget.theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: colorScheme.onSurface,
+            ),
+          ),
+        ],
       ),
       content: SingleChildScrollView(
         child: Column(
@@ -1065,35 +1594,50 @@ class __EmployeeEditDialogState extends State<_EmployeeEditDialog> {
         ),
       ),
       actions: [
-        TextButton(
+        OutlinedButton(
           onPressed: () => Navigator.pop(context, false),
+          style: OutlinedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
           child: Text(
             'Annuler',
-            style: TextStyle(color: colorScheme.secondary),
+            style: TextStyle(
+              color: colorScheme.onSurface,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
-        FilledButton(
+        FilledButton.icon(
           onPressed: _isSaving ? null : _saveChanges,
+          icon: _isSaving
+              ? SizedBox(
+                  height: 18,
+                  width: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: colorScheme.onPrimary,
+                  ),
+                )
+              : const Icon(Icons.save_rounded, size: 20),
+          label: Text(_isSaving ? 'Enregistrement...' : 'Enregistrer'),
           style: FilledButton.styleFrom(
             backgroundColor: colorScheme.primary,
-            disabledBackgroundColor: colorScheme.primary.withOpacity(0.6),
-          ),
-          child: _isSaving
-              ? SizedBox(
-            height: 20,
-            width: 20,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: colorScheme.onPrimary,
+            disabledBackgroundColor: colorScheme.surfaceContainerHighest,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
             ),
-          )
-              : Text('Enregistrer'),
+          ),
         ),
       ],
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       backgroundColor: colorScheme.surface,
       surfaceTintColor: colorScheme.surfaceTint,
-      elevation: 4,
+      elevation: 8,
+      actionsPadding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
     );
   }
 

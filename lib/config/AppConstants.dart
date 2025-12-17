@@ -4,7 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 class AppConstants {
   // ==================== INFORMATIONS DE L'APPLICATION ====================
   static const String appName = 'Gesto';
-  static const String appVersion = 'v1.3.0 Build 20251215';
+  static const String appVersion = 'v1.3.1 Build 20251217';
   static const String appTagline = 'Réinventez la gestion hôtelière avec intelligence';
   static const String appDescription = 'Solutions innovantes pour l\'industrie hôtelière';
 

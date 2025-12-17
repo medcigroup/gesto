@@ -18,12 +18,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String? idadmin;
   List<Reservation> reservationsList = [];
   List<RecentBooking> bookings = [];
+  List<RecentBooking> recentPassages = [];
   bool isLoading = true;
   int arrivalsCount = 0;
   int departuresCount = 0;
   int totalReservations = 0;
   int tasksCount = 0;
   double tasksProgress = 0.0;
+  int todayCheckIns = 0;
+  int todayCheckOuts = 0;
+  int activeGuests = 0;
 
   @override
   void initState() {
@@ -31,6 +35,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _loadAdminId();
     _loadTasksData();
     _fetchRecentBookings();
+    _fetchRecentPassages();
   }
 
   Future<void> _loadAdminId() async {
@@ -217,91 +222,207 @@ class _DashboardScreenState extends State<DashboardScreen> {
           fetchReservations(),
           _loadTasksData(),
           _fetchRecentBookings(),
+          _fetchRecentPassages(),
         ]);
       },
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // En-tête du dashboard
-            Text(
-              'Tableau de Bord',
-              style: theme.textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: GestoTheme.navyBlue,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Bienvenue sur votre espace de travail',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[600],
-              ),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [GestoTheme.navyBlue, GestoTheme.navyBlue.withOpacity(0.7)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Icon(Icons.dashboard, color: Colors.white, size: 32),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Tableau de Bord',
+                        style: theme.textTheme.headlineMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: GestoTheme.navyBlue,
+                        ),
+                      ),
+                      Text(
+                        DateFormat('dd/MM/yyyy').format(DateTime.now()),
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 24),
 
-            // Résumé statistique
-            SizedBox(
-              height: 180,
-              child: GridView.count(
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisCount: 2,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-                childAspectRatio: 1.5,
+            // Statistiques des passages du jour
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    const Color(0xFF21293E),
+                    const Color(0xFF434343),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF3F51B5).withOpacity(0.3),
+                    blurRadius: 12,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildStatCard(
-                    context,
-                    title: 'Tâches du jour',
-                    value: tasksCount.toString(),
-                    icon: Icons.task_alt,
-                    color: Colors.blue,
-                    progress: tasksProgress,
-                    onTap: () {
-                      // Navigation vers la liste des tâches
-                      // Navigator.push(...);
-                    },
+                  Row(
+                    children: [
+                      Icon(Icons.transfer_within_a_station, color: Colors.white, size: 24),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Statistiques du jour',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
                   ),
-                  _buildStatCard(
-                    context,
-                    title: 'Réservations',
-                    value: totalReservations.toString(),
-                    icon: Icons.book_online,
-                    color: Colors.orange,
-                    onTap: () {
-                      // Navigation vers la liste des réservations
-                      // Navigator.push(...);
-                    },
-                  ),
-                  _buildStatCard(
-                    context,
-                    title: 'Arrivées prévues',
-                    value: arrivalsCount.toString(),
-                    icon: Icons.login,
-                    color: Colors.green,
-                    onTap: () {
-                      // Filtrer les arrivées du jour
-                      // Navigator.push(...);
-                    },
-                  ),
-                  _buildStatCard(
-                    context,
-                    title: 'Départs prévus',
-                    value: departuresCount.toString(),
-                    icon: Icons.logout,
-                    color: Colors.purple,
-                    onTap: () {
-                      // Filtrer les départs du jour
-                      // Navigator.push(...);
-                    },
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildPassageStatCard(
+                          'Check-ins',
+                          todayCheckIns.toString(),
+                          Icons.login,
+                          Colors.white,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildPassageStatCard(
+                          'Check-outs',
+                          todayCheckOuts.toString(),
+                          Icons.logout,
+                          Colors.white,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildPassageStatCard(
+                          'Actifs',
+                          activeGuests.toString(),
+                          Icons.people,
+                          Colors.white,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
 
             const SizedBox(height: 24),
+
+            // Grille de statistiques
+            GridView.count(
+              physics: const NeverScrollableScrollPhysics(),
+              shrinkWrap: true,
+              crossAxisCount: 2,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              childAspectRatio: 1.5,
+              children: [
+                _buildStatCard(
+                  context,
+                  title: 'Tâches du jour',
+                  value: tasksCount.toString(),
+                  icon: Icons.task_alt,
+                  color: Colors.blue,
+                  progress: tasksProgress,
+                ),
+                _buildStatCard(
+                  context,
+                  title: 'Réservations',
+                  value: totalReservations.toString(),
+                  icon: Icons.book_online,
+                  color: Colors.orange,
+                ),
+                _buildStatCard(
+                  context,
+                  title: 'Arrivées prévues',
+                  value: arrivalsCount.toString(),
+                  icon: Icons.login,
+                  color: Colors.green,
+                ),
+                _buildStatCard(
+                  context,
+                  title: 'Départs prévus',
+                  value: departuresCount.toString(),
+                  icon: Icons.logout,
+                  color: Colors.purple,
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 24),
+
+            // Section des enregistrements récents (bookings + bookingshours)
+            if (recentPassages.isNotEmpty) ...[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Enregistrements récents',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: GestoTheme.navyBlue,
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: () {
+                      // Navigation vers la page complète des passages
+                    },
+                    icon: Icon(Icons.arrow_forward, size: 16),
+                    label: Text('Voir tout'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                height: 200,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: recentPassages.length,
+                  itemBuilder: (context, index) {
+                    return _buildBookingCard(recentPassages[index]);
+                  },
+                ),
+              ),
+              const SizedBox(height: 24),
+            ],
 
             // Section des réservations à venir
             Row(
@@ -319,62 +440,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
             const SizedBox(height: 16),
 
             // Liste des réservations
-            Expanded(
-              child: reservationsList.isEmpty
-                  ? Center(
+            reservationsList.isEmpty
+                ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32.0),
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(Icons.calendar_today,
-                        size: 48, color: Colors.grey[400]),
+                        size: 64, color: Colors.grey[300]),
                     const SizedBox(height: 16),
                     Text(
                       'Aucune réservation à venir',
                       style: TextStyle(
                         fontSize: 16,
                         color: Colors.grey[600],
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ],
                 ),
-              )
-                  : ListView.builder(
-                itemCount: reservationsList.length,
-                itemBuilder: (context, index) {
-                  final reservation = reservationsList[index];
-                  return _buildReservationCard(context, reservation);
-                },
               ),
+            )
+                : ListView.builder(
+              physics: const NeverScrollableScrollPhysics(),
+              shrinkWrap: true,
+              itemCount: reservationsList.length > 3 ? 3 : reservationsList.length,
+              itemBuilder: (context, index) {
+                final reservation = reservationsList[index];
+                return _buildReservationCard(context, reservation);
+              },
             ),
-
-            // Section des entrées et sorties récentes
-            if (bookings.isNotEmpty) ...[
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Entrées & Sorties',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: GestoTheme.navyBlue,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-
-              Container(
-                height: 200,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: bookings.length,
-                  itemBuilder: (context, index) {
-                    return _buildBookingCard(bookings[index]);
-                  },
-                ),
-              ),
-            ]
           ],
         ),
       ),
@@ -447,6 +542,48 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildPassageStatCard(
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 28),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: color.withOpacity(0.9),
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -632,15 +769,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
       List<RecentBooking> fetchedBookings = snapshot.docs.map((doc) {
         Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+        final checkInDateTime = (data['checkInDate'] as Timestamp).toDate();
         return RecentBooking(
           guestName: data['customerName'] ?? 'Unknown',
           roomNumber: data['roomNumber'] ?? 'N/A',
-          checkIn: DateFormat('yyyy-MM-dd').format((data['checkInDate'] as Timestamp).toDate()),
+          checkIn: DateFormat('yyyy-MM-dd').format(checkInDateTime),
           checkOut: DateFormat('yyyy-MM-dd').format((data['checkOutDate'] as Timestamp).toDate()),
           status: data['status'] ?? 'Unknown',
           statusColor: _getStatusColor(data['status']),
           bookingId: data['EnregistrementCode'] ?? 'N/A',
           phoneNumber: data['customerPhone'] ?? 'N/A',
+          checkInDate: checkInDateTime,
         );
       }).toList();
 
@@ -649,6 +788,167 @@ class _DashboardScreenState extends State<DashboardScreen> {
       });
     } catch (e) {
       print('Erreur lors du chargement des réservations: $e');
+    }
+  }
+
+  Future<void> _fetchRecentPassages() async {
+    try {
+      String? userId = await getConnectedUserAdminId();
+      if (userId == null) {
+        return;
+      }
+
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final last7Days = today.subtract(const Duration(days: 7));
+
+      List<RecentBooking> fetchedPassages = [];
+      int checkInsToday = 0;
+      int checkOutsToday = 0;
+
+      // 1. Récupérer les enregistrements NORMAUX depuis 'bookings'
+      QuerySnapshot normalBookingsSnapshot = await FirebaseFirestore.instance
+          .collection('bookings')
+          .where('userId', isEqualTo: userId)
+          .where('checkInDate', isGreaterThanOrEqualTo: Timestamp.fromDate(last7Days))
+          .orderBy('checkInDate', descending: true)
+          .limit(15)
+          .get();
+
+      for (var doc in normalBookingsSnapshot.docs) {
+        Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+        final checkInDateTime = (data['checkInDate'] as Timestamp).toDate();
+        final checkOutDateTime = data['checkOutDate'] != null
+            ? (data['checkOutDate'] as Timestamp).toDate()
+            : checkInDateTime.add(const Duration(days: 1));
+
+        // Compter les check-ins d'aujourd'hui
+        if (checkInDateTime.year == today.year &&
+            checkInDateTime.month == today.month &&
+            checkInDateTime.day == today.day) {
+          checkInsToday++;
+        }
+
+        fetchedPassages.add(RecentBooking(
+          guestName: data['customerName'] ?? 'Inconnu',
+          roomNumber: data['roomNumber'] ?? 'N/A',
+          checkIn: DateFormat('dd/MM/yyyy').format(checkInDateTime),
+          checkOut: DateFormat('dd/MM/yyyy').format(checkOutDateTime),
+          status: data['status'] ?? 'réservée',
+          statusColor: _getStatusColor(data['status']),
+          bookingId: data['EnregistrementCode'] ?? 'N/A',
+          phoneNumber: data['customerPhone'] ?? 'N/A',
+          checkInDate: checkInDateTime,
+          actionType: 'booking',
+          actionDate: checkInDateTime,
+        ));
+      }
+
+      // 2. Récupérer les passages HORAIRES depuis 'bookingshours'
+      QuerySnapshot hoursCheckInsSnapshot = await FirebaseFirestore.instance
+          .collection('bookingshours')
+          .where('userId', isEqualTo: userId)
+          .where('checkInDate', isGreaterThanOrEqualTo: Timestamp.fromDate(last7Days))
+          .orderBy('checkInDate', descending: true)
+          .limit(15)
+          .get();
+
+      for (var doc in hoursCheckInsSnapshot.docs) {
+        Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+        final checkInDateTime = (data['checkInDate'] as Timestamp).toDate();
+        final checkOutDateTime = data['checkOutDate'] != null
+            ? (data['checkOutDate'] as Timestamp).toDate()
+            : checkInDateTime.add(const Duration(hours: 3));
+
+        // Compter les check-ins d'aujourd'hui
+        if (checkInDateTime.year == today.year &&
+            checkInDateTime.month == today.month &&
+            checkInDateTime.day == today.day) {
+          checkInsToday++;
+        }
+
+        fetchedPassages.add(RecentBooking(
+          guestName: data['customerName'] ?? 'Inconnu',
+          roomNumber: data['roomNumber'] ?? 'N/A',
+          checkIn: DateFormat('HH:mm').format(checkInDateTime),
+          checkOut: DateFormat('HH:mm').format(checkOutDateTime),
+          status: 'Passage',
+          statusColor: Colors.blue,
+          bookingId: data['EnregistrementCode'] ?? 'N/A',
+          phoneNumber: data['customerPhone'] ?? 'N/A',
+          checkInDate: checkInDateTime,
+          actionType: 'check-in',
+          actionDate: checkInDateTime,
+        ));
+      }
+
+      // 3. Récupérer les check-outs horaires
+      QuerySnapshot hoursCheckOutsSnapshot = await FirebaseFirestore.instance
+          .collection('bookingshours')
+          .where('userId', isEqualTo: userId)
+          .where('status', isEqualTo: 'terminé')
+          .where('checkOutDate', isGreaterThanOrEqualTo: Timestamp.fromDate(last7Days))
+          .orderBy('checkOutDate', descending: true)
+          .limit(15)
+          .get();
+
+      for (var doc in hoursCheckOutsSnapshot.docs) {
+        Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+        final checkOutDateTime = (data['checkOutDate'] as Timestamp).toDate();
+        final checkInDateTime = data['checkInDate'] != null
+            ? (data['checkInDate'] as Timestamp).toDate()
+            : checkOutDateTime.subtract(const Duration(hours: 3));
+
+        // Compter les check-outs d'aujourd'hui
+        if (checkOutDateTime.year == today.year &&
+            checkOutDateTime.month == today.month &&
+            checkOutDateTime.day == today.day) {
+          checkOutsToday++;
+        }
+
+        fetchedPassages.add(RecentBooking(
+          guestName: data['customerName'] ?? 'Inconnu',
+          roomNumber: data['roomNumber'] ?? 'N/A',
+          checkIn: DateFormat('HH:mm').format(checkInDateTime),
+          checkOut: DateFormat('HH:mm').format(checkOutDateTime),
+          status: 'Terminé',
+          statusColor: Colors.red,
+          bookingId: data['EnregistrementCode'] ?? 'N/A',
+          phoneNumber: data['customerPhone'] ?? 'N/A',
+          checkInDate: checkInDateTime,
+          actionType: 'check-out',
+          actionDate: checkOutDateTime,
+        ));
+      }
+
+      // Compter les clients actifs (check-in mais pas encore check-out)
+      QuerySnapshot activeSnapshot = await FirebaseFirestore.instance
+          .collection('bookingshours')
+          .where('userId', isEqualTo: userId)
+          .where('status', whereIn: ['hourly', 'enregistré'])
+          .get();
+
+      // Trier par date d'action (plus récent en premier)
+      fetchedPassages.sort((a, b) =>
+          (b.actionDate ?? b.checkInDate).compareTo(a.actionDate ?? a.checkInDate));
+
+      setState(() {
+        recentPassages = fetchedPassages.take(10).toList();
+        todayCheckIns = checkInsToday;
+        todayCheckOuts = checkOutsToday;
+        activeGuests = activeSnapshot.docs.length;
+      });
+    } catch (e) {
+      print('Erreur lors du chargement des passages: $e');
+      // Afficher les détails de l'erreur pour debug
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur passages: ${e.toString()}'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
     }
   }
 

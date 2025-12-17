@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'DashboardScreen.dart';
 import 'RestaurantDashboard.dart';
 import 'Screens/manager/CheckInPage.dart';
-import 'Screens/manager/ComingSoonPage.dart';
 import 'Screens/manager/FinancePage.dart';
 import 'Screens/manager/GestionPersonnelPage.dart';
 import 'Screens/manager/HourlyCheckInPage.dart';
@@ -16,6 +16,11 @@ import 'Screens/manager/SettingsPage.dart';
 import 'Screens/manager/TaskManagementPage.dart';
 import 'Screens/manager/UserManagementScreen.dart';
 import 'Screens/manager/renew_licence_page.dart';
+import 'Screens/manager/help/help_documentation_page.dart';
+import 'Screens/manager/onboarding/components/tutorial/tutorial_overlay.dart';
+import 'Screens/manager/onboarding/services/tutorial_service.dart';
+import 'Screens/manager/onboarding/services/initial_setup_tutorial_manager.dart';
+import 'Screens/manager/onboarding/models/tutorial_step.dart';
 import 'components/dashboard/licence_Ui.dart';
 import 'components/messagerie/NotificationPanel.dart';
 import 'components/messagerie/NotificationProvider.dart';
@@ -36,48 +41,58 @@ class DashboardManager extends StatefulWidget {
   const DashboardManager({Key? key}) : super(key: key);
 
   @override
-  _DashboardManagerState createState() => _DashboardManagerState();
+  DashboardManagerState createState() => DashboardManagerState();
 }
 
-class _DashboardManagerState extends State<DashboardManager> {
+class DashboardManagerState extends State<DashboardManager> {
   int _selectedIndex = 0;
   bool _isDarkMode = false;
   UserRole _userRole = UserRole.employee;
-  StreamSubscription? _notificationSubscription; // Ajout pour gérer le stream
+  StreamSubscription? _notificationSubscription;
+
+  // Variables pour suivre l'état de l'UI
+  bool _showSidebarLabels = true;
+  bool _showTopBarLabels = true;
+
+  // Variables pour le tutorial
+  bool _showTutorial = false;
+  List<TutorialStep> _tutorialSteps = [];
+  TutorialService? _tutorialService;
+  String? _userId;
 
   // Liste complète des pages disponibles
-  final List<Widget> _allPages = [
-    const Dashboard(),
-    ModernReservationPage(),
-    RoomsPage(),
-    TaskManagementPage(),
-    ModernScheduleManagementPage(),
-    PaymentPage(),
-    CheckInPage(),
-    HourlyCheckInPage(),
-    OccupiedRoomsPage(),
-    RestaurantDashboard(),
-    GestionPersonnelPage(),
-    FinancePage(),
-    RenewLicencePage(),
-    UserManagementScreen(),
-    SettingsPage(),
+  final List<Widget Function()> _allPages = [
+        () => const Dashboard(),
+        () => ModernReservationPage(),
+        () => CheckInPage(),
+        () => RoomsPage(),
+        () => HourlyCheckInPage(),
+        () => OccupiedRoomsPage(),
+        () => PaymentPage(),
+        () => FinancePage(),
+        () => RestaurantDashboard(),
+        () => TaskManagementPage(),
+        () => ModernScheduleManagementPage(),
+        () => GestionPersonnelPage(),
+        () => RenewLicencePage(),
+        () => UserManagementScreen(),
+        () => SettingsPage(),
   ];
 
   // Titres de toutes les pages
   final List<String> _allPageTitles = [
     'Tableau de bord',
     'Réservations',
-    'Chambres',
-    'Taches',
-    'Emplois du temps',
-    'Paiements',
     'Enregistrement',
+    'Chambres',
     'Passages',
     'Départ',
-    'Restaurant',
-    'Personnel',
+    'Paiements',
     'Finances',
+    'Restaurant',
+    'Tâches',
+    'Emplois du temps',
+    'Personnel',
     'Licences',
     'Administration',
     'Paramètres',
@@ -85,43 +100,66 @@ class _DashboardManagerState extends State<DashboardManager> {
 
   // Icônes de toutes les pages pour le menu
   final List<IconData> _allPageIcons = [
-    Icons.dashboard_outlined,
-    Icons.calendar_today_outlined,
-    Icons.hotel_outlined,
-    Icons.task_outlined,
-    Icons.schedule_outlined,
-    Icons.payment_outlined,
-    Icons.app_registration_outlined,
-    Icons.bed,
-    Icons.exit_to_app_outlined,
-    Icons.restaurant_outlined,
-    Icons.people_outlined,
-    Icons.attach_money_outlined,
-    Icons.card_membership_outlined,
-    Icons.admin_panel_settings_outlined,
-    Icons.settings_outlined,
+    Icons.dashboard_rounded,
+    Icons.event_note_rounded,
+    Icons.login_rounded,
+    Icons.hotel_rounded,
+    Icons.access_time_rounded,
+    Icons.logout_rounded,
+    Icons.payment_rounded,
+    Icons.analytics_rounded,
+    Icons.restaurant_rounded,
+    Icons.task_alt_rounded,
+    Icons.calendar_month_rounded,
+    Icons.groups_rounded,
+    Icons.workspace_premium_rounded,
+    Icons.admin_panel_settings_rounded,
+    Icons.settings_rounded,
   ];
 
   // Listes actives qui seront ajustées en fonction du rôle et de la licence
-  late List<Widget> _pages;
+  late List<Widget Function()> _pages;
   late List<String> _pageTitles;
   late List<IconData> _pageIcons;
   late List<int> _accessiblePageIndices;
 
-  void _changeSelectedIndex(int index) {
+  // Clé pour forcer le rafraîchissement des pages
+  final Map<int, UniqueKey> _pageKeys = {};
+
+  void changeSelectedIndex(int index) {
     setState(() {
       _selectedIndex = index;
+      // Créer une nouvelle clé pour forcer le rafraîchissement de la page
+      _pageKeys[index] = UniqueKey();
+      print('[DASHBOARD] 📄 Changement vers page: ${_pageTitles[index]}');
     });
+
+    // Rafraîchir les données si nécessaire
+    _refreshCurrentPage();
+  }
+
+  void _refreshCurrentPage() {
+    // Vous pouvez ajouter ici une logique pour rafraîchir les données
+    // de la page actuelle si nécessaire
+    print('[DASHBOARD] 🔄 Rafraîchissement de la page: ${_pageTitles[_selectedIndex]}');
   }
 
   @override
   void initState() {
     super.initState();
+    _initializePageKeys();
     _initializeNotifications();
     _getUserRole();
+    _checkAndInitializeTutorial();
   }
 
-  // Initialiser les notifications avec gestion du stream
+  void _initializePageKeys() {
+    // Initialiser les clés pour toutes les pages
+    for (int i = 0; i < _allPages.length; i++) {
+      _pageKeys[i] = UniqueKey();
+    }
+  }
+
   void _initializeNotifications() {
     try {
       final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
@@ -132,7 +170,49 @@ class _DashboardManagerState extends State<DashboardManager> {
     }
   }
 
-  // Récupère le rôle de l'utilisateur
+  Future<void> _checkAndInitializeTutorial() async {
+    try {
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final user = await authService.getCurrentUser();
+      _userId = user?.email ?? 'anonymous';
+
+      final prefs = await SharedPreferences.getInstance();
+      _tutorialService = TutorialService(prefs);
+
+      // Vérifier si le tutorial a déjà été complété
+      final hasCompleted = await _tutorialService!.hasCompletedTutorial(_userId!, 'initial_setup_tutorial');
+
+      if (!hasCompleted && mounted) {
+        setState(() {
+          _tutorialSteps = InitialSetupTutorialManager.getInitialSetupTutorialSteps();
+          _showTutorial = true;
+        });
+        print('[DASHBOARD] 📖 Tutorial initialisé pour l\'utilisateur');
+      } else {
+        print('[DASHBOARD] ✅ Tutorial déjà complété');
+      }
+    } catch (e) {
+      print('[DASHBOARD] ⚠️ Erreur initialisation tutorial: $e');
+    }
+  }
+
+  void _completeTutorial() {
+    setState(() {
+      _showTutorial = false;
+    });
+    print('[DASHBOARD] ✅ Tutorial complété');
+  }
+
+  void _skipTutorial() async {
+    if (_tutorialService != null && _userId != null) {
+      await _tutorialService!.completeTutorial(_userId!, 'initial_setup_tutorial');
+    }
+    setState(() {
+      _showTutorial = false;
+    });
+    print('[DASHBOARD] ⏭️ Tutorial ignoré');
+  }
+
   Future<void> _getUserRole() async {
     try {
       final authService = Provider.of<AuthService>(context, listen: false);
@@ -140,7 +220,6 @@ class _DashboardManagerState extends State<DashboardManager> {
 
       if (userRoleStr != null && mounted) {
         setState(() {
-          // Convertir la chaîne du rôle en énumération
           switch (userRoleStr.toLowerCase()) {
             case 'superadmin':
               _userRole = UserRole.admin;
@@ -158,20 +237,17 @@ class _DashboardManagerState extends State<DashboardManager> {
               _userRole = UserRole.employee;
           }
           print('[DASHBOARD] 👤 Rôle utilisateur: $_userRole');
-          // Initialiser les pages après avoir obtenu le rôle
           _initPagesBasedOnRoleAndLicense();
         });
       }
     } catch (e) {
       print('[DASHBOARD] ⚠️ Erreur lors de la récupération du rôle: $e');
-      // Garder le rôle par défaut et initialiser quand même
       if (mounted) {
         _initPagesBasedOnRoleAndLicense();
       }
     }
   }
 
-  // Configure les pages disponibles en fonction du rôle ET de la licence
   void _initPagesBasedOnRoleAndLicense() {
     if (!mounted) {
       print('[DASHBOARD] ⚠️ Widget non monté, abandon initialisation pages');
@@ -179,7 +255,6 @@ class _DashboardManagerState extends State<DashboardManager> {
     }
 
     try {
-      // Vérifier d'abord les pages accessibles par rôle
       List<int> roleBasedIndices = [];
 
       switch (_userRole) {
@@ -190,20 +265,18 @@ class _DashboardManagerState extends State<DashboardManager> {
           roleBasedIndices = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14];
           break;
         case UserRole.receptionist:
-          roleBasedIndices = [0, 1, 2, 6, 7, 8, 14];
+          roleBasedIndices = [0, 1, 2, 3, 4, 5, 6, 14];
           break;
         case UserRole.employee:
-          roleBasedIndices = [0, 3, 4, 14];
+          roleBasedIndices = [0, 3, 9, 10, 14];
           break;
         case UserRole.kitchen:
-          roleBasedIndices = [0, 3, 4, 9, 14];
+          roleBasedIndices = [0, 8, 9, 10, 14];
           break;
       }
 
-      // Ensuite, filtrer en fonction de la licence
       final licenseManager = Provider.of<LicenseManager>(context, listen: false);
 
-      // Si la licence est expirée, accès limité
       if (licenseManager.isExpired) {
         print('[DASHBOARD] ⏰ Licence expirée, accès limité');
         roleBasedIndices = roleBasedIndices.where((index) =>
@@ -212,13 +285,10 @@ class _DashboardManagerState extends State<DashboardManager> {
             _allPageTitles[index] == 'Paramètres'
         ).toList();
 
-        // S'assurer que la page de renouvellement de licence est accessible
         if (!roleBasedIndices.contains(12)) {
           roleBasedIndices.add(12);
         }
-      }
-      // Sinon, filtrer selon le type de licence
-      else {
+      } else {
         roleBasedIndices = roleBasedIndices.where((index) =>
             licenseManager.canAccessPage(_allPageTitles[index])
         ).toList();
@@ -231,10 +301,15 @@ class _DashboardManagerState extends State<DashboardManager> {
           _pageTitles = _accessiblePageIndices.map((i) => _allPageTitles[i]).toList();
           _pageIcons = _accessiblePageIndices.map((i) => _allPageIcons[i]).toList();
 
-          // S'assurer que l'index sélectionné est valide
           if (_selectedIndex >= _pages.length) {
             _selectedIndex = 0;
           }
+
+          // Recréer les clés pour les nouvelles pages
+          for (int i = 0; i < _pages.length; i++) {
+            _pageKeys[i] = UniqueKey();
+          }
+
           print('[DASHBOARD] 📄 ${_pages.length} pages accessibles initialisées');
         });
       }
@@ -243,7 +318,6 @@ class _DashboardManagerState extends State<DashboardManager> {
     }
   }
 
-  // Vérifier si la licence a expiré au moment de l'affichage
   void _checkLicenseStatus() {
     if (!mounted) {
       print('[DASHBOARD] ⚠️ Widget non monté, abandon vérification licence');
@@ -254,7 +328,6 @@ class _DashboardManagerState extends State<DashboardManager> {
       final licenseManager = Provider.of<LicenseManager>(context, listen: false);
       licenseManager.checkExpiration();
 
-      // Si la licence a expiré, afficher une boîte de dialogue
       if (licenseManager.isExpired && mounted) {
         print('[DASHBOARD] ⏰ Licence expirée détectée');
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -271,7 +344,6 @@ class _DashboardManagerState extends State<DashboardManager> {
         });
       }
 
-      // Rafraîchir les pages disponibles
       _initPagesBasedOnRoleAndLicense();
     } catch (e) {
       print('[DASHBOARD] ⚠️ Erreur vérification licence: $e');
@@ -281,8 +353,6 @@ class _DashboardManagerState extends State<DashboardManager> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Vérifier la licence à chaque changement de dépendances
-    // Mais seulement si le widget est monté
     if (mounted) {
       _checkLicenseStatus();
     }
@@ -290,7 +360,6 @@ class _DashboardManagerState extends State<DashboardManager> {
 
   @override
   void dispose() {
-    // Annuler tous les streams avant de disposer
     _notificationSubscription?.cancel();
     print('[DASHBOARD] 🧹 Nettoyage des resources');
     super.dispose();
@@ -300,7 +369,6 @@ class _DashboardManagerState extends State<DashboardManager> {
     if (!mounted) return;
 
     try {
-      // Logique de déconnexion
       final authService = Provider.of<AuthService>(context, listen: false);
       authService.logout();
       Navigator.of(context).pushReplacementNamed('/login');
@@ -309,18 +377,43 @@ class _DashboardManagerState extends State<DashboardManager> {
     }
   }
 
+  Widget _buildTopBarIcon(String title, IconData icon, VoidCallback onPressed, {bool showLabel = true}) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          icon: Icon(icon),
+          onPressed: onPressed,
+          tooltip: title,
+        ),
+        if (showLabel)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4.0),
+            child: Text(
+              title,
+              style: const TextStyle(fontSize: 10),
+            ),
+          ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primaryColor = const Color(0xFF3F51B5);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isLargeScreen = screenWidth > 1200;
 
-    // Utiliser Consumer au lieu de Provider.of directement pour éviter les erreurs
     return Consumer<LicenseManager>(
       builder: (context, licenseManager, child) {
-        return Scaffold(
+        return Stack(
+          children: [
+            Scaffold(
           backgroundColor: isDark ? const Color(0xFF121212) : const Color(0xFFF5F7FA),
           appBar: AppBar(
+            toolbarHeight: 60,
             elevation: 0,
             backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
             title: Row(
@@ -351,33 +444,54 @@ class _DashboardManagerState extends State<DashboardManager> {
               ],
             ),
             actions: <Widget>[
-              // Logout button
-              IconButton(
-                icon: Icon(
-                  Icons.logout,
-                  color: isDark ? Colors.white70 : Colors.black54,
-                ),
-                tooltip: 'Déconnexion',
-                onPressed: () {
+              // Icones avec labels en haut
+              if (isLargeScreen) ...[
+                _buildTopBarIcon('Tutorial', Icons.school_outlined, () async {
+                  if (_tutorialService != null && _userId != null) {
+                    await _tutorialService!.resetTutorial(_userId!, 'initial_setup_tutorial');
+                    setState(() {
+                      _tutorialSteps = InitialSetupTutorialManager.getInitialSetupTutorialSteps();
+                      _showTutorial = true;
+                    });
+                    // Naviguer vers la première page du tutorial
+                    if (_tutorialSteps.isNotEmpty && _tutorialSteps[0].pageIndex != null) {
+                      final firstPageIndex = _accessiblePageIndices.indexOf(_tutorialSteps[0].pageIndex!);
+                      if (firstPageIndex != -1) {
+                        changeSelectedIndex(firstPageIndex);
+                      }
+                    }
+                  }
+                }, showLabel: _showTopBarLabels),
+
+                _buildTopBarIcon('Aide', Icons.help_outline_rounded, () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const HelpDocumentationPage(),
+                    ),
+                  );
+                }, showLabel: _showTopBarLabels),
+
+                _buildTopBarIcon('Déconnexion', Icons.logout, () {
                   showDialog(
                     context: context,
                     builder: (BuildContext dialogContext) {
                       return AlertDialog(
-                        title: Text('Confirmation'),
-                        content: Text('Voulez-vous vraiment vous déconnecter ?'),
+                        title: const Text('Confirmation'),
+                        content: const Text('Voulez-vous vraiment vous déconnecter ?'),
                         actions: [
                           TextButton(
                             onPressed: () {
                               Navigator.of(dialogContext).pop();
                             },
-                            child: Text('Annuler'),
+                            child: const Text('Annuler'),
                           ),
                           TextButton(
                             onPressed: () {
                               Navigator.of(dialogContext).pop();
                               _logout();
                             },
-                            child: Text(
+                            child: const Text(
                               'Déconnecter',
                               style: TextStyle(color: Colors.red),
                             ),
@@ -386,51 +500,156 @@ class _DashboardManagerState extends State<DashboardManager> {
                       );
                     },
                   );
-                },
-              ),
-              // Notifications
-              IconButton(
-                icon: Consumer<NotificationProvider>(
-                  builder: (context, notificationProvider, _) => Badge(
-                    label: Text('${notificationProvider.nonLuesCount}'),
-                    isLabelVisible: notificationProvider.nonLuesCount > 0,
-                    child: Icon(
-                      Icons.notifications_outlined,
-                      color: isDark ? Colors.white70 : Colors.black54,
-                    ),
+                }, showLabel: _showTopBarLabels),
+
+                // Notifications
+                Consumer<NotificationProvider>(
+                  builder: (context, notificationProvider, _) => Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: Badge(
+                          label: Text('${notificationProvider.nonLuesCount}'),
+                          isLabelVisible: notificationProvider.nonLuesCount > 0,
+                          child: const Icon(Icons.notifications_outlined),
+                        ),
+                        onPressed: () {
+                          showDialog(
+                            context: context,
+                            builder: (BuildContext dialogContext) {
+                              return Dialog(
+                                insetPadding: const EdgeInsets.only(top: 0, bottom: 0, right: 0),
+                                alignment: Alignment.centerRight,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(0),
+                                ),
+                                elevation: 0,
+                                backgroundColor: Colors.transparent,
+                                child:  NotificationPanel(),
+                              );
+                            },
+                          );
+                        },
+                      ),
+                      if (_showTopBarLabels)
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: 4.0),
+                          child: Text(
+                            'Notif',
+                            style: TextStyle(fontSize: 10),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
-                onPressed: () {
-                  showDialog(
-                    context: context,
-                    builder: (BuildContext dialogContext) {
-                      return Dialog(
-                        insetPadding: EdgeInsets.only(top: 0, bottom: 0, right: 0),
-                        alignment: Alignment.centerRight,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(0),
-                        ),
-                        elevation: 0,
-                        backgroundColor: Colors.transparent,
-                        child: NotificationPanel(),
+
+
+              ] else ...[
+                // Pour petits écrans, seulement les icônes
+                IconButton(
+                  icon: const Icon(Icons.school_outlined),
+                  tooltip: 'Relancer le tutorial',
+                  onPressed: () async {
+                    if (_tutorialService != null && _userId != null) {
+                      await _tutorialService!.resetTutorial(_userId!, 'initial_setup_tutorial');
+                      setState(() {
+                        _tutorialSteps = InitialSetupTutorialManager.getInitialSetupTutorialSteps();
+                        _showTutorial = true;
+                      });
+                      // Naviguer vers la première page du tutorial
+                      if (_tutorialSteps.isNotEmpty && _tutorialSteps[0].pageIndex != null) {
+                        final firstPageIndex = _accessiblePageIndices.indexOf(_tutorialSteps[0].pageIndex!);
+                        if (firstPageIndex != -1) {
+                          changeSelectedIndex(firstPageIndex);
+                        }
+                      }
+                    }
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.help_outline_rounded),
+                  tooltip: 'Aide & Documentation',
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const HelpDocumentationPage(),
+                      ),
+                    );
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.logout),
+                  tooltip: 'Déconnexion',
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (BuildContext dialogContext) {
+                        return AlertDialog(
+                          title: const Text('Confirmation'),
+                          content: const Text('Voulez-vous vraiment vous déconnecter ?'),
+                          actions: [
+                            TextButton(
+                              onPressed: () {
+                                Navigator.of(dialogContext).pop();
+                              },
+                              child: const Text('Annuler'),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                Navigator.of(dialogContext).pop();
+                                _logout();
+                              },
+                              child: const Text(
+                                'Déconnecter',
+                                style: TextStyle(color: Colors.red),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    );
+                  },
+                ),
+                Consumer<NotificationProvider>(
+                  builder: (context, notificationProvider, _) => IconButton(
+                    icon: Badge(
+                      label: Text('${notificationProvider.nonLuesCount}'),
+                      isLabelVisible: notificationProvider.nonLuesCount > 0,
+                      child: const Icon(Icons.notifications_outlined),
+                    ),
+                    onPressed: () {
+                      showDialog(
+                        context: context,
+                        builder: (BuildContext dialogContext) {
+                          return Dialog(
+                            insetPadding: const EdgeInsets.only(top: 0, bottom: 0, right: 0),
+                            alignment: Alignment.centerRight,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(0),
+                            ),
+                            elevation: 0,
+                            backgroundColor: Colors.transparent,
+                            child:  NotificationPanel(),
+                          );
+                        },
                       );
                     },
-                  );
-                },
-              ),
-              // Dark mode toggle
-              IconButton(
-                icon: Icon(
-                  _isDarkMode ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
-                  color: isDark ? Colors.white70 : Colors.black54,
+                  ),
                 ),
-                onPressed: () {
-                  setState(() {
-                    _isDarkMode = !_isDarkMode;
-                  });
-                },
-              ),
-              // Badge pour afficher le type de licence
+                IconButton(
+                  icon: Icon(
+                    _isDarkMode ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _isDarkMode = !_isDarkMode;
+                    });
+                  },
+                ),
+              ],
+
+              // Badge licence
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: Container(
@@ -456,7 +675,7 @@ class _DashboardManagerState extends State<DashboardManager> {
                         size: 12,
                         color: licenseManager.isExpired ? Colors.red : Colors.green,
                       ),
-                      SizedBox(width: 4),
+                      const SizedBox(width: 4),
                       Text(
                         _getLicenseTypeString(licenseManager.currentLicenseType),
                         style: TextStyle(
@@ -478,7 +697,7 @@ class _DashboardManagerState extends State<DashboardManager> {
                     backgroundColor: primaryColor,
                     child: IconButton(
                       padding: EdgeInsets.zero,
-                      icon: Icon(Icons.person, size: 16, color: Colors.white),
+                      icon: const Icon(Icons.person, size: 16, color: Colors.white),
                       onPressed: () {
                         Scaffold.of(context).openEndDrawer();
                       },
@@ -491,43 +710,62 @@ class _DashboardManagerState extends State<DashboardManager> {
           body: Row(
             children: [
               // Navigation latérale pour écrans larges
-              if (MediaQuery.of(context).size.width > 1200)
-                NavigationRail(
-                  selectedIndex: _selectedIndex,
-                  onDestinationSelected: _changeSelectedIndex,
-                  labelType: NavigationRailLabelType.selected,
-                  backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-                  selectedLabelTextStyle: TextStyle(
-                    color: primaryColor,
-                    fontWeight: FontWeight.bold,
+              if (isLargeScreen)
+                Container(
+                  width: _showSidebarLabels ? 200 : 80,
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                    border: Border(
+                      right: BorderSide(
+                        color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
+                        width: 1,
+                      ),
+                    ),
                   ),
-                  unselectedLabelTextStyle: TextStyle(
-                    color: isDark ? Colors.white60 : Colors.black54,
+                  child: ListView(
+                    children: [
+                      // Bouton pour afficher/masquer les labels
+                      Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            IconButton(
+                              icon: Icon(
+                                _showSidebarLabels ? Icons.chevron_left : Icons.chevron_right,
+                                size: 20,
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  _showSidebarLabels = !_showSidebarLabels;
+                                });
+                              },
+                              tooltip: _showSidebarLabels ? 'Masquer les noms' : 'Afficher les noms',
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Divider(height: 1),
+                      for (int i = 0; i < _pageIcons.length; i++)
+                        _buildSidebarItem(i, licenseManager),
+                    ],
                   ),
-                  selectedIconTheme: IconThemeData(
-                    color: primaryColor,
-                  ),
-                  unselectedIconTheme: IconThemeData(
-                    color: isDark ? Colors.white60 : Colors.black54,
-                  ),
-                  destinations: [
-                    for (int i = 0; i < _pageIcons.length; i++)
-                      _buildNavigationRailDestination(i, licenseManager),
-                  ],
                 ),
               // Contenu principal
               Expanded(
-                child: IndexedStack(
-                  index: _selectedIndex,
-                  children: _pages,
+                child: _pages.isEmpty
+                    ? const Center(child: CircularProgressIndicator())
+                    : KeyedSubtree(
+                  key: _pageKeys[_selectedIndex],
+                  child: _pages[_selectedIndex](),
                 ),
               ),
             ],
           ),
           // Navigation du bas pour petit écran
-          bottomNavigationBar: MediaQuery.of(context).size.width <= 1200
+          bottomNavigationBar: !isLargeScreen
               ? NavigationBar(
-            onDestinationSelected: _changeSelectedIndex,
+            onDestinationSelected: changeSelectedIndex,
             selectedIndex: _selectedIndex,
             destinations: [
               for (int i = 0; i < _pageIcons.length; i++)
@@ -535,57 +773,93 @@ class _DashboardManagerState extends State<DashboardManager> {
             ],
           )
               : null,
+        ),
+            // Afficher le tutorial si activé
+            if (_showTutorial && _tutorialSteps.isNotEmpty)
+              TutorialOverlay(
+                steps: _tutorialSteps,
+                tutorialId: 'initial_setup_tutorial',
+                onComplete: _completeTutorial,
+                onSkip: _skipTutorial,
+                showSkipButton: true,
+                showProgress: true,
+                onNavigateToPage: (pageIndex) {
+                  // Trouver l'index correspondant dans les pages accessibles
+                  final accessibleIndex = _accessiblePageIndices.indexOf(pageIndex);
+                  if (accessibleIndex != -1 && accessibleIndex < _pages.length) {
+                    changeSelectedIndex(accessibleIndex);
+                  }
+                },
+              ),
+          ],
         );
       },
     );
   }
 
-  // Construire une destination pour NavigationRail avec badge premium
-  NavigationRailDestination _buildNavigationRailDestination(
-      int index,
-      LicenseManager licenseManager,
-      ) {
+  Widget _buildSidebarItem(int index, LicenseManager licenseManager) {
     final pageTitle = _pageTitles[index];
     final isPremium = licenseManager.isFeaturePremium(pageTitle);
+    final isSelected = _selectedIndex == index;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = const Color(0xFF3F51B5);
 
-    return NavigationRailDestination(
-      icon: Stack(
-        children: [
-          Icon(_pageIcons[index]),
-          if (isPremium)
-            Positioned(
-              right: -5,
-              top: -5,
-              child: Container(
-                padding: EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: Colors.amber.shade700,
-                  shape: BoxShape.circle,
-                ),
-                child: Text('⭐', style: TextStyle(fontSize: 8)),
+    return Material(
+      color: isSelected
+          ? primaryColor.withOpacity(0.1)
+          : Colors.transparent,
+      child: InkWell(
+        onTap: () => changeSelectedIndex(index),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          child: Row(
+            children: [
+              // Icône avec badge premium
+              Stack(
+                children: [
+                  Icon(
+                    _pageIcons[index],
+                    color: isSelected
+                        ? primaryColor
+                        : isDark ? Colors.white70 : Colors.black54,
+                    size: 24,
+                  ),
+                  if (isPremium)
+                    Positioned(
+                      right: -4,
+                      top: -4,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.shade700,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Text('⭐', style: TextStyle(fontSize: 8)),
+                      ),
+                    ),
+                ],
               ),
-            ),
-        ],
-      ),
-      selectedIcon: Stack(
-        children: [
-          Icon(_pageIcons[index]),
-          if (isPremium)
-            Positioned(
-              right: -5,
-              top: -5,
-              child: Container(
-                padding: EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: Colors.amber.shade700,
-                  shape: BoxShape.circle,
+              if (_showSidebarLabels) ...[
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    pageTitle,
+                    style: TextStyle(
+                      color: isSelected
+                          ? primaryColor
+                          : isDark ? Colors.white70 : Colors.black54,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      fontSize: 14,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-                child: Text('⭐', style: TextStyle(fontSize: 8)),
-              ),
-            ),
-        ],
+              ],
+            ],
+          ),
+        ),
       ),
-      label: Text(pageTitle),
     );
   }
 
@@ -606,12 +880,12 @@ class _DashboardManagerState extends State<DashboardManager> {
               right: -5,
               top: -5,
               child: Container(
-                padding: EdgeInsets.all(4),
+                padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
                   color: Colors.amber.shade700,
                   shape: BoxShape.circle,
                 ),
-                child: Text('⭐', style: TextStyle(fontSize: 8)),
+                child: const Text('⭐', style: TextStyle(fontSize: 8)),
               ),
             ),
         ],
@@ -624,12 +898,12 @@ class _DashboardManagerState extends State<DashboardManager> {
               right: -5,
               top: -5,
               child: Container(
-                padding: EdgeInsets.all(4),
+                padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
                   color: Colors.amber.shade700,
                   shape: BoxShape.circle,
                 ),
-                child: Text('⭐', style: TextStyle(fontSize: 8)),
+                child: const Text('⭐', style: TextStyle(fontSize: 8)),
               ),
             ),
         ],
@@ -649,8 +923,6 @@ class _DashboardManagerState extends State<DashboardManager> {
         return 'Pro';
       case LicenseType.entreprise:
         return 'Enterprise';
-      default:
-        return 'Basic';
     }
   }
 }

@@ -16,6 +16,7 @@ import 'config/AuthService.dart';
 import 'config/UserModel.dart';
 import 'config/calculerOccupationChambres.dart';
 import 'config/routes.dart';
+import 'DashboardManager.dart';
 
 class Dashboard extends StatefulWidget {
   const Dashboard({Key? key}) : super(key: key);
@@ -32,6 +33,13 @@ class _DashboardState extends State<Dashboard> {
   double _tauxOccupationActuel = 0.0;
   double _revenuJournalier = 0.0;
   bool _isLoadingStats = true;
+  double _variationTauxOccupation = 0.0;
+  double _variationRevenu = 0.0;
+  bool _variationTauxPositive = true;
+  bool _variationRevenuPositive = true;
+  double _revPAR = 0.0;
+  double _adr = 0.0;
+  double _paiementsEnAttente = 0.0;
 
   @override
   void initState() {
@@ -68,15 +76,46 @@ class _DashboardState extends State<Dashboard> {
     try {
       // Calculer le taux d'occupation actuel pour aujourd'hui
       final aujourdhui = DateTime.now();
+      final hier = aujourdhui.subtract(const Duration(days: 1));
+      
       final tauxOccupation = await _calculerTauxOccupationJour(aujourdhui);
+      final tauxOccupationHier = await _calculerTauxOccupationJour(hier);
 
       // Calculer le revenu du jour
       final revenuJour = await _calculerRevenuJour(aujourdhui);
+      final revenuHier = await _calculerRevenuJour(hier);
+
+      // Calculer RevPAR, ADR et paiements en attente
+      final revPAR = await _calculerRevPAR(aujourdhui);
+      final adr = await _calculerADR(aujourdhui);
+      final paiementsEnAttente = await _calculerPaiementsEnAttente();
+
+      // Calculer les variations
+      double variationTaux = 0.0;
+      if (tauxOccupationHier > 0) {
+        variationTaux = ((tauxOccupation - tauxOccupationHier) / tauxOccupationHier) * 100;
+      } else if (tauxOccupation > 0) {
+        variationTaux = 100.0; // Si hier était à 0 et aujourd'hui > 0
+      }
+
+      double variationRev = 0.0;
+      if (revenuHier > 0) {
+        variationRev = ((revenuJour - revenuHier) / revenuHier) * 100;
+      } else if (revenuJour > 0) {
+        variationRev = 100.0; // Si hier était à 0 et aujourd'hui > 0
+      }
 
       if (mounted) {
         setState(() {
           _tauxOccupationActuel = tauxOccupation;
           _revenuJournalier = revenuJour;
+          _variationTauxOccupation = variationTaux.abs();
+          _variationRevenu = variationRev.abs();
+          _variationTauxPositive = variationTaux >= 0;
+          _variationRevenuPositive = variationRev >= 0;
+          _revPAR = revPAR;
+          _adr = adr;
+          _paiementsEnAttente = paiementsEnAttente;
           _isLoadingStats = false;
         });
       }
@@ -151,6 +190,136 @@ class _DashboardState extends State<Dashboard> {
     } catch (e) {
       print('Erreur lors du calcul du taux d\'occupation: $e');
       return 0.0;
+    }
+  }
+
+  Future<double> _calculerRevPAR(DateTime jour) async {
+    try {
+      // Récupérer le nombre total de chambres
+      final snapshotChambres = await FirebaseFirestore.instance
+          .collection('rooms')
+          .where('userId', isEqualTo: user?.uid)
+          .get();
+
+      final nombreTotalChambres = snapshotChambres.docs.length;
+
+      if (nombreTotalChambres <= 0) {
+        return 0.0;
+      }
+
+      // Calculer le revenu du jour
+      final revenuJour = await _calculerRevenuJour(jour);
+
+      // RevPAR = Revenu total / Nombre total de chambres disponibles
+      return revenuJour / nombreTotalChambres;
+    } catch (e) {
+      print('Erreur lors du calcul du RevPAR: $e');
+      return 0.0;
+    }
+  }
+
+  Future<double> _calculerADR(DateTime jour) async {
+    try {
+      // Récupérer les réservations pour ce jour
+      final dateDebut = DateTime(jour.year, jour.month, jour.day);
+      final dateFin = DateTime(jour.year, jour.month, jour.day, 23, 59, 59);
+
+      final snapshotReservations = await FirebaseFirestore.instance
+          .collection('bookings')
+          .where('userId', isEqualTo: user?.uid)
+          .where('checkInDate', isLessThanOrEqualTo: dateFin)
+          .where('checkOutDate', isGreaterThanOrEqualTo: dateDebut)
+          .get();
+
+      final nombreChambresOccupees = snapshotReservations.docs.length;
+
+      if (nombreChambresOccupees <= 0) {
+        return 0.0;
+      }
+
+      // Calculer le revenu du jour
+      final revenuJour = await _calculerRevenuJour(jour);
+
+      // ADR = Revenu total / Nombre de chambres occupées
+      return revenuJour / nombreChambresOccupees;
+    } catch (e) {
+      print('Erreur lors du calcul de l\'ADR: $e');
+      return 0.0;
+    }
+  }
+
+  Future<double> _calculerPaiementsEnAttente() async {
+    try {
+      // Récupérer toutes les réservations actives (non annulées)
+      final bookingsSnapshot = await FirebaseFirestore.instance
+          .collection('bookings')
+          .where('userId', isEqualTo: user?.uid)
+          .where('status', whereIn: ['reservé', 'enregistré', 'terminé'])
+          .get();
+
+      double totalEnAttente = 0.0;
+
+      // Pour chaque réservation, calculer le montant restant à payer
+      for (var booking in bookingsSnapshot.docs) {
+        final data = booking.data();
+        final double totalAmount = (data['totalAmount'] ?? 0).toDouble();
+        final bool depositPaid = data['depositPaid'] ?? false;
+        final double depositAmount = (data['depositAmount'] ?? 0).toDouble();
+
+        // Récupérer les paiements existants pour cette réservation
+        final paymentsSnapshot = await FirebaseFirestore.instance
+            .collection('transactions')
+            .where('bookingId', isEqualTo: booking.id)
+            .where('type', isEqualTo: 'payment')
+            .get();
+
+        double paidAmount = depositPaid ? depositAmount : 0;
+        for (var payment in paymentsSnapshot.docs) {
+          paidAmount += (payment.data()['amount'] ?? 0).toDouble();
+        }
+
+        // Récupérer les réductions déjà appliquées
+        final discountsSnapshot = await FirebaseFirestore.instance
+            .collection('transactions')
+            .where('bookingId', isEqualTo: booking.id)
+            .where('type', isEqualTo: 'discount')
+            .get();
+
+        double totalDiscountApplied = 0;
+        for (var discount in discountsSnapshot.docs) {
+          totalDiscountApplied += (discount.data()['amount'] ?? 0).toDouble();
+        }
+
+        // Calculer le montant restant à payer
+        double remainingAmount = totalAmount - paidAmount - totalDiscountApplied;
+        
+        // Ajouter au total uniquement si un montant est encore dû
+        if (remainingAmount > 0) {
+          totalEnAttente += remainingAmount;
+        }
+      }
+
+      return totalEnAttente;
+    } catch (e) {
+      print('Erreur lors du calcul des paiements en attente: $e');
+      return 0.0;
+    }
+  }
+
+  // Méthode pour naviguer vers une page dans le DashboardManager
+  void _navigateToDashboardPage(int pageIndex) {
+    try {
+      // Trouver le DashboardManager parent dans l'arbre des widgets
+      final dashboardManagerState = context.findAncestorStateOfType<State<DashboardManager>>();
+      
+      if (dashboardManagerState != null && dashboardManagerState is DashboardManagerState) {
+        // Appeler la méthode pour changer de page
+        dashboardManagerState.changeSelectedIndex(pageIndex);
+      } else {
+        print('DashboardManager non trouvé dans l\'arbre des widgets');
+      }
+    } catch (e) {
+      print('Erreur lors de la navigation vers la page $pageIndex: $e');
     }
   }
 
@@ -236,7 +405,7 @@ class _DashboardState extends State<Dashboard> {
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         ),
                         onPressed: () {
-                          Navigator.pushNamed(context, AppRoutes.reservationPage);
+                          _navigateToDashboardPage(1); // Index de ModernReservationPage
                         },
                       ),
                       OutlinedButton.icon(
@@ -253,7 +422,7 @@ class _DashboardState extends State<Dashboard> {
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         ),
                         onPressed: () {
-                          Navigator.pushNamed(context, AppRoutes.enregistrement);
+                          _navigateToDashboardPage(2); // Index de CheckInPage
                         },
                       ),
                     ],
@@ -276,8 +445,10 @@ class _DashboardState extends State<Dashboard> {
                       value: _isLoadingStats
                           ? "Chargement..."
                           : "${_tauxOccupationActuel.toStringAsFixed(1)}%",
-                      change: "+12%",
-                      changePositive: true,
+                      change: _isLoadingStats
+                          ? "..."
+                          : "${_variationTauxPositive ? '+' : '-'}${_variationTauxOccupation.toStringAsFixed(1)}%",
+                      changePositive: _variationTauxPositive,
                       color: isDark ? const Color(0xFF263238) : Colors.white,
                       width: 240,
                     ),
@@ -289,8 +460,49 @@ class _DashboardState extends State<Dashboard> {
                       value: _isLoadingStats
                           ? "Chargement..."
                           : "$formattedRevenu FCFA",
-                      change: "+15%",
+                      change: _isLoadingStats
+                          ? "..."
+                          : "${_variationRevenuPositive ? '+' : '-'}${_variationRevenu.toStringAsFixed(1)}%",
+                      changePositive: _variationRevenuPositive,
+                      color: isDark ? const Color(0xFF263238) : Colors.white,
+                      width: 240,
+                    ),
+                    const SizedBox(width: 16),
+                    _buildStatCard(
+                      icon: Icons.hotel,
+                      iconColor: accentColor,
+                      title: "RevPAR",
+                      value: _isLoadingStats
+                          ? "Chargement..."
+                          : "${NumberFormat.currency(locale: 'fr_FR', symbol: '', decimalDigits: 0).format(_revPAR)} FCFA",
+                      change: "Par chambre",
                       changePositive: true,
+                      color: isDark ? const Color(0xFF263238) : Colors.white,
+                      width: 240,
+                    ),
+                    const SizedBox(width: 16),
+                    _buildStatCard(
+                      icon: Icons.attach_money,
+                      iconColor: successColor,
+                      title: "Prix moyen (ADR)",
+                      value: _isLoadingStats
+                          ? "Chargement..."
+                          : "${NumberFormat.currency(locale: 'fr_FR', symbol: '', decimalDigits: 0).format(_adr)} FCFA",
+                      change: "Par nuit",
+                      changePositive: true,
+                      color: isDark ? const Color(0xFF263238) : Colors.white,
+                      width: 240,
+                    ),
+                    const SizedBox(width: 16),
+                    _buildStatCard(
+                      icon: Icons.pending_actions,
+                      iconColor: warningColor,
+                      title: "Paiements en attente",
+                      value: _isLoadingStats
+                          ? "Chargement..."
+                          : "${NumberFormat.currency(locale: 'fr_FR', symbol: '', decimalDigits: 0).format(_paiementsEnAttente)} FCFA",
+                      change: "À recouvrer",
+                      changePositive: false,
                       color: isDark ? const Color(0xFF263238) : Colors.white,
                       width: 240,
                     ),
@@ -317,43 +529,19 @@ class _DashboardState extends State<Dashboard> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
-                        child: _buildCard(
-                          child: OccupancyChartAvecDonnees(),
-                          title: "Taux d'occupation",
-                          actions: [
-                            _buildDropdownFilter(),
-                          ],
-                        ),
+                        child: OccupancyChartAvecDonnees(),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
-                        child: _buildCard(
-                          child: RevenueChart(),
-                          title: "Revenus",
-                          actions: [
-                            _buildDropdownFilter(),
-                          ],
-                        ),
+                        child: RevenueChart(),
                       ),
                     ],
                   )
                       : Column(
                     children: [
-                      _buildCard(
-                        child: OccupancyChartAvecDonnees(),
-                        title: "Taux d'occupation",
-                        actions: [
-                          _buildDropdownFilter(),
-                        ],
-                      ),
+                      OccupancyChartAvecDonnees(),
                       const SizedBox(height: 16),
-                      _buildCard(
-                        child: RevenueChart(),
-                        title: "Revenus",
-                        actions: [
-                          _buildDropdownFilter(),
-                        ],
-                      ),
+                      RevenueChart(),
                     ],
                   );
                 },
@@ -378,19 +566,7 @@ class _DashboardState extends State<Dashboard> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
-                        child: _buildCard(
-                          child: RecentBookings(),
-                          title: "Réservations récentes",
-                          actions: [
-                            TextButton(
-                              onPressed: () {Navigator.pushNamed(context, AppRoutes.reservationPage);},
-                              child: Text(
-                                'Voir tout',
-                                style: TextStyle(color: primaryColor),
-                              ),
-                            ),
-                          ],
-                        ),
+                        child: RecentBookings(),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
@@ -400,7 +576,7 @@ class _DashboardState extends State<Dashboard> {
                           actions: [
                             IconButton(
                               icon: Icon(Icons.add, color: primaryColor),
-                              onPressed: () {Navigator.pushNamed(context, AppRoutes.services);},
+                              onPressed: () {_navigateToDashboardPage(9);}, // Index de TaskManagementPage
                             ),
                           ],
                         ),
@@ -409,19 +585,7 @@ class _DashboardState extends State<Dashboard> {
                   )
                       : Column(
                     children: [
-                      _buildCard(
-                        child: RecentBookings(),
-                        title: "Réservations récentes",
-                        actions: [
-                          TextButton(
-                            onPressed: () {Navigator.pushNamed(context, AppRoutes.reservationPage);},
-                            child: Text(
-                              'Voir tout',
-                              style: TextStyle(color: primaryColor),
-                            ),
-                          ),
-                        ],
-                      ),
+                      RecentBookings(),
                       const SizedBox(height: 16),
                       _buildCard(
                         child: TasksList(),
@@ -429,7 +593,7 @@ class _DashboardState extends State<Dashboard> {
                         actions: [
                           IconButton(
                             icon: Icon(Icons.add, color: primaryColor),
-                            onPressed: () {Navigator.pushNamed(context, AppRoutes.services);},
+                            onPressed: () {_navigateToDashboardPage(9);}, // Index de TaskManagementPage
                           ),
                         ],
                       ),
@@ -455,7 +619,7 @@ class _DashboardState extends State<Dashboard> {
                       label: "Nouvelle réservation",
                       color: primaryColor,
                       onTap: () {
-                        Navigator.pushNamed(context, AppRoutes.reservationPage);
+                        _navigateToDashboardPage(1); // Index de ModernReservationPage
                       },
                     ),
                     _buildActionButton(
@@ -464,7 +628,7 @@ class _DashboardState extends State<Dashboard> {
                       label: "Enregistrement",
                       color: successColor,
                       onTap: () {
-                        Navigator.pushNamed(context, AppRoutes.enregistrement);
+                        _navigateToDashboardPage(2); // Index de CheckInPage
                       },
                     ),
                     _buildActionButton(
@@ -473,7 +637,7 @@ class _DashboardState extends State<Dashboard> {
                       label: "Départ",
                       color: dangerColor,
                       onTap: () {
-                        Navigator.pushNamed(context, AppRoutes.occupiedrooms);
+                        _navigateToDashboardPage(5); // Index de OccupiedRoomsPage
                       },
                     ),
                     _buildActionButton(
@@ -482,7 +646,7 @@ class _DashboardState extends State<Dashboard> {
                       label: "Nouvelle tâche",
                       color: secondaryColor,
                       onTap: () {
-                        Navigator.pushNamed(context, AppRoutes.services);
+                        _navigateToDashboardPage(9); // Index de TaskManagementPage
                       },
                     ),
                   ],
@@ -492,25 +656,6 @@ class _DashboardState extends State<Dashboard> {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildDropdownFilter() {
-    return DropdownButton<String>(
-      value: 'mois',
-      underline: Container(),
-      icon: const Icon(Icons.keyboard_arrow_down),
-      items: <String>['jour', 'semaine', 'mois', 'année']
-          .map<DropdownMenuItem<String>>((String value) {
-        return DropdownMenuItem<String>(
-          value: value,
-          child: Text(
-            value.substring(0, 1).toUpperCase() + value.substring(1),
-            style: TextStyle(fontSize: 14),
-          ),
-        );
-      }).toList(),
-      onChanged: (String? newValue) {},
     );
   }
 

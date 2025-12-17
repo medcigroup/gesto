@@ -5,7 +5,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:gesto/widgets/LoadingOverlay.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../../../config/routes.dart';
-import '../../../../../config/theme.dart';
+import '../../../../../config/AppConstants.dart';
 import 'config/LicenceGenerator.dart';
 
 enum PlanId { basic, starter, pro, entreprise }
@@ -14,24 +14,71 @@ enum PaymentMethod { cinetpay, stripe }
 
 class Plan {
   final String title;
-  final String price;
-  final String? oldPrice;
-  final String duration;
+  final String? subtitle;
+  final int? priceMonthly;
+  final String currency;
+  final String description;
   final List<String> features;
-  final PlanId planId;
-  final bool isRecommended;
-  final bool isFree; // Ajouté pour différencier les plans gratuits et payants
+  final String planId;
+  final Color color;
+  final bool isPopular;
+  final String buttonText;
+  final String? badge;
+  final bool isFree;
 
   Plan({
     required this.title,
-    required this.price,
-    required this.duration,
+    this.subtitle,
+    this.priceMonthly,
+    required this.currency,
+    required this.description,
     required this.features,
     required this.planId,
-    required this.isRecommended,
-    this.oldPrice,
-    this.isFree = false, // Par défaut, considéré comme payant
+    required this.color,
+    this.isPopular = false,
+    required this.buttonText,
+    this.badge,
+    this.isFree = false,
   });
+
+  factory Plan.fromAppConstants(Map<String, dynamic> planData) {
+    return Plan(
+      title: planData['name'] as String,
+      subtitle: planData['subtitle'] as String?,
+      priceMonthly: planData['priceMonthly'] as int?,
+      currency: planData['currency'] as String,
+      description: planData['description'] as String,
+      features: List<String>.from(planData['features'] as List),
+      planId: planData['planId'] as String,
+      color: planData['color'] as Color,
+      isPopular: planData['isPopular'] as bool? ?? false,
+      buttonText: planData['buttonText'] as String,
+      badge: planData['badge'] as String?,
+      isFree: planData['priceMonthly'] == null || (planData['priceMonthly'] as int?) == 0 || (planData['badge'] as String?)?.contains('GRATUIT') == true,
+    );
+  }
+
+  PlanId get planIdEnum {
+    switch (planId.toLowerCase()) {
+      case 'basic':
+        return PlanId.basic;
+      case 'starter':
+        return PlanId.starter;
+      case 'pro':
+        return PlanId.pro;
+      case 'entreprise':
+        return PlanId.entreprise;
+      default:
+        return PlanId.basic;
+    }
+  }
+
+  String get formattedPrice {
+    if (priceMonthly == null) {
+      return 'Sur devis';
+    }
+    return '${priceMonthly!.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]} ')} $currency';
+  }
 }
 
 class paiementplan extends StatefulWidget {
@@ -43,14 +90,14 @@ class paiementplan extends StatefulWidget {
 
 class _ChoosePlanScreenState extends State<paiementplan> {
   bool _isLoading = false;
-  PlanId? _selectedPlan;
+  String? _selectedPlanId;
   String? _currentTransactionId;
   final FirebaseFunctions _functions = FirebaseFunctions.instance;
 
   Future<void> _selectPlan(Plan plan, {PaymentMethod? paymentMethod}) async {
     setState(() {
       _isLoading = true;
-      _selectedPlan = plan.planId;
+      _selectedPlanId = plan.planId;
     });
 
     try {
@@ -61,14 +108,14 @@ class _ChoosePlanScreenState extends State<paiementplan> {
 
       if (plan.isFree) {
         // Processus pour un plan gratuit
-        await _processFreeSubscription(plan.planId);
+        await _processFreeSubscription(plan.planIdEnum);
       } else {
         // Processus pour un plan payant selon la méthode choisie
         if (paymentMethod == PaymentMethod.stripe) {
-          await _processPaymentWithStripe(plan.planId.name);
+          await _processPaymentWithStripe(plan.planId);
         } else {
           // Par défaut ou si cinetpay explicitement choisi
-          await _processPaymentWithCinetPay(plan.planId.name);
+          await _processPaymentWithCinetPay(plan.planId);
         }
       }
     } catch (e) {
@@ -383,22 +430,32 @@ class _ChoosePlanScreenState extends State<paiementplan> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Choisir le mode de paiement'),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppConstants.cardBorderRadius),
+        ),
+        title: Text(
+          'Choisir le mode de paiement',
+          style: AppConstants.getHeadlineFont(color: AppConstants.darkColor).copyWith(fontSize: 20),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ListTile(
-              leading: Icon(Icons.phone_android, color: GestoTheme.green),
-              title: const Text('Mobile Money (CinetPay)'),
+            _buildPaymentMethodTile(
+              icon: Icons.phone_android,
+              color: AppConstants.secondaryColor,
+              title: 'Mobile Money (CinetPay)',
+              subtitle: 'Orange Money, MTN, Moov, Wave',
               onTap: () {
                 Navigator.pop(context);
                 _selectPlan(plan, paymentMethod: PaymentMethod.cinetpay);
               },
             ),
-            const Divider(),
-            ListTile(
-              leading: Icon(Icons.credit_card, color: Colors.blue),
-              title: const Text('Carte bancaire (Stripe)'),
+            const SizedBox(height: 12),
+            _buildPaymentMethodTile(
+              icon: Icons.credit_card,
+              color: AppConstants.blueAccent,
+              title: 'Carte bancaire (Stripe)',
+              subtitle: 'Visa, Mastercard, American Express',
               onTap: () {
                 Navigator.pop(context);
                 _selectPlan(plan, paymentMethod: PaymentMethod.stripe);
@@ -410,50 +467,123 @@ class _ChoosePlanScreenState extends State<paiementplan> {
     );
   }
 
+  Widget _buildPaymentMethodTile({
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          border: Border.all(color: color.withValues(alpha: 0.3)),
+          borderRadius: BorderRadius.circular(12),
+          color: color.withValues(alpha: 0.05),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: color, size: 28),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: AppConstants.getBodyFont(color: AppConstants.darkColor).copyWith(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: AppConstants.getBodyFont(color: Colors.grey[600]).copyWith(fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.arrow_forward_ios, color: color, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildPlanCard(BuildContext context, Plan plan) {
-    final isSelected = _selectedPlan == plan.planId;
+    final isSelected = _selectedPlanId == plan.planId;
     return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.cardBorderRadius)),
       elevation: 5,
       child: Container(
         width: 300,
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
-          color: plan.isRecommended ? Colors.blueAccent.withOpacity(0.1) : Colors.white,
+          borderRadius: BorderRadius.circular(AppConstants.cardBorderRadius),
+          color: plan.isPopular ? plan.color.withValues(alpha: 0.1) : Colors.white,
+          border: plan.isPopular ? Border.all(color: plan.color, width: 2) : null,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Text(plan.title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (plan.oldPrice != null)
-                  Text(
-                    plan.oldPrice!,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.red,
-                      decoration: TextDecoration.lineThrough,
-                    ),
-                  ),
-                const SizedBox(width: 5),
-                Text(
-                  plan.price,
+            if (plan.badge != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: plan.color,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  plan.badge!,
                   style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.green,
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-              ],
+              ),
+            const SizedBox(height: 10),
+            Text(
+              plan.title,
+              style: AppConstants.getHeadlineFont(color: AppConstants.darkColor).copyWith(fontSize: 24),
             ),
-            if (plan.duration.isNotEmpty)
-              Text(plan.duration, style: const TextStyle(fontSize: 14, color: Colors.grey)),
-            const Divider(),
+            if (plan.subtitle != null && plan.subtitle!.isNotEmpty)
+              Text(
+                plan.subtitle!,
+                style: const TextStyle(fontSize: 14, color: Colors.grey),
+              ),
+            const SizedBox(height: 10),
+            Text(
+              plan.formattedPrice,
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: plan.color,
+              ),
+            ),
+            if (plan.priceMonthly != null)
+              Text(
+                'par mois',
+                style: AppConstants.getBodyFont(color: Colors.grey),
+              ),
+            const SizedBox(height: 5),
+            Text(
+              plan.description,
+              style: AppConstants.getBodyFont(),
+              textAlign: TextAlign.center,
+            ),
+            const Divider(height: 30),
             Expanded(
               child: ListView.builder(
                 shrinkWrap: true,
@@ -461,15 +591,16 @@ class _ChoosePlanScreenState extends State<paiementplan> {
                 itemCount: plan.features.length,
                 itemBuilder: (context, index) {
                   return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    padding: const EdgeInsets.symmetric(vertical: 4),
                     child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.check, color: Colors.green, size: 18),
-                        const SizedBox(width: 5),
+                        Icon(Icons.check_circle, color: plan.color, size: 20),
+                        const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                              plan.features[index],
-                              style: const TextStyle(fontSize: 14)
+                            plan.features[index],
+                            style: AppConstants.getBodyFont().copyWith(fontSize: 14),
                           ),
                         ),
                       ],
@@ -478,28 +609,30 @@ class _ChoosePlanScreenState extends State<paiementplan> {
                 },
               ),
             ),
+            const SizedBox(height: 20),
             // Bouton de choix de plan
-            plan.isFree
-                ? ElevatedButton(
-              onPressed: () => _selectPlan(plan),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: isSelected ? Colors.green : Colors.blueAccent,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              child: Text(
-                  isSelected ? 'Plan actuel' : 'Choisir ce plan',
-                  style: const TextStyle(color: Colors.white)
-              ),
-            )
-                : ElevatedButton(
-              onPressed: () => _showPaymentMethodDialog(plan),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: isSelected ? Colors.green : Colors.blueAccent,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              child: Text(
-                  isSelected ? 'Plan actuel' : 'Choisir ce plan',
-                  style: const TextStyle(color: Colors.white)
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: plan.isFree
+                    ? () => _selectPlan(plan)
+                    : () => _showPaymentMethodDialog(plan),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isSelected ? AppConstants.secondaryColor : plan.color,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppConstants.buttonBorderRadius),
+                  ),
+                  elevation: isSelected ? 0 : 2,
+                ),
+                child: Text(
+                  isSelected ? 'Plan actuel' : plan.buttonText,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ),
           ],
@@ -510,59 +643,22 @@ class _ChoosePlanScreenState extends State<paiementplan> {
 
   @override
   Widget build(BuildContext context) {
-    final plans = [
-      Plan(
-        title: 'Basic (Essai Gratuit 30J)',
-        price: '0 FCFA',
-        oldPrice: '20000 FCFA',
-        duration: '30 jours',
-        features: [
-          '14 chambres max',
-          'Limite nombre employé : 3',
-          'Support de base',
-          'Rapports hebdo'
-        ],
-        planId: PlanId.basic,
-        isRecommended: false,
-        isFree: true, // Plan gratuit
-      ),
-      Plan(
-        title: 'Starter',
-        price: '30 000 FCFA',
-        duration: 'par mois',
-        features: [
-          'Module de réservation',
-          '20 chambres max',
-          'Limite nombre employé : 10',
-          'Support standard',
-          'Rapports journaliers'
-        ],
-        planId: PlanId.starter,
-        isRecommended: true,
-        isFree: false, // Plan payant
-      ),
-      Plan(
-        title: 'Pro',
-        price: '50 000 FCFA',
-        duration: 'par mois',
-        features: [
-          'Module de réservation',
-          'Chambres illimitées',
-          'Limite nombre employé : 20',
-          'Gestion resto',
-          'Tables resto illimitées',
-          'Support 24/7',
-          'Analyses temps réel',
-          'Marketing tools',
-        ],
-        planId: PlanId.pro,
-        isRecommended: false,
-        isFree: false, // Plan payant
-      ),
-    ];
+    // Utiliser les plans depuis AppConstants, en excluant le plan "Grand Hôtel"
+    final plans = AppConstants.pricingPlans
+        .where((plan) => plan['planId'] != 'entreprise')
+        .map((planData) => Plan.fromAppConstants(planData))
+        .toList();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Choisir votre formule'), centerTitle: true),
+      appBar: AppBar(
+        title: Text(
+          AppConstants.pricingSectionTitle,
+          style: AppConstants.getHeadlineFont(color: Colors.white).copyWith(fontSize: 20),
+        ),
+        centerTitle: true,
+        backgroundColor: AppConstants.primaryColor,
+        elevation: 0,
+      ),
       body: LoadingOverlay(
         isLoading: _isLoading,
         child: LayoutBuilder(
@@ -575,16 +671,22 @@ class _ChoosePlanScreenState extends State<paiementplan> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 20),
-                      child: Text(
-                          'Sélectionnez la formule qui correspond à vos besoins',
-                          style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w500,
-                              color: GestoTheme.navyBlue
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 20),
+                      child: Column(
+                        children: [
+                          Text(
+                            AppConstants.pricingSectionSubtitle,
+                            style: AppConstants.getHeadlineFont(color: AppConstants.darkColor).copyWith(fontSize: 24),
+                            textAlign: TextAlign.center,
                           ),
-                          textAlign: TextAlign.center
+                          const SizedBox(height: 10),
+                          Text(
+                            'Sélectionnez la formule qui correspond à vos besoins',
+                            style: AppConstants.getBodyFont(color: Colors.grey[600]).copyWith(fontSize: 16),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
                       ),
                     ),
                     // Layout responsive pour les cartes de plans
@@ -664,25 +766,32 @@ class _ChoosePlanScreenState extends State<paiementplan> {
                     const SizedBox(height: 40),
                     // Information sur les modes de paiement
                     Container(
-                      padding: const EdgeInsets.all(15),
+                      padding: const EdgeInsets.all(20),
                       width: double.infinity,
+                      constraints: const BoxConstraints(maxWidth: 600),
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(10),
-                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(AppConstants.cardBorderRadius),
+                        gradient: LinearGradient(
+                          colors: [
+                            AppConstants.primaryColor.withValues(alpha: 0.1),
+                            AppConstants.secondaryColor.withValues(alpha: 0.1),
+                          ],
+                        ),
+                        border: Border.all(color: AppConstants.primaryColor.withValues(alpha: 0.3)),
                       ),
                       child: Column(
                         children: [
-                          const Text(
+                          Text(
                             'Moyens de paiement acceptés',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            style: AppConstants.getHeadlineFont(color: AppConstants.darkColor).copyWith(fontSize: 18),
                           ),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 15),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              _buildPaymentMethodIcon(Icons.phone_android, 'Mobile Money'),
-                              const SizedBox(width: 20),
-                              _buildPaymentMethodIcon(Icons.credit_card, 'Carte Bancaire'),
+                              _buildPaymentMethodIcon(Icons.phone_android, 'Mobile Money', AppConstants.secondaryColor),
+                              const SizedBox(width: 30),
+                              _buildPaymentMethodIcon(Icons.credit_card, 'Carte Bancaire', AppConstants.blueAccent),
                             ],
                           ),
                         ],
@@ -698,13 +807,33 @@ class _ChoosePlanScreenState extends State<paiementplan> {
     );
   }
 
-  Widget _buildPaymentMethodIcon(IconData icon, String label) {
-    return Column(
-      children: [
-        Icon(icon, size: 32, color: GestoTheme.green),
-        const SizedBox(height: 5),
-        Text(label, style: const TextStyle(fontSize: 12)),
-      ],
+  Widget _buildPaymentMethodIcon(IconData icon, String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.2),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Icon(icon, size: 40, color: color),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: AppConstants.getBodyFont(color: AppConstants.darkColor).copyWith(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -14,180 +14,287 @@ class ActivateLicencePage extends StatefulWidget {
 
 class _ActivateLicencePageState extends State<ActivateLicencePage> {
   final TextEditingController _licenceInputController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
 
-  // Fonction pour calculer la date d'expiration basée sur le type de licence
+  @override
+  void dispose() {
+    _licenceInputController.dispose();
+    super.dispose();
+  }
+
   Timestamp _calculateExpiryDate(String periodeType) {
     final now = DateTime.now();
     DateTime expiryDate;
 
     switch (periodeType) {
       case "month":
-      // Ajouter 30 jours
         expiryDate = now.add(const Duration(days: 30));
         break;
       case "6months":
-      // Ajouter 6 mois (approximativement 182 jours)
         expiryDate = now.add(const Duration(days: 182));
         break;
       case "year":
-      // Ajouter 365 jours
         expiryDate = now.add(const Duration(days: 365));
         break;
       default:
-      // Pour tout autre type, utiliser 30 jours par défaut
         expiryDate = now.add(const Duration(days: 30));
     }
 
     return Timestamp.fromDate(expiryDate);
   }
 
-  Future<void> _activateLicence(BuildContext context) async {
-    setState(() {
-      _isLoading = true;
-    });
+  void _showSnackBar(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isError ? Icons.error_outline : Icons.check_circle_outline,
+              color: Colors.white,
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: isError ? Colors.red : Colors.green,
+        duration: const Duration(seconds: 3),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  Future<void> _activateLicence() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
 
     try {
       final licenceCode = _licenceInputController.text.trim();
-      if (licenceCode.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Veuillez saisir un code de licence.'),
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: Colors.red,
-            duration: Duration(seconds: 3),
-          ),
-        );
-        setState(() {
-          _isLoading = false;
-        });
+      final cleanedLicenceCode = licenceCode.replaceAll('-', '');
+
+      final licenceSnapshot = await FirebaseFirestore.instance
+          .collection('licences')
+          .where('code', isEqualTo: cleanedLicenceCode)
+          .get();
+
+      if (licenceSnapshot.docs.isEmpty) {
+        _showSnackBar('Code de licence invalide.', isError: true);
         return;
       }
 
-      // Supprimer les tirets du code saisi par l'utilisateur
-      final cleanedLicenceCode = licenceCode.replaceAll('-', '');
+      final licenceData = licenceSnapshot.docs.first.data();
+      final generationDate = licenceData['generationDate'];
+      final periodeType = licenceData['periodeType'];
+      final licenceType = licenceData['licenceType'];
 
-      try {
-        final licenceSnapshot = await FirebaseFirestore.instance
-            .collection('licences')
-            .where('code', isEqualTo: cleanedLicenceCode)
-            .get();
+      if (generationDate == null || periodeType == null) {
+        _showSnackBar('Données de licence incomplètes.', isError: true);
+        return;
+      }
 
-        if (licenceSnapshot.docs.isEmpty) {
-          throw Exception('Code de licence invalide.');
-        }
+      final finalExpiryDate = _calculateExpiryDate(periodeType);
+      final user = FirebaseAuth.instance.currentUser;
 
-        final licenceData = licenceSnapshot.docs.first.data();
+      if (user == null) {
+        _showSnackBar('Utilisateur non connecté.', isError: true);
+        return;
+      }
 
-        // Vérification des valeurs null
-        final generationDate = licenceData['generationDate'];
-        final periodeType = licenceData['periodeType'];
-        final licenceType = licenceData['licenceType'];
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+        'licence': cleanedLicenceCode,
+        'licenceGenerationDate': generationDate,
+        'licenceExpiryDate': finalExpiryDate,
+        'licenceType': licenceType,
+        'plan': licenceType,
+      });
 
-        if (generationDate == null || periodeType == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Données de licence incomplètes.'),
-              behavior: SnackBarBehavior.floating,
-              backgroundColor: Colors.red,
-              duration: Duration(seconds: 3),
-            ),
-          );
-          setState(() {
-            _isLoading = false;
-          });
-          return;
-        }
+      await FirebaseFirestore.instance
+          .collection('licences')
+          .doc(licenceSnapshot.docs.first.id)
+          .delete();
 
-        // Calculer la date d'expiration basée sur le type de licence
-        final finalExpiryDate = _calculateExpiryDate(periodeType);
+      _showSnackBar('Licence activée avec succès.');
 
-        final user = FirebaseAuth.instance.currentUser;
-        if (user == null) throw Exception('Utilisateur non connecté.');
-
-        await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
-          'licence': cleanedLicenceCode,
-          'licenceGenerationDate': generationDate,
-          'licenceExpiryDate': finalExpiryDate, // Utiliser la date d'expiration calculée
-          'licenceType': licenceType,
-          'plan': licenceType,
-        });
-
-        await FirebaseFirestore.instance
-            .collection('licences')
-            .doc(licenceSnapshot.docs.first.id)
-            .delete();
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Licence activée avec succès.'),
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 3),
-          ),
-        );
-        // Navigation après l'activation réussie
+      if (mounted) {
         Navigator.pushNamed(context, AppRoutes.renewlicencePage);
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur lors de l\'activation de la licence: ${e.toString()}'),
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: Colors.red,
-            duration: Duration(seconds: 3),
-          ),
-        );
-      } finally {
-        setState(() {
-          _isLoading = false;
-        });
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Une erreur est survenue: ${e.toString()}'),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: Colors.red,
-          duration: Duration(seconds: 3),
-        ),
-      );
-
-      setState(() {
-        _isLoading = false;
-      });
+      _showSnackBar('Erreur: ${e.toString()}', isError: true);
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Text('Activer une licence'),
+        elevation: 0,
+        title: const Text(
+          'Activer une licence',
+          style: TextStyle(fontWeight: FontWeight.w600),
+        ),
+        centerTitle: true,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          children: [
-            TextField(
-              controller: _licenceInputController,
-              decoration: const InputDecoration(labelText: 'Code de licence'),
-              keyboardType: TextInputType.number,
-              inputFormatters: [
-                MaskTextInputFormatter(
-                  mask: '####-####-####-####',
-                  filter: {"#": RegExp(r'[0-9a-zA-Z]')},
-                  type: MaskAutoCompletionType.lazy,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 20),
+
+                // Icon and welcome text
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: theme.primaryColor.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.vpn_key_rounded,
+                    size: 64,
+                    color: theme.primaryColor,
+                  ),
+                ),
+
+                const SizedBox(height: 32),
+
+                Text(
+                  'Entrez votre code de licence',
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+
+                const SizedBox(height: 8),
+
+                Text(
+                  'Saisissez le code reçu pour activer votre licence',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: Colors.grey[600],
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+
+                const SizedBox(height: 40),
+
+                // Licence input field
+                TextFormField(
+                  controller: _licenceInputController,
+                  enabled: !_isLoading,
+                  decoration: InputDecoration(
+                    labelText: 'Code de licence',
+                    hintText: '####-####-####-####',
+                    prefixIcon: const Icon(Icons.vpn_key),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey[300]!),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: theme.primaryColor, width: 2),
+                    ),
+                    filled: true,
+                    fillColor: Colors.white,
+                  ),
+                  keyboardType: TextInputType.text,
+                  textCapitalization: TextCapitalization.characters,
+                  inputFormatters: [
+                    MaskTextInputFormatter(
+                      mask: '####-####-####-####',
+                      filter: {"#": RegExp(r'[0-9a-zA-Z]')},
+                      type: MaskAutoCompletionType.lazy,
+                    ),
+                  ],
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Veuillez saisir un code de licence';
+                    }
+                    final cleanedValue = value.replaceAll('-', '');
+                    if (cleanedValue.length < 16) {
+                      return 'Le code de licence doit contenir 16 caractères';
+                    }
+                    return null;
+                  },
+                ),
+
+                const SizedBox(height: 32),
+
+                // Activate button
+                SizedBox(
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: _isLoading ? null : _activateLicence,
+                    style: ElevatedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 2,
+                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 24,
+                            width: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : const Text(
+                            'Activer la licence',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // Info card
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[50],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.blue[200]!),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Le code de licence est composé de 16 caractères alphanumériques séparés par des tirets.',
+                          style: TextStyle(
+                            color: Colors.blue[900],
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: _isLoading ? null : () => _activateLicence(context),
-              child: _isLoading
-                  ? const CircularProgressIndicator()
-                  : const Text('Activer la licence'),
-            ),
-          ],
+          ),
         ),
       ),
     );

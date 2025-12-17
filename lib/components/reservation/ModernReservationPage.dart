@@ -2079,12 +2079,17 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
 
 // Function to handle client check-in
   Future<void> _checkInClient(Reservation reservation) async {
-    Navigator.push(
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => CheckInForm(reservation: reservation),
       ),
     );
+    
+    // Si l'enregistrement a réussi, rafraîchir les données
+    if (result == true && mounted) {
+      fetchReservations();
+    }
   }}
 
 // Modèle pour une chambre

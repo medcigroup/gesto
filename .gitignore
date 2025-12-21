@@ -34,7 +34,6 @@ migrate_working_dir/
 /build/
 /firebase-scripts/
 
-
 # Symbolication related
 app.*.symbols
 
@@ -45,4 +44,53 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
-node_modules
+
+# Node.js (for stripe-backend and other Node modules)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+
+# Environment variables and secrets
+.env
+.env.local
+.env.*.local
+*.env
+**/.env
+**/.env.*
+
+# Firebase
+.firebase/
+.firebaserc
+firebase-debug.log
+firebase-debug.*.log
+
+# Claude Code configuration
+.claude/
+
+# Temporary files and scripts
+*.tmp
+*.temp
+*.bak
+*.swp
+*~
+.~lock.*
+
+# OS specific
+Thumbs.db
+Desktop.ini
+
+# Logs
+logs/
+*.log
+
+# Coverage
+coverage/
+*.lcov
+
+# Test artifacts
+test-local.ps1
+
+# Deployment scripts (si temporaires)
+deploy-*.ps1

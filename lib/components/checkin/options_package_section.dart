@@ -1,6 +1,56 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+// Modèle pour les prix par période
+class PackagePricing {
+  final double? pricePerHour;
+  final double? pricePerDay;
+  final double? pricePerWeek;
+  final double? pricePerMonth;
+
+  PackagePricing({
+    this.pricePerHour,
+    this.pricePerDay,
+    this.pricePerWeek,
+    this.pricePerMonth,
+  });
+
+  factory PackagePricing.fromMap(Map<String, dynamic>? data) {
+    if (data == null) return PackagePricing();
+    return PackagePricing(
+      pricePerHour: data['pricePerHour']?.toDouble(),
+      pricePerDay: data['pricePerDay']?.toDouble(),
+      pricePerWeek: data['pricePerWeek']?.toDouble(),
+      pricePerMonth: data['pricePerMonth']?.toDouble(),
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'pricePerHour': pricePerHour,
+      'pricePerDay': pricePerDay,
+      'pricePerWeek': pricePerWeek,
+      'pricePerMonth': pricePerMonth,
+    };
+  }
+
+  bool hasAnyPrice() {
+    return pricePerHour != null ||
+           pricePerDay != null ||
+           pricePerWeek != null ||
+           pricePerMonth != null;
+  }
+
+  String getPricingInfo() {
+    List<String> prices = [];
+    if (pricePerHour != null) prices.add('${pricePerHour!.toStringAsFixed(0)} FCFA/h');
+    if (pricePerDay != null) prices.add('${pricePerDay!.toStringAsFixed(0)} FCFA/j');
+    if (pricePerWeek != null) prices.add('${pricePerWeek!.toStringAsFixed(0)} FCFA/sem');
+    if (pricePerMonth != null) prices.add('${pricePerMonth!.toStringAsFixed(0)} FCFA/mois');
+    return prices.join(' • ');
+  }
+}
+
 // Modèle pour les packages
 class HotelPackage {
   final String id;
@@ -9,6 +59,7 @@ class HotelPackage {
   final String icon;
   final bool isIncluded;
   final String category; // 'breakfast', 'amenities', 'services'
+  final PackagePricing pricing;
 
   HotelPackage({
     required this.id,
@@ -17,7 +68,8 @@ class HotelPackage {
     required this.icon,
     required this.isIncluded,
     required this.category,
-  });
+    PackagePricing? pricing,
+  }) : pricing = pricing ?? PackagePricing();
 
   factory HotelPackage.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
@@ -28,6 +80,7 @@ class HotelPackage {
       icon: data['icon'] ?? 'hotel',
       isIncluded: data['isIncluded'] ?? false,
       category: data['category'] ?? 'amenities',
+      pricing: PackagePricing.fromMap(data['pricing']),
     );
   }
 
@@ -39,6 +92,7 @@ class HotelPackage {
       'icon': icon,
       'isIncluded': isIncluded,
       'category': category,
+      'pricing': pricing.toMap(),
     };
   }
 }

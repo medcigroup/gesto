@@ -57,6 +57,10 @@ class _ModernReservationPageState extends State<ModernReservationPageEnploye> {
   // Liste des réservations
   List<Reservation> reservationsList =[];
 
+  // Heures par défaut de l'hôtel
+  String? _defaultCheckInTime;
+  String? _defaultCheckOutTime;
+
   @override
   void initState() {
     super.initState();
@@ -69,9 +73,33 @@ class _ModernReservationPageState extends State<ModernReservationPageEnploye> {
   Future<void> _loadAdminId() async {
     idadmin = await getConnectedUserAdminId();
     if (idadmin != null) {
+      // Charger les heures par défaut de l'hôtel
+      await _loadDefaultHotelHours();
       fetchReservations();
     } else {
       _showErrorSnackBar('Erreur: Impossible de récupérer l\'ID administrateur');
+    }
+  }
+
+  // Charger les heures par défaut de l'hôtel
+  Future<void> _loadDefaultHotelHours() async {
+    try {
+      final settingsService = HotelSettingsService();
+      final settings = await settingsService.getHotelSettings();
+      
+      setState(() {
+        _defaultCheckInTime = settings['checkInTime'] ?? '12:00';
+        _defaultCheckOutTime = settings['checkOutTime'] ?? '10:00';
+      });
+      
+      print('⏰ Heures par défaut chargées: Check-in: $_defaultCheckInTime, Check-out: $_defaultCheckOutTime');
+    } catch (e) {
+      print('Erreur lors du chargement des heures par défaut: $e');
+      // Valeurs par défaut en cas d'erreur
+      setState(() {
+        _defaultCheckInTime = '12:00';
+        _defaultCheckOutTime = '10:00';
+      });
     }
   }
 
@@ -860,8 +888,16 @@ class _ModernReservationPageState extends State<ModernReservationPageEnploye> {
                         lastDate: DateTime.now().add(const Duration(days: 365)),
                       );
                       if (picked != null) {
+                        // Appliquer automatiquement l'heure de check-in par défaut
+                        DateTime dateWithTime = picked;
+                        if (_defaultCheckInTime != null) {
+                          final timeParts = _defaultCheckInTime!.split(':');
+                          final hour = int.parse(timeParts[0]);
+                          final minute = int.parse(timeParts[1]);
+                          dateWithTime = DateTime(picked.year, picked.month, picked.day, hour, minute);
+                        }
                         setState(() {
-                          checkInDate = picked;
+                          checkInDate = dateWithTime;
                         });
                       }
                     },
@@ -903,8 +939,16 @@ class _ModernReservationPageState extends State<ModernReservationPageEnploye> {
                         lastDate: DateTime.now().add(const Duration(days: 365)),
                       );
                       if (picked != null) {
+                        // Appliquer automatiquement l'heure de check-out par défaut
+                        DateTime dateWithTime = picked;
+                        if (_defaultCheckOutTime != null) {
+                          final timeParts = _defaultCheckOutTime!.split(':');
+                          final hour = int.parse(timeParts[0]);
+                          final minute = int.parse(timeParts[1]);
+                          dateWithTime = DateTime(picked.year, picked.month, picked.day, hour, minute);
+                        }
                         setState(() {
-                          checkOutDate = picked;
+                          checkOutDate = dateWithTime;
                         });
                       }
                     },
@@ -1390,92 +1434,218 @@ class _ModernReservationPageState extends State<ModernReservationPageEnploye> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Réservation #${_foundReservation!.reservationCode}',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        ),
-                        if (_foundReservation!.status != 'Annulée' &&  _foundReservation!.status != 'Enregistré'&&  _foundReservation!.status != 'Terminé')
-                          IconButton(
-                            icon: const Icon(Icons.edit, color: Colors.orange),
-                            tooltip: 'Modifier la réservation',
-                            onPressed: () => _editReservation(_foundReservation!),
-                          ),
-                        IconButton(
-                          icon: const Icon(Icons.print, color: Colors.blue),
-                          tooltip: 'Imprimer le reçu',
-                          onPressed: () => _reprintReceipt(_foundReservation!),
-                        ),
-                        Chip(
-                          label: Text(_foundReservation!.status),
-                          backgroundColor: _getStatusColor(_foundReservation!.status),
-                        ),
-                      ],
+              elevation: 4,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // En-tête avec code de réservation et statut
+                  Container(
+                    padding: const EdgeInsets.all(16.0),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.deepPurple.shade400, Colors.deepPurple.shade600],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(12),
+                        topRight: Radius.circular(12),
+                      ),
                     ),
-                    const Divider(),
-                    _infoRow('Client', _foundReservation!.customerName),
-                    _infoRow('Chambre', '${_foundReservation!.roomNumber} (${_foundReservation!.roomType})'),
-                    _infoRow('Arrivée', DateFormat('dd/MM/yyyy').format(_foundReservation!.checkInDate)),
-                    _infoRow('Départ', DateFormat('dd/MM/yyyy').format(_foundReservation!.checkOutDate)),
-                    _infoRow('Invités', '${_foundReservation!.numberOfGuests}'),
-                    if (_foundReservation!.numberOfNights != null)
-                      _infoRow('Nuits', '${_foundReservation!.numberOfNights}'),
-                    if (_foundReservation!.pricePerNight != null)
-                      _infoRow('Prix/nuit', '${_foundReservation!.pricePerNight?.toStringAsFixed(2)} FCFA'),
-                    if (_foundReservation!.totalPrice != null)
-                      _infoRow('Total', '${_foundReservation!.totalPrice?.toStringAsFixed(2)} FCFA'),
-                    if (_foundReservation!.depositAmount != 0)
-                      _infoRow('Acompte', '${_foundReservation!.depositAmount?.toStringAsFixed(2)} FCFA'),
-                    if (_foundReservation!.depositAmount != 0)
-                      _infoRow('Reste à payer', '${(_foundReservation!.totalPrice! - _foundReservation!.depositAmount!).toStringAsFixed(2)} FCFA'),
-                    if (_foundReservation!.specialRequests.isNotEmpty)
-                      _infoRow('Demandes', _foundReservation!.specialRequests),
-                    if (_foundReservation!.customerEmail.isNotEmpty)
-                      _infoRow('Email', _foundReservation!.customerEmail),
-                    if (_foundReservation!.customerPhone.isNotEmpty)
-                      _infoRow('Téléphone', _foundReservation!.customerPhone),
-                    const SizedBox(height: 16),
-                    if (_foundReservation!.status != 'Annulée' &&  _foundReservation!.status != 'Enregistré'&&  _foundReservation!.status != 'Terminé')
-                      Row(
-                        children: [
-                          if (_foundReservation!.status == 'réservée' || _foundReservation!.status == 'Confirmée')
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
                             Expanded(
-                              child: ElevatedButton.icon(
-                                onPressed: () => _checkInClient(_foundReservation!),
-                                icon: const Icon(Icons.login_outlined),
-                                label: const Text('Enregistrer'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.green[400],
-                                  foregroundColor: Colors.white,
+                              child: Text(
+                                'Réservation #${_foundReservation!.reservationCode}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 20,
+                                  color: Colors.white,
                                 ),
                               ),
                             ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: () => _cancelReservation(_foundReservation!),
-                              icon: const Icon(Icons.cancel_outlined),
-                              label: const Text('Annuler'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.red[400],
-                                foregroundColor: Colors.white,
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: _getStatusColor(_foundReservation!.status),
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.1),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
                               ),
+                              child: Text(
+                                _foundReservation!.status.toUpperCase(),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            if (_foundReservation!.status != 'Annulée' && _foundReservation!.status != 'Enregistré' && _foundReservation!.status != 'Terminé')
+                              IconButton(
+                                icon: const Icon(Icons.edit, color: Colors.white),
+                                tooltip: 'Modifier la réservation',
+                                onPressed: () => _editReservation(_foundReservation!),
+                              ),
+                            IconButton(
+                              icon: const Icon(Icons.print, color: Colors.white),
+                              tooltip: 'Imprimer le reçu',
+                              onPressed: () => _reprintReceipt(_foundReservation!),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  
+                  // Contenu de la réservation
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Section Client
+                        _buildSectionTitle('Informations Client', Icons.person),
+                        const SizedBox(height: 8),
+                        _infoRow('Nom', _foundReservation!.customerName),
+                        if (_foundReservation!.customerEmail.isNotEmpty)
+                          _infoRow('Email', _foundReservation!.customerEmail),
+                        if (_foundReservation!.customerPhone.isNotEmpty)
+                          _infoRow('Téléphone', _foundReservation!.customerPhone),
+                        _infoRow('Nombre d\'invités', '${_foundReservation!.numberOfGuests}'),
+                        
+                        const Divider(height: 24),
+                        
+                        // Section Séjour
+                        _buildSectionTitle('Détails du Séjour', Icons.hotel),
+                        const SizedBox(height: 8),
+                        _infoRow('Chambre', '${_foundReservation!.roomNumber} (${_foundReservation!.roomType})'),
+                        _infoRow('Arrivée', DateFormat('dd/MM/yyyy').format(_foundReservation!.checkInDate)),
+                        _infoRow('Départ', DateFormat('dd/MM/yyyy').format(_foundReservation!.checkOutDate)),
+                        if (_foundReservation!.numberOfNights != null)
+                          _infoRow('Nombre de nuits', '${_foundReservation!.numberOfNights}'),
+                        
+                        const Divider(height: 24),
+                        
+                        // Section Tarifs
+                        _buildSectionTitle('Informations Tarifaires', Icons.payments),
+                        const SizedBox(height: 8),
+                        if (_foundReservation!.pricePerNight != null)
+                          _infoRow('Prix par nuit', '${_foundReservation!.pricePerNight?.toStringAsFixed(2)} FCFA'),
+                        if (_foundReservation!.totalPrice != null)
+                          _infoRow('Prix total', '${_foundReservation!.totalPrice?.toStringAsFixed(2)} FCFA', isBold: true),
+                        if (_foundReservation!.depositAmount != null && _foundReservation!.depositAmount != 0)
+                          _infoRow('Acompte versé', '${_foundReservation!.depositAmount?.toStringAsFixed(2)} FCFA', color: Colors.green),
+                        if (_foundReservation!.depositAmount != null && _foundReservation!.depositAmount != 0)
+                          _infoRow('Reste à payer', '${(_foundReservation!.totalPrice! - _foundReservation!.depositAmount!).toStringAsFixed(2)} FCFA', color: Colors.orange, isBold: true),
+                        
+                        if (_foundReservation!.specialRequests.isNotEmpty) ...[
+                          const Divider(height: 24),
+                          _buildSectionTitle('Demandes Spéciales', Icons.comment),
+                          const SizedBox(height: 8),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.blue.shade200),
+                            ),
+                            child: Text(
+                              _foundReservation!.specialRequests,
+                              style: TextStyle(color: Colors.blue.shade900),
                             ),
                           ),
                         ],
-                      ),
-                  ],
-                ),
+                        
+                        const SizedBox(height: 20),
+                        
+                        // Boutons d'action
+                        if (_foundReservation!.status != 'Annulée' && _foundReservation!.status != 'Enregistré' && _foundReservation!.status != 'Terminé')
+                          Column(
+                            children: [
+                              // Bouton de confirmation pour les réservations en attente
+                              if (_foundReservation!.status == 'en attente')
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton.icon(
+                                    onPressed: () => _confirmReservation(_foundReservation!),
+                                    icon: const Icon(Icons.check_circle_outline, size: 24),
+                                    label: const Text('CONFIRMER LA RÉSERVATION', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.green,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(vertical: 16),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              if (_foundReservation!.status == 'en attente')
+                                const SizedBox(height: 10),
+                              
+                              // Bouton d'enregistrement pour les réservations confirmées
+                              if (_foundReservation!.status == 'réservée' || _foundReservation!.status == 'Confirmée')
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton.icon(
+                                    onPressed: () => _checkInClient(_foundReservation!),
+                                    icon: const Icon(Icons.login_outlined, size: 24),
+                                    label: const Text('ENREGISTRER L\'ARRIVÉE', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.blue,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(vertical: 16),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              if (_foundReservation!.status == 'réservée' || _foundReservation!.status == 'Confirmée')
+                                const SizedBox(height: 10),
+                              
+                              // Bouton d'annulation
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  onPressed: () => _cancelReservation(_foundReservation!),
+                                  icon: const Icon(Icons.cancel_outlined, size: 24),
+                                  label: const Text('ANNULER LA RÉSERVATION', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: Colors.red,
+                                    side: const BorderSide(color: Colors.red, width: 2),
+                                    padding: const EdgeInsets.symmetric(vertical: 16),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -1484,33 +1654,74 @@ class _ModernReservationPageState extends State<ModernReservationPageEnploye> {
     );
   }
 
+  // Widget pour afficher un titre de section
+  Widget _buildSectionTitle(String title, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, color: Colors.deepPurple, size: 20),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.deepPurple,
+          ),
+        ),
+      ],
+    );
+  }
+
   // Widget pour afficher une ligne d'information
-  Widget _infoRow(String label, String value) {
+  Widget _infoRow(String label, String value, {bool isBold = false, Color? color}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      padding: const EdgeInsets.symmetric(vertical: 6.0),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('$label: ', style: const TextStyle(fontWeight: FontWeight.bold)),
-          Expanded(child: Text(value)),
+          SizedBox(
+            width: 140,
+            child: Text(
+              '$label:',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[700],
+                fontSize: 14,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+                color: color ?? Colors.black87,
+                fontSize: 14,
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
   // Obtention de la couleur en fonction du statut de la réservation
-  Color? _getStatusColor(String status) {
-    switch (status) {
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'en attente':
+        return Colors.orange;
       case 'réservée':
-        return Colors.orange[200];
-      case 'Confirmée':
-        return Colors.green[200];
-      case 'Annulée':
-        return Colors.red[200];
-      case 'Terminée':
-        return Colors.grey[300];
+        return Colors.blue;
+      case 'confirmée':
+        return Colors.green;
+      case 'annulée':
+        return Colors.red;
+      case 'enregistré':
+        return Colors.teal;
+      case 'terminé':
+        return Colors.grey;
       default:
-        return null;
+        return Colors.blueGrey;
     }
   }
 
@@ -1567,9 +1778,20 @@ class _ModernReservationPageState extends State<ModernReservationPageEnploye> {
                       DataCell(Text(reservation.totalPrice != null
                           ? '${reservation.totalPrice?.toStringAsFixed(2)} FCFA' : '-')),
                       DataCell(
-                        Chip(
-                          label: Text(reservation.status),
-                          backgroundColor: _getStatusColor(reservation.status),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: _getStatusColor(reservation.status),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            reservation.status.toUpperCase(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 11,
+                            ),
+                          ),
                         ),
                       ),
                       DataCell(
@@ -1594,6 +1816,13 @@ class _ModernReservationPageState extends State<ModernReservationPageEnploye> {
                               Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
+                                  // Bouton de confirmation pour les réservations en attente
+                                  if (reservation.status == 'en attente')
+                                    IconButton(
+                                      icon: const Icon(Icons.check_circle_outline, color: Colors.green, size: 20),
+                                      tooltip: 'Confirmer la réservation',
+                                      onPressed: () => _confirmReservation(reservation),
+                                    ),
                                   if (reservation.status == 'réservée' || reservation.status == 'Confirmée')
                                     IconButton(
                                       icon: const Icon(Icons.login_outlined, color: Colors.green, size: 20),
@@ -1650,10 +1879,13 @@ class _ModernReservationPageState extends State<ModernReservationPageEnploye> {
     DateTime _checkOutDate = reservation.checkOutDate ?? _checkInDate.add(const Duration(days: 1));
 
     Future<bool> _isRoomAvailable(String roomId, DateTime checkIn, DateTime checkOut, String? currentReservationId) async {
+      // Vérifier dans les réservations
+      // Supporte le cycle hôtelier standard (check-out 12h, check-in 12h)
+      // Une chambre est disponible si le départ <= arrivée suivante
       final reservationsSnapshot = await FirebaseFirestore.instance
           .collection('reservations')
           .where('roomId', isEqualTo: roomId)
-          .where('status', whereIn: ['réservée', 'Enregistré'])
+          .where('status', whereIn: ['en attente', 'réservée', 'Confirmée', 'Enregistré'])
           .get();
 
       for (var doc in reservationsSnapshot.docs) {
@@ -1662,23 +1894,52 @@ class _ModernReservationPageState extends State<ModernReservationPageEnploye> {
         DateTime resCheckIn = (data['checkInDate'] as Timestamp).toDate();
         DateTime resCheckOut = (data['checkOutDate'] as Timestamp).toDate();
 
-        if (!(checkOut.isBefore(resCheckIn) || checkIn.isAfter(resCheckOut))) {
+        // Vérifier le chevauchement des dates
+        // Pas de conflit si: notre départ <= leur arrivée OU notre arrivée >= leur départ
+        // Cela permet le cycle 12h-12h (départ 12h = arrivée 12h même jour)
+        bool noOverlap = checkOut.isBefore(resCheckIn) || 
+                         checkOut.isAtSameMomentAs(resCheckIn) ||
+                         checkIn.isAfter(resCheckOut) || 
+                         checkIn.isAtSameMomentAs(resCheckOut);
+        
+        if (!noOverlap) {
           return false;
         }
       }
+
+      // Vérifier également dans les bookings (enregistrements actuels)
+      final bookingsSnapshot = await FirebaseFirestore.instance
+          .collection('bookings')
+          .where('roomId', isEqualTo: roomId)
+          .where('status', whereNotIn: ['Terminé', 'Annulé'])
+          .get();
+
+      for (var doc in bookingsSnapshot.docs) {
+        final data = doc.data();
+        DateTime resCheckIn = (data['checkInDate'] as Timestamp).toDate();
+        DateTime resCheckOut = (data['checkOutDate'] as Timestamp).toDate();
+
+        // Même logique pour les bookings
+        bool noOverlap = checkOut.isBefore(resCheckIn) || 
+                         checkOut.isAtSameMomentAs(resCheckIn) ||
+                         checkIn.isAfter(resCheckOut) || 
+                         checkIn.isAtSameMomentAs(resCheckOut);
+        
+        if (!noOverlap) {
+          return false;
+        }
+      }
+
       return true;
     }
 
-    showModalBottomSheet(
+    showDialog(
       context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(25.0)),
-      ),
+      barrierDismissible: false,
       builder: (BuildContext context) {
         return StatefulBuilder(
           builder: (context, setState) {
-            int numberOfNights = _checkOutDate.difference(_checkInDate).inDays + 1;
+            int numberOfNights = _checkOutDate.difference(_checkInDate).inDays;
             double totalAmount = numberOfNights * (double.tryParse(pricePerNightController.text) ?? 0);
             double depositPercentage = double.tryParse(depositPercentageController.text) ?? 0;
             double depositAmount = (depositPercentage / 100) * totalAmount;
@@ -1693,7 +1954,8 @@ class _ModernReservationPageState extends State<ModernReservationPageEnploye> {
               );
               if (picked != null && picked != _checkInDate) {
                 setState(() {
-                  _checkInDate = DateTime(picked.year, picked.month, picked.day, _checkInDate.hour, _checkInDate.minute);
+                  // Appliquer les heures par défaut de l'hôtel
+                  _checkInDate = DateTime(picked.year, picked.month, picked.day, checkInHour, checkInMinute);
                 });
               }
             }
@@ -1707,184 +1969,439 @@ class _ModernReservationPageState extends State<ModernReservationPageEnploye> {
               );
               if (picked != null && picked != _checkOutDate) {
                 setState(() {
-                  _checkOutDate = DateTime(picked.year, picked.month, picked.day, _checkOutDate.hour, _checkOutDate.minute);
+                  // Appliquer les heures par défaut de l'hôtel
+                  _checkOutDate = DateTime(picked.year, picked.month, picked.day, checkOutHour, checkOutMinute);
                 });
               }
             }
 
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewInsets.bottom,
-                left: 16,
-                right: 16,
-                top: 16,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Modifier la réservation', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                      IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                      controller: customerNameController,
-                      decoration: const InputDecoration(labelText: 'Nom du client', border: OutlineInputBorder())
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: customerPhoneController,
-                    decoration: const InputDecoration(labelText: 'Téléphone du client', border: OutlineInputBorder()),
-                    keyboardType: TextInputType.phone,
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: numberOfGuestsController,
-                    decoration: const InputDecoration(labelText: 'Nombre de personnes', border: OutlineInputBorder()),
-                    keyboardType: TextInputType.number,
-                  ),
-                  const SizedBox(height: 10),
-                  InkWell(
-                    onTap: () => _selectCheckInDate(context),
-                    child: InputDecorator(
-                      decoration: const InputDecoration(labelText: 'Date d\'arrivée', border: OutlineInputBorder()),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: <Widget>[
-                          Text('${_checkInDate.day}/${_checkInDate.month}/${_checkInDate.year}'),
-                          const Icon(Icons.calendar_today),
-                        ],
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              insetPadding: const EdgeInsets.all(16),
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 600, maxHeight: 700),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Column(
+                  children: [
+                    // En-tête moderne
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Colors.deepPurple.shade400, Colors.deepPurple.shade600],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(20),
+                          topRight: Radius.circular(20),
+                        ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  InkWell(
-                    onTap: () => _selectCheckOutDate(context),
-                    child: InputDecorator(
-                      decoration: const InputDecoration(labelText: 'Date de départ', border: OutlineInputBorder()),
                       child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: <Widget>[
-                          Text('${_checkOutDate.day}/${_checkOutDate.month}/${_checkOutDate.year}'),
-                          const Icon(Icons.calendar_today),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  TextFormField(
-                    controller: pricePerNightController,
-                    decoration: const InputDecoration(labelText: 'Prix par nuit', border: OutlineInputBorder()),
-                    keyboardType: TextInputType.number,
-                    onChanged: (value) => setState(() {}),
-                  ),
-                  const SizedBox(height: 10),
-                  TextFormField(
-                    controller: depositPercentageController,
-                    decoration: const InputDecoration(
-                      labelText: 'Pourcentage d\'acompte (%)',
-                      border: OutlineInputBorder(),
-                    ),
-                    keyboardType: TextInputType.number,
-                    onChanged: (value) => setState(() {}),
-                  ),
-                  const SizedBox(height: 10),
-                  Text('Nombre de nuits: $numberOfNights', style: const TextStyle(fontWeight: FontWeight.bold)),
-                  Text('Montant total: ${totalAmount.toStringAsFixed(2)} FCFA', style: const TextStyle(fontWeight: FontWeight.bold)),
-                  Text('Acompte: ${depositAmount.toStringAsFixed(2)} FCFA', style: const TextStyle(fontWeight: FontWeight.bold)),
-                  Text('Solde dû: ${balanceDue.toStringAsFixed(2)} FCFA', style: const TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 10),
-                  ElevatedButton(
-                    onPressed: () async {
-                      final finalCheckInDate = DateTime(
-                          _checkInDate.year, _checkInDate.month, _checkInDate.day,
-                          checkInHour, checkInMinute
-                      );
-                      final finalCheckOutDate = DateTime(
-                          _checkOutDate.year, _checkOutDate.month, _checkOutDate.day,
-                          checkOutHour, checkOutMinute
-                      );
-
-                      bool isAvailable = await _isRoomAvailable(
-                          reservation.roomId,
-                          finalCheckInDate,
-                          finalCheckOutDate,
-                          reservation.id
-                      );
-
-                      if (!isAvailable) {
-                        if (context.mounted) {
-                          showDialog(
-                            context: context,
-                            builder: (BuildContext context) {
-                              return AlertDialog(
-                                title: const Text('Chambre non disponible'),
-                                content: Text('Cette chambre est déjà réservée pour les dates sélectionnées. Veuillez choisir d\'autres dates.'),
-                                actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
-                              );
-                            },
-                          );
-                        }
-                        return;
-                      }
-
-                      await FirebaseFirestore.instance.collection('reservations').doc(reservation.id).update({
-                        'customerName': customerNameController.text,
-                        'customerPhone': customerPhoneController.text,
-                        'numberOfGuests': int.tryParse(numberOfGuestsController.text) ?? reservation.numberOfGuests,
-                        'specialRequests': specialRequestsController.text,
-                        'checkInDate': finalCheckInDate,
-                        'checkOutDate': finalCheckOutDate,
-                        'pricePerNight': double.tryParse(pricePerNightController.text) ?? 0,
-                        'numberOfNights': numberOfNights,
-                        'totalPrice': totalAmount,
-                        'depositPercentage': depositPercentage,
-                        'depositAmount': depositAmount,
-                        'balanceDue': balanceDue,
-                        'updatedAt': DateTime.now(),
-                      });
-
-                      // Mise à jour de la transaction associée
-                      try {
-                        // Rechercher la transaction liée à cette réservation
-                        final transactionSnapshot = await FirebaseFirestore.instance
-                            .collection('transactions')
-                            .where('bookingId', isEqualTo: reservation.id)
-                            .get();
-
-                        // Si une transaction existe, la mettre à jour
-                        if (transactionSnapshot.docs.isNotEmpty) {
-                          final transactionDoc = transactionSnapshot.docs.first;
-                          await FirebaseFirestore.instance.collection('transactions').doc(transactionDoc.id).update({
-                            'customerName': customerNameController.text,
-                            'amount': depositAmount,
-                            'description': 'Acompte mis à jour pour la réservation ${reservation.reservationCode}',
-                            'updatedAt': DateTime.now(),
-                          });
-                        }
-                      } catch (e) {
-                        print('Erreur lors de la mise à jour de la transaction: $e');
-                        // Continuer malgré l'erreur - la mise à jour de la réservation est déjà faite
-                      }
-
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Réservation mise à jour avec succès!'),
-                            backgroundColor: Colors.green,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(Icons.edit, color: Colors.white, size: 28),
                           ),
-                        );
-                      }
-                      Navigator.pop(context);
-                      fetchReservations();
-                    },
-                    child: const Text('Enregistrer'),
-                  ),
-                  const SizedBox(height: 16),
-                ],
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Modifier la réservation',
+                                  style: TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                Text(
+                                  '#${reservation.reservationCode}',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.white.withOpacity(0.9),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close, color: Colors.white),
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                        ],
+                      ),
+                    ),
+                    
+                    // Contenu scrollable
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Section Client
+                            _buildSectionTitle('Informations Client', Icons.person),
+                            const SizedBox(height: 12),
+                            TextField(
+                              controller: customerNameController,
+                              decoration: InputDecoration(
+                                labelText: 'Nom du client',
+                                prefixIcon: const Icon(Icons.person_outline),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                filled: true,
+                                fillColor: Colors.grey.shade50,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            TextField(
+                              controller: customerPhoneController,
+                              decoration: InputDecoration(
+                                labelText: 'Téléphone du client',
+                                prefixIcon: const Icon(Icons.phone_outlined),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                filled: true,
+                                fillColor: Colors.grey.shade50,
+                              ),
+                              keyboardType: TextInputType.phone,
+                            ),
+                            const SizedBox(height: 12),
+                            TextField(
+                              controller: numberOfGuestsController,
+                              decoration: InputDecoration(
+                                labelText: 'Nombre de personnes',
+                                prefixIcon: const Icon(Icons.group_outlined),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                filled: true,
+                                fillColor: Colors.grey.shade50,
+                              ),
+                              keyboardType: TextInputType.number,
+                            ),
+                            
+                            const SizedBox(height: 20),
+                            const Divider(),
+                            const SizedBox(height: 20),
+                            
+                            // Section Séjour
+                            _buildSectionTitle('Dates du Séjour', Icons.calendar_today),
+                            const SizedBox(height: 12),
+                            InkWell(
+                              onTap: () => _selectCheckInDate(context),
+                              child: Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.grey.shade300),
+                                  borderRadius: BorderRadius.circular(12),
+                                  color: Colors.grey.shade50,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.login, color: Colors.deepPurple.shade400),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Date d\'arrivée',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey.shade600,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            DateFormat('dd/MM/yyyy').format(_checkInDate),
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const Icon(Icons.arrow_forward_ios, size: 16),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            InkWell(
+                              onTap: () => _selectCheckOutDate(context),
+                              child: Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.grey.shade300),
+                                  borderRadius: BorderRadius.circular(12),
+                                  color: Colors.grey.shade50,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.logout, color: Colors.deepPurple.shade400),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Date de départ',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey.shade600,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            DateFormat('dd/MM/yyyy').format(_checkOutDate),
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const Icon(Icons.arrow_forward_ios, size: 16),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            
+                            const SizedBox(height: 20),
+                            const Divider(),
+                            const SizedBox(height: 20),
+                            
+                            // Section Tarifs
+                            _buildSectionTitle('Informations Tarifaires', Icons.payments),
+                            const SizedBox(height: 12),
+                            TextField(
+                              controller: pricePerNightController,
+                              decoration: InputDecoration(
+                                labelText: 'Prix par nuit (FCFA)',
+                                prefixIcon: const Icon(Icons.attach_money),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                filled: true,
+                                fillColor: Colors.grey.shade50,
+                              ),
+                              keyboardType: TextInputType.number,
+                              onChanged: (value) => setState(() {}),
+                            ),
+                            const SizedBox(height: 12),
+                            TextField(
+                              controller: depositPercentageController,
+                              decoration: InputDecoration(
+                                labelText: 'Pourcentage d\'acompte (%)',
+                                prefixIcon: const Icon(Icons.percent),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                filled: true,
+                                fillColor: Colors.grey.shade50,
+                              ),
+                              keyboardType: TextInputType.number,
+                              onChanged: (value) => setState(() {}),
+                            ),
+                            
+                            const SizedBox(height: 20),
+                            
+                            // Récapitulatif financier
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [Colors.blue.shade50, Colors.purple.shade50],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.deepPurple.shade200),
+                              ),
+                              child: Column(
+                                children: [
+                                  _buildSummaryRow('Nombre de nuits', '$numberOfNights', Icons.nights_stay),
+                                  const Divider(height: 16),
+                                  _buildSummaryRow('Montant total', '${totalAmount.toStringAsFixed(2)} FCFA', Icons.account_balance_wallet, isBold: true),
+                                  const Divider(height: 16),
+                                  _buildSummaryRow('Acompte ($depositPercentage%)', '${depositAmount.toStringAsFixed(2)} FCFA', Icons.payment, color: Colors.green),
+                                  const Divider(height: 16),
+                                  _buildSummaryRow('Solde dû', '${balanceDue.toStringAsFixed(2)} FCFA', Icons.money_off, color: Colors.orange, isBold: true),
+                                ],
+                              ),
+                            ),
+                            
+                            const SizedBox(height: 20),
+                            
+                            // Section Demandes spéciales
+                            _buildSectionTitle('Demandes Spéciales', Icons.comment),
+                            const SizedBox(height: 12),
+                            TextField(
+                              controller: specialRequestsController,
+                              decoration: InputDecoration(
+                                labelText: 'Demandes spéciales (optionnel)',
+                                prefixIcon: const Icon(Icons.message_outlined),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                filled: true,
+                                fillColor: Colors.grey.shade50,
+                              ),
+                              maxLines: 3,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    
+                    // Bouton d'action
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.grey.shade300,
+                            blurRadius: 10,
+                            offset: const Offset(0, -2),
+                          ),
+                        ],
+                      ),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            final finalCheckInDate = DateTime(
+                                _checkInDate.year, _checkInDate.month, _checkInDate.day,
+                                checkInHour, checkInMinute
+                            );
+                            final finalCheckOutDate = DateTime(
+                                _checkOutDate.year, _checkOutDate.month, _checkOutDate.day,
+                                checkOutHour, checkOutMinute
+                            );
+
+                            bool isAvailable = await _isRoomAvailable(
+                                reservation.roomId,
+                                finalCheckInDate,
+                                finalCheckOutDate,
+                                reservation.id
+                            );
+
+                            if (!isAvailable) {
+                              if (context.mounted) {
+                                showDialog(
+                                  context: context,
+                                  builder: (BuildContext context) {
+                                    return AlertDialog(
+                                      title: Row(
+                                        children: [
+                                          Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
+                                          const SizedBox(width: 12),
+                                          const Text('Chambre non disponible'),
+                                        ],
+                                      ),
+                                      content: const Text(
+                                        'Cette chambre est déjà réservée ou occupée pour les dates sélectionnées. Veuillez choisir d\'autres dates.',
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(context),
+                                          child: const Text('OK'),
+                                        ),
+                                      ],
+                                    );
+                                  },
+                                );
+                              }
+                              return;
+                            }
+
+                            await FirebaseFirestore.instance.collection('reservations').doc(reservation.id).update({
+                              'customerName': customerNameController.text,
+                              'customerPhone': customerPhoneController.text,
+                              'numberOfGuests': int.tryParse(numberOfGuestsController.text) ?? reservation.numberOfGuests,
+                              'specialRequests': specialRequestsController.text,
+                              'checkInDate': finalCheckInDate,
+                              'checkOutDate': finalCheckOutDate,
+                              'pricePerNight': double.tryParse(pricePerNightController.text) ?? 0,
+                              'numberOfNights': numberOfNights,
+                              'totalPrice': totalAmount,
+                              'depositPercentage': depositPercentage,
+                              'depositAmount': depositAmount,
+                              'balanceDue': balanceDue,
+                              'updatedAt': DateTime.now(),
+                            });
+
+                            // Mise à jour de la transaction associée
+                            try {
+                              final transactionSnapshot = await FirebaseFirestore.instance
+                                  .collection('transactions')
+                                  .where('bookingId', isEqualTo: reservation.id)
+                                  .get();
+
+                              if (transactionSnapshot.docs.isNotEmpty) {
+                                final transactionDoc = transactionSnapshot.docs.first;
+                                await FirebaseFirestore.instance.collection('transactions').doc(transactionDoc.id).update({
+                                  'customerName': customerNameController.text,
+                                  'amount': depositAmount,
+                                  'description': 'Acompte mis à jour pour la réservation ${reservation.reservationCode}',
+                                  'updatedAt': DateTime.now(),
+                                });
+                              }
+                            } catch (e) {
+                              print('Erreur lors de la mise à jour de la transaction: $e');
+                            }
+
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Réservation mise à jour avec succès!'),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                              Navigator.pop(context);
+                              fetchReservations();
+                              
+                              // Mettre à jour _foundReservation si c'est celle affichée
+                              if (_foundReservation?.id == reservation.id) {
+                                _searchReservation();
+                              }
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.deepPurple,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text(
+                            'ENREGISTRER LES MODIFICATIONS',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             );
           },
@@ -1893,6 +2410,172 @@ class _ModernReservationPageState extends State<ModernReservationPageEnploye> {
     );
   }
 
+  // Widget helper pour les lignes de récapitulatif
+  Widget _buildSummaryRow(String label, String value, IconData icon, {bool isBold = false, Color? color}) {
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: color ?? Colors.deepPurple),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+              color: color ?? Colors.black87,
+            ),
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: color ?? Colors.black87,
+          ),
+        ),
+      ],
+    );
+  }
+
+
+  // Méthode pour confirmer une réservation en attente
+  Future<void> _confirmReservation(Reservation reservation) async {
+    // Afficher une boîte de dialogue de confirmation
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.check_circle_outline, color: Colors.green, size: 28),
+              const SizedBox(width: 12),
+              const Text('Confirmer la réservation'),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Voulez-vous confirmer la réservation suivante ?',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 16),
+                _buildInfoRow('Code', '#${reservation.reservationCode}'),
+                _buildInfoRow('Client', reservation.customerName),
+                _buildInfoRow('Chambre', reservation.roomNumber),
+                _buildInfoRow('Arrivée', DateFormat('dd/MM/yyyy').format(reservation.checkInDate)),
+                _buildInfoRow('Départ', DateFormat('dd/MM/yyyy').format(reservation.checkOutDate)),
+                if (reservation.totalPrice != null)
+                  _buildInfoRow('Prix total', '${reservation.totalPrice!.toStringAsFixed(2)} FCFA'),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Annuler'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Confirmer'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm == true) {
+      try {
+        // Mettre à jour le statut dans Firestore
+        await FirebaseFirestore.instance
+            .collection('reservations')
+            .doc(reservation.id)
+            .update({'status': 'réservée'});
+
+        // Mettre à jour visuellement _foundReservation si c'est la réservation affichée
+        if (_foundReservation?.id == reservation.id) {
+          setState(() {
+            _foundReservation = Reservation(
+              id: reservation.id,
+              reservationCode: reservation.reservationCode,
+              roomId: reservation.roomId,
+              roomNumber: reservation.roomNumber,
+              roomType: reservation.roomType,
+              customerName: reservation.customerName,
+              customerEmail: reservation.customerEmail,
+              customerPhone: reservation.customerPhone,
+              numberOfGuests: reservation.numberOfGuests,
+              specialRequests: reservation.specialRequests,
+              checkInDate: reservation.checkInDate,
+              checkOutDate: reservation.checkOutDate,
+              status: 'réservée',
+              numberOfNights: reservation.numberOfNights,
+              pricePerNight: reservation.pricePerNight,
+              totalPrice: reservation.totalPrice,
+              depositPercentage: reservation.depositPercentage,
+              depositAmount: reservation.depositAmount,
+              paymentMethod: reservation.paymentMethod,
+              depositPaid: reservation.depositPaid,
+            );
+          });
+        }
+
+        // Rafraîchir les données de la liste
+        fetchReservations();
+
+        // Afficher un message de succès
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Réservation #${reservation.reservationCode} confirmée avec succès'),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Erreur lors de la confirmation: ${e.toString()}'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  // Widget helper pour afficher les informations de réservation
+  Widget _buildInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              '$label:',
+              style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey[700]),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   void _cancelReservation(Reservation reservation) {
     showDialog(

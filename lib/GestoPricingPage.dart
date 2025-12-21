@@ -47,23 +47,26 @@ class _GestoPricingPageState extends State<GestoPricingPage> {
     return AppBar(
       backgroundColor: Colors.transparent,
       elevation: 0,
-      title: Row(
-        children: [
-          Image.asset(
-            AppConstants.logoPath,
-            height: 40,
-          ),
-          SizedBox(width: 10),
-          Text(
-            AppConstants.appName,
-            style: AppConstants.getHeadlineFont(color: Colors.white)
-                .copyWith(fontSize: 20),
-          ),
-        ],
+      title: GestureDetector(
+        onTap: () => Navigator.pushNamed(context, AppRoutes.home),
+        child: Row(
+          children: [
+            Image.asset(
+              AppConstants.logoPath,
+              height: 40,
+            ),
+            SizedBox(width: 10),
+            Text(
+              AppConstants.appName,
+              style: AppConstants.getHeadlineFont(color: Colors.white)
+                  .copyWith(fontSize: 20),
+            ),
+          ],
+        ),
       ),
       leading: IconButton(
         icon: Icon(Icons.arrow_back, color: Colors.white),
-        onPressed: () => Navigator.pop(context),
+        onPressed: () => Navigator.pushNamed(context, AppRoutes.home),
       ),
     );
   }
@@ -552,46 +555,70 @@ class _GestoPricingPageState extends State<GestoPricingPage> {
           SizedBox(height: 40),
           FadeInUp(
             delay: AppConstants.shortAnimationDuration,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(AppConstants.cardBorderRadius),
-                  border: Border.all(color: Colors.grey[200]!),
-                ),
-                child: DataTable(
-                  headingRowColor: MaterialStateProperty.all(
-                    AppConstants.primaryColor.withOpacity(0.1),
+            child: Center(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Container(
+                  constraints: BoxConstraints(minWidth: 900),
+                  padding: EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(AppConstants.cardBorderRadius),
+                    border: Border.all(color: Colors.grey[200]!),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 15,
+                        offset: Offset(0, 5),
+                      ),
+                    ],
                   ),
-                  columns: [
-                    DataColumn(
-                      label: Text(
-                        'Fonctionnalités',
-                        style: AppConstants.getBodyFont().copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                  child: DataTable(
+                    columnSpacing: 40,
+                    dataRowHeight: 65,
+                    headingRowHeight: 70,
+                    headingRowColor: MaterialStateProperty.all(
+                      AppConstants.primaryColor.withOpacity(0.1),
                     ),
-                    ...AppConstants.pricingPlans.map((plan) => DataColumn(
-                      label: Text(
-                        plan['name'],
-                        style: AppConstants.getBodyFont().copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: plan['color'] as Color,
+                    columns: [
+                      DataColumn(
+                        label: Container(
+                          width: 180,
+                          child: Text(
+                            'Fonctionnalités',
+                            style: AppConstants.getBodyFont().copyWith(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
                         ),
                       ),
-                    )),
-                  ],
-                  rows: [
-                    _buildComparisonRow('Chambres', ['14', '20', 'Illimité', 'Illimité']),
-                    _buildComparisonRow('Employés', ['3', '10', '20', 'Illimité']),
-                    _buildComparisonRow('Réservations', ['❌', '✅', '✅', '✅']),
-                    _buildComparisonRow('Gestion resto', ['❌', '❌', '✅', '✅']),
-                    _buildComparisonRow('Analyses temps réel', ['❌', '❌', '✅', '✅']),
-                    _buildComparisonRow('Support', ['Base', 'Standard', '24/7', 'Prioritaire']),
-                    _buildComparisonRow('API', ['❌', '❌', '❌', '✅']),
-                  ],
+                      ...AppConstants.pricingPlans.map((plan) => DataColumn(
+                        label: Container(
+                          width: 130,
+                          alignment: Alignment.center,
+                          child: Text(
+                            plan['name'],
+                            style: AppConstants.getBodyFont().copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: plan['color'] as Color,
+                              fontSize: 15,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      )),
+                    ],
+                    rows: [
+                      _buildComparisonRow('Chambres', ['14', '20', 'Illimité', 'Illimité']),
+                      _buildComparisonRow('Employés', ['3', '10', '20', 'Illimité']),
+                      _buildComparisonRow('Réservations', ['❌', '✅', '✅', '✅']),
+                      _buildComparisonRow('Gestion resto', ['❌', '❌', '✅', '✅']),
+                      _buildComparisonRow('Analyses temps réel', ['❌', '❌', '✅', '✅']),
+                      _buildComparisonRow('Support', ['Base', 'Standard', '24/7', 'Prioritaire']),
+                      _buildComparisonRow('API', ['❌', '❌', '❌', '✅']),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -604,14 +631,29 @@ class _GestoPricingPageState extends State<GestoPricingPage> {
   DataRow _buildComparisonRow(String feature, List<String> values) {
     return DataRow(
       cells: [
-        DataCell(Text(
-          feature,
-          style: AppConstants.getBodyFont().copyWith(fontWeight: FontWeight.w600),
+        DataCell(
+          Container(
+            width: 180,
+            child: Text(
+              feature,
+              style: AppConstants.getBodyFont().copyWith(
+                fontWeight: FontWeight.w600,
+                fontSize: 15,
+              ),
+            ),
+          ),
+        ),
+        ...values.map((value) => DataCell(
+          Container(
+            width: 130,
+            alignment: Alignment.center,
+            child: Text(
+              value,
+              style: AppConstants.getBodyFont().copyWith(fontSize: 15),
+              textAlign: TextAlign.center,
+            ),
+          ),
         )),
-        ...values.map((value) => DataCell(Text(
-          value,
-          style: AppConstants.getBodyFont(),
-        ))),
       ],
     );
   }

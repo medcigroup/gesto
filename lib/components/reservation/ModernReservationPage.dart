@@ -52,10 +52,37 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
   // Liste des réservations
   List<Reservation> reservationsList =[];
 
+  // Heures par défaut de l'hôtel
+  String? _defaultCheckInTime;
+  String? _defaultCheckOutTime;
+
   @override
   void initState() {
     super.initState();
+    _loadDefaultHotelHours();
     fetchReservations();
+  }
+
+  // Charger les heures par défaut de l'hôtel
+  Future<void> _loadDefaultHotelHours() async {
+    try {
+      final settingsService = HotelSettingsService();
+      final settings = await settingsService.getHotelSettings();
+      
+      setState(() {
+        _defaultCheckInTime = settings['checkInTime'] ?? '12:00';
+        _defaultCheckOutTime = settings['checkOutTime'] ?? '10:00';
+      });
+      
+      print('⏰ Heures par défaut chargées (Manager): Check-in: $_defaultCheckInTime, Check-out: $_defaultCheckOutTime');
+    } catch (e) {
+      print('Erreur lors du chargement des heures par défaut: $e');
+      // Valeurs par défaut en cas d'erreur
+      setState(() {
+        _defaultCheckInTime = '12:00';
+        _defaultCheckOutTime = '10:00';
+      });
+    }
   }
 
   // ID de l'utilisateur connecté
@@ -632,6 +659,83 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
     );
   }
 
+  // Confirmer une réservation client (passer de "en attente" à "confirmée")
+  Future<void> _confirmReservation(Reservation reservation) async {
+    // Afficher une confirmation
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirmer la réservation'),
+        content: Text(
+          'Voulez-vous confirmer la réservation #${reservation.reservationCode} pour ${reservation.customerName} ?\n\n'
+          'Chambre: ${reservation.roomNumber}\n'
+          'Arrivée: ${DateFormat('dd/MM/yyyy').format(reservation.checkInDate)}\n'
+          'Départ: ${DateFormat('dd/MM/yyyy').format(reservation.checkOutDate)}',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            child: const Text('Confirmer'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        // Rechercher la réservation par code
+        final reservationsSnapshot = await FirebaseFirestore.instance
+            .collection('reservations')
+            .where('reservationCode', isEqualTo: reservation.reservationCode)
+            .limit(1)
+            .get();
+
+        if (reservationsSnapshot.docs.isNotEmpty) {
+          await reservationsSnapshot.docs.first.reference.update({
+            'status': 'réservée',
+          });
+
+          _showSuccessSnackBar('Réservation confirmée avec succès');
+          fetchReservations();
+          
+          // Rafraîchir aussi la réservation trouvée si c'est celle-là
+          if (_foundReservation?.reservationCode == reservation.reservationCode) {
+            setState(() {
+              _foundReservation = Reservation(
+                id: reservation.id,
+                reservationCode: reservation.reservationCode,
+                roomId: reservation.roomId,
+                roomNumber: reservation.roomNumber,
+                roomType: reservation.roomType,
+                customerName: reservation.customerName,
+                customerEmail: reservation.customerEmail,
+                customerPhone: reservation.customerPhone,
+                numberOfGuests: reservation.numberOfGuests,
+                specialRequests: reservation.specialRequests,
+                checkInDate: reservation.checkInDate,
+                checkOutDate: reservation.checkOutDate,
+                status: 'réservée',
+                numberOfNights: reservation.numberOfNights,
+                pricePerNight: reservation.pricePerNight,
+                totalPrice: reservation.totalPrice,
+                depositPercentage: reservation.depositPercentage,
+                depositAmount: reservation.depositAmount,
+                paymentMethod: reservation.paymentMethod,
+              );
+            });
+          }
+        }
+      } catch (e) {
+        _showErrorSnackBar('Erreur lors de la confirmation: ${e.toString()}');
+      }
+    }
+  }
+
   // ================= WIDGETS DE L'INTERFACE =================
 
   // Construction de l'interface principale
@@ -846,8 +950,16 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
                         lastDate: DateTime.now().add(const Duration(days: 365)),
                       );
                       if (picked != null) {
+                        // Appliquer automatiquement l'heure de check-in par défaut
+                        DateTime dateWithTime = picked;
+                        if (_defaultCheckInTime != null) {
+                          final timeParts = _defaultCheckInTime!.split(':');
+                          final hour = int.parse(timeParts[0]);
+                          final minute = int.parse(timeParts[1]);
+                          dateWithTime = DateTime(picked.year, picked.month, picked.day, hour, minute);
+                        }
                         setState(() {
-                          checkInDate = picked;
+                          checkInDate = dateWithTime;
                         });
                       }
                     },
@@ -889,8 +1001,16 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
                         lastDate: DateTime.now().add(const Duration(days: 365)),
                       );
                       if (picked != null) {
+                        // Appliquer automatiquement l'heure de check-out par défaut
+                        DateTime dateWithTime = picked;
+                        if (_defaultCheckOutTime != null) {
+                          final timeParts = _defaultCheckOutTime!.split(':');
+                          final hour = int.parse(timeParts[0]);
+                          final minute = int.parse(timeParts[1]);
+                          dateWithTime = DateTime(picked.year, picked.month, picked.day, hour, minute);
+                        }
                         setState(() {
-                          checkOutDate = picked;
+                          checkOutDate = dateWithTime;
                         });
                       }
                     },
@@ -1434,6 +1554,20 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
                     if (_foundReservation!.status != 'Annulée' &&  _foundReservation!.status != 'Enregistré'&&  _foundReservation!.status != 'Terminé')
                       Row(
                         children: [
+                          if (_foundReservation!.status == 'en attente')
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: () => _confirmReservation(_foundReservation!),
+                                icon: const Icon(Icons.check_circle_outline),
+                                label: const Text('Confirmer'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.blue[600],
+                                  foregroundColor: Colors.white,
+                                ),
+                              ),
+                            ),
+                          if (_foundReservation!.status == 'en attente')
+                            const SizedBox(width: 10),
                           if (_foundReservation!.status == 'réservée' || _foundReservation!.status == 'Confirmée')
                             Expanded(
                               child: ElevatedButton.icon(
@@ -1580,6 +1714,12 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
                               Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
+                                  if (reservation.status == 'en attente')
+                                    IconButton(
+                                      icon: const Icon(Icons.check_circle_outline, color: Colors.blue, size: 20),
+                                      tooltip: 'Confirmer la réservation',
+                                      onPressed: () => _confirmReservation(reservation),
+                                    ),
                                   if (reservation.status == 'réservée' || reservation.status == 'Confirmée')
                                     IconButton(
                                       icon: const Icon(Icons.login_outlined, color: Colors.green, size: 20),
@@ -1679,7 +1819,8 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
               );
               if (picked != null && picked != _checkInDate) {
                 setState(() {
-                  _checkInDate = DateTime(picked.year, picked.month, picked.day, _checkInDate.hour, _checkInDate.minute);
+                  // Appliquer les heures par défaut de l'hôtel
+                  _checkInDate = DateTime(picked.year, picked.month, picked.day, checkInHour, checkInMinute);
                 });
               }
             }
@@ -1693,7 +1834,8 @@ class _ModernReservationPageState extends State<ModernReservationPage> {
               );
               if (picked != null && picked != _checkOutDate) {
                 setState(() {
-                  _checkOutDate = DateTime(picked.year, picked.month, picked.day, _checkOutDate.hour, _checkOutDate.minute);
+                  // Appliquer les heures par défaut de l'hôtel
+                  _checkOutDate = DateTime(picked.year, picked.month, picked.day, checkOutHour, checkOutMinute);
                 });
               }
             }

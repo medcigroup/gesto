@@ -72,21 +72,33 @@ class _GestoLandingPageState extends State<GestoLandingPage> {
           : Colors.transparent,
       elevation: _isScrolled ? 8 : 0,
       shadowColor: Colors.black.withOpacity(0.1),
-      title: Row(
-        children: [
-          Image.asset(
-            'assets/images/gesto_logo2.png',
-            height: 40,
-            fit: BoxFit.contain,
-          ),
-          SizedBox(width: 12),
-          Text(
-            AppConstants.appName,
-            style: AppConstants.getHeadlineFont(
-                color: _isScrolled ? AppConstants.darkColor : Colors.white
-            ).copyWith(fontSize: 22, fontWeight: FontWeight.w700),
-          ),
-        ],
+      title: GestureDetector(
+        onTap: () {
+          // Si on n'est pas déjà sur l'accueil, y retourner
+          if (ModalRoute.of(context)?.settings.name != AppRoutes.home) {
+            Navigator.pushNamedAndRemoveUntil(
+              context,
+              AppRoutes.home,
+              (route) => false,
+            );
+          }
+        },
+        child: Row(
+          children: [
+            Image.asset(
+              'assets/images/gesto_logo2.png',
+              height: 40,
+              fit: BoxFit.contain,
+            ),
+            SizedBox(width: 12),
+            Text(
+              AppConstants.appName,
+              style: AppConstants.getHeadlineFont(
+                  color: _isScrolled ? AppConstants.darkColor : Colors.white
+              ).copyWith(fontSize: 22, fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
       ),
       actions: [
         ...AppConstants.navItems.map((item) => TextButton(
@@ -104,10 +116,7 @@ class _GestoLandingPageState extends State<GestoLandingPage> {
         // Bouton Télécharger l'App
         TextButton.icon(
           onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const GestoMobileDownloadPage()),
-            );
+            Navigator.pushNamed(context, AppRoutes.mobileDownload);
           },
           icon: Icon(
             Icons.phone_android,
@@ -1455,10 +1464,7 @@ class _GestoLandingPageState extends State<GestoLandingPage> {
                             ),
                           ),
                           onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (context) => const GestoMobileDownloadPage()),
-                            );
+                            Navigator.pushNamed(context, AppRoutes.mobileDownload);
                           },
                           label: Text(
                             'Télécharger l\'App Mobile',

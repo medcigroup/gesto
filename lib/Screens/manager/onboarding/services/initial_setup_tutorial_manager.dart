@@ -24,7 +24,7 @@ class InitialSetupTutorialManager {
         description: 'Rendez-vous dans les paramètres pour saisir les informations de votre établissement.',
         icon: '⚙️',
         position: TutorialPosition.right,
-        pageIndex: 14, // Index de la page Paramètres
+        pageIndex: 18, // Index de la page Paramètres (mis à jour)
         actions: [
           'Nom de l\'hôtel',
           'Adresse et contact',
@@ -38,7 +38,7 @@ class InitialSetupTutorialManager {
         description: 'Créez maintenant vos chambres avec leurs caractéristiques et tarifs.',
         icon: '🛏️',
         position: TutorialPosition.right,
-        pageIndex: 3, // Index de la page Chambres
+        pageIndex: 5, // Index de la page Chambres (mis à jour)
         actions: [
           'Numéro et type de chambre',
           'Capacité et équipements',

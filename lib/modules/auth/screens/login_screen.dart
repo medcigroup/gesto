@@ -1,4 +1,4 @@
-import 'package:animate_do/animate_do.dart';
+﻿import 'package:animate_do/animate_do.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../../../config/routes.dart';
@@ -39,9 +39,13 @@ class _LoginScreenState extends State<LoginScreen> {
         final email = _emailController.text.trim();
         final password = _passwordController.text.trim();
 
-        // Connexion avec Firebase Auth
+        print('Tentative de connexion pour: $email');
+
+        // Connexion avec Firebase Auth (la persistance est déjà configurée dans main.dart)
         UserCredential userCredential = await FirebaseAuth.instance
             .signInWithEmailAndPassword(email: email, password: password);
+
+        print('Authentification Firebase réussie');
 
         // Récupération de l'ID utilisateur authentifié
         final String uid = userCredential.user!.uid;
@@ -50,32 +54,58 @@ class _LoginScreenState extends State<LoginScreen> {
         final firestore = FirebaseFirestore.instance;
 
         if (_loginMode == "admin") {
+          print('vérification des droits admin...');
           // Vérifier si l'utilisateur existe dans la collection 'users' (admin/manager)
           final userDoc = await firestore.collection('users').doc(uid).get();
 
           if (!userDoc.exists) {
+            print('Pas de document admin trouvé');
             // L'utilisateur n'est pas un admin/manager
+            if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text("Vous n'avez pas les droits d'administrateur ou de manager"),
                 backgroundColor: Colors.red,
               ),
             );
-            await FirebaseAuth.instance.signOut(); // Déconnexion
+            await FirebaseAuth.instance.signOut(); // DÃ©connexion
             setState(() => _isLoading = false);
             return;
           }
 
-          // Navigation vers le dashboard admin
+          print('Droits admin confirmés');
+          // Vérifier si l'utilisateur a une licence
+          final hasLicence = await _checkUserLicence(uid);
+          
           if (!mounted) return;
-          Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
+          
+          if (!hasLicence) {
+            // Pas de licence ou licence expirée
+            final userData = userDoc.data();
+            if (userData == null || userData['licence'] == null) {
+              // Nouvel utilisateur sans licence
+              print('ðŸŽ¯ Nouvel utilisateur - redirection vers choosePlan');
+              Navigator.pushReplacementNamed(context, AppRoutes.choosePlan);
+            } else {
+              // Licence expirée
+              print('🎯 Licence expirée - redirection vers renewlicencePage');
+              Navigator.pushReplacementNamed(context, AppRoutes.renewlicencePage);
+            }
+          } else {
+            // Licence valide - redirection vers dashboard
+            print('ðŸŽ¯ Licence valide - redirection vers dashboard');
+            Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
+          }
 
         } else {
+          print('🔍 Vérification des droits employé...');
           // Vérifier si l'utilisateur existe dans la collection 'staff' (employé)
           final staffDoc = await firestore.collection('staff').doc(uid).get();
 
           if (!staffDoc.exists) {
+            print('❌ Pas de document staff trouvé');
             // L'utilisateur n'est pas un employé
+            if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text("Vous n'avez pas les droits d'employé"),
@@ -87,12 +117,34 @@ class _LoginScreenState extends State<LoginScreen> {
             return;
           }
 
-          // Navigation vers le dashboard employé
+          print('✅ Droits employé confirmés');
+          // Vérifier la licence du propriétaire
+          final hasOwnerLicence = await _checkEmployeeOwnerLicense(uid);
+          
           if (!mounted) return;
-          Navigator.pushReplacementNamed(context, AppRoutes.employeeDashboard);
+          
+          if (hasOwnerLicence) {
+            print('🎯 Licence propriétaire valide - redirection vers employeeDashboard');
+            Navigator.pushReplacementNamed(context, AppRoutes.employeeDashboard);
+          } else {
+            print('❌ Licence propriétaire expirée');
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("La licence de votre administrateur a expiré. Veuillez le contacter."),
+                backgroundColor: Colors.orange,
+              ),
+            );
+            await FirebaseAuth.instance.signOut();
+            setState(() => _isLoading = false);
+            return;
+          }
         }
 
+        // La redirection se fera automatiquement via authStateChanges
+        print('🎯 Connexion réussie - en attente de redirection automatique...');
+
       } on FirebaseAuthException catch (e) {
+        print('Erreur Firebase Auth: ${e.code}');
         String errorMessage;
         switch (e.code) {
           case 'user-not-found':
@@ -107,18 +159,24 @@ class _LoginScreenState extends State<LoginScreen> {
           case 'user-disabled':
             errorMessage = 'Compte désactivé';
             break;
+          case 'invalid-credential':
+            errorMessage = 'Email ou mot de passe incorrect';
+            break;
           default:
             errorMessage = 'Erreur de connexion: ${e.message}';
         }
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
         );
+        setState(() => _isLoading = false);
       } catch (e) {
+        print('❌ Erreur inattendue: $e');
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erreur: ${e.toString()}'), backgroundColor: Colors.red),
         );
-      } finally {
-        if (mounted) setState(() => _isLoading = false);
+        setState(() => _isLoading = false);
       }
     }
   }
@@ -158,14 +216,14 @@ class _LoginScreenState extends State<LoginScreen> {
                     Row(mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(
-                            AppConstants.appName,  // ✅ Utilise la constante
+                            AppConstants.appName,  // Utilise la constante
                             style: theme.textTheme.displaySmall?.copyWith(
                               color: GestoTheme.white,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
                           Text(
-                            ' ${AppConstants.appVersion}',  // ✅ Utilise la constante
+                            ' ${AppConstants.appVersion}',  // Utilise la constante
                             style: TextStyle(
                               fontSize: 14,
                               color: Colors.grey[400],
@@ -418,6 +476,39 @@ class _LoginScreenState extends State<LoginScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erreur: ${e.message}'), backgroundColor: Colors.red),
       );
+    }
+  }
+  Future<bool> _checkUserLicence(String userId) async {
+    try {
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
+      if (!userDoc.exists) return false;
+      final userData = userDoc.data();
+      if (userData == null || userData['licence'] == null) return false;
+      if (userData['licenceExpiry'] != null || userData['licenceExpiryDate'] != null) {
+        Timestamp? expiryTimestamp = userData['licenceExpiry'] ?? userData['licenceExpiryDate'];
+        if (expiryTimestamp != null) {
+          DateTime expiryDate = expiryTimestamp.toDate();
+          if (expiryDate.isBefore(DateTime.now())) return false;
+        }
+      }
+      return true;
+    } catch (e) {
+      print('Erreur vérification licence: $e');
+      return false;
+    }
+  }
+
+  Future<bool> _checkEmployeeOwnerLicense(String employeeId) async {
+    try {
+      final staffDoc = await FirebaseFirestore.instance.collection('staff').doc(employeeId).get();
+      if (!staffDoc.exists) return false;
+      final staffData = staffDoc.data();
+      if (staffData == null || staffData['idadmin'] == null) return false;
+      String ownerId = staffData['idadmin'];
+      return await _checkUserLicence(ownerId);
+    } catch (e) {
+      print('Erreur vérification licence propriétaire: $e');
+      return false;
     }
   }
 }

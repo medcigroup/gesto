@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="refresh" content="0;url=/">
+  <title>Redirecting...</title>
+</head>
+<body>
+  <script>
+    // Redirection automatique vers la page d'accueil avec le path
+    // Ceci permet à Flutter de gérer le routing même après une 404
+    window.location.href = '/' + window.location.pathname.substring(1);
+  </script>
+</body>
+</html>

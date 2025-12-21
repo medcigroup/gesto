@@ -31,79 +31,81 @@ extension LicenseTypeExtension on String {
 // Fonctionnalités disponibles par type de licence
 class LicenseFeatures {
   // Pages accessibles par type de licence
-  // Pages accessibles par type de licence - MODIFIÉ
   static const Map<LicenseType, List<String>> pageAccess = {
     LicenseType.basic: [
       'Tableau de bord',
-      'Réservations',
-      'Chambres',
-      'Paiements',        // ✅ AJOUTÉ - maintenant disponible en Basic
       'Enregistrement',
       'Passages',
       'Départ',
+      'Chambres',
+      'Paiements',
       'Personnel',
-      'Finances',         // ✅ AJOUTÉ - maintenant disponible en Basic
+      'Finances',
       'Licences',
-      'Administration',
       'Paramètres',
+      'Support',          // Support client toujours accessible
     ],
     LicenseType.starter: [
       'Tableau de bord',
-      'Réservations',
-      'Chambres',
-      'Taches',
-      'Emplois du temps',
-      'Paiements',        // ✅ AJOUTÉ - maintenant disponible en Starter
+      'Réservations',     // Ajouté dans Starter
       'Enregistrement',
       'Passages',
       'Départ',
+      'Chambres',
+      'Paiements',
+      'Tâches',           // Ajouté dans Starter
+      'Emplois du temps', // Ajouté dans Starter
       'Personnel',
-      'Finances',         // ✅ AJOUTÉ - maintenant disponible en Starter
+      'Finances',
       'Licences',
-      'Administration',
       'Paramètres',
+      'Support',          // Support client toujours accessible
     ],
     LicenseType.pro: [
       'Tableau de bord',
       'Réservations',
-      'Chambres',
-      'Taches',
-      'Emplois du temps',
-      'Paiements',        // ✅ Reste disponible en Pro
       'Enregistrement',
       'Passages',
       'Départ',
-      'Restaurant',
+      'Chambres',
+      'Paiements',
+      'Restaurant',       // Ajouté dans Pro
+      'Boutique d\'options',  // Uniquement en pro et Entreprise
+      'Tâches',
+      'Emplois du temps',
       'Personnel',
       'Finances',
       'Licences',
-      'Administration',
       'Paramètres',
+      'Support',          // Support client toujours accessible
     ],
     LicenseType.entreprise: [
       'Tableau de bord',
       'Réservations',
-      'Chambres',
-      'Taches',
-      'Emplois du temps',
-      'Paiements',        // ✅ Reste disponible en Enterprise
       'Enregistrement',
       'Passages',
       'Départ',
+      'Chambres',
+      'Paiements',
       'Restaurant',
+      'Boutique d\'options',  // Uniquement en pro et Entreprise
+      'Tâches',
+      'Emplois du temps',
       'Personnel',
+      'Administration',       // Uniquement en Entreprise (si admin)
       'Finances',
       'Licences',
-      'Administration',
+      'Page Publique',        // Uniquement en Entreprise - Création de page web publique
+      'Support',              // Support client toujours accessible
+      'Support Admin',        // Uniquement en Entreprise (si admin)
+      'Roadmap Admin',        // Uniquement en Entreprise (si admin)
       'Paramètres',
     ],
   };
 
 // Fonctionnalités premium (nécessitant une mise à niveau) - MODIFIÉ
   static const Map<String, LicenseType> premiumFeatures = {
-    'Restaurant': LicenseType.pro,
-    'Taches': LicenseType.starter,
-    // 'Paiements' et 'Finances' ne sont PAS dans cette liste - donc accessibles à tous
+   
   };
 
   // Vérifier si une page est accessible pour un type de licence donné
@@ -219,9 +221,9 @@ class LicenseManager extends ChangeNotifier {
 
   // Vérifier si une page est accessible avec la licence actuelle
   bool canAccessPage(String pageTitle) {
-    // Si la licence a expiré, seuls quelques pages sont accessibles
+    // Si la licence a expiré, seules les pages essentielles sont accessibles
     if (_isExpired) {
-      return ['Tableau de bord', 'Licences', 'Paramètres'].contains(pageTitle);
+      return ['Tableau de bord', 'Licences', 'Support', 'Paramètres'].contains(pageTitle);
     }
 
     return LicenseFeatures.isPageAccessible(pageTitle, _currentLicenseType);

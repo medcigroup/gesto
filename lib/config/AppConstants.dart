@@ -4,7 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 class AppConstants {
   // ==================== INFORMATIONS DE L'APPLICATION ====================
   static const String appName = 'Gesto';
-  static const String appVersion = 'v1.3.1 Build 20251217';
+  static const String appVersion = 'v1.3.2 Build 20251222';
   static const String appTagline = 'Réinventez la gestion hôtelière avec intelligence';
   static const String appDescription = 'Solutions innovantes pour l\'industrie hôtelière';
 
@@ -266,6 +266,7 @@ class AppConstants {
         'Module de réservation',
         '20 chambres max',
         'Limite nombre employé : 10',
+        'App Mobile dédiée',
         'Support standard',
         'Rapports journaliers',
       ],
@@ -286,7 +287,7 @@ class AppConstants {
         'Chambres illimitées',
         'Limite nombre employé : 20',
         'Gestion resto complète',
-        'Tables resto illimitées',
+        'App Mobile dédiée',
         'Support 24/7',
         'Analyses temps réel',
         'Marketing tools',
@@ -305,9 +306,13 @@ class AppConstants {
       'description': 'Pour les grandes chaînes',
       'features': [
         'Solution personnalisée',
+        'Module de réservation',
         'Chambres et employés illimités',
+        'Gestion resto complète',
+        'App Mobile dédiée',
         'Intégrations API avancées',
         'Account manager dédié',
+        'Page public de votre Hotel',
         'Formation sur site',
         'Maintenance prioritaire',
         'SLA garanti 99.9%',

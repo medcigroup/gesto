@@ -1,0 +1,57 @@
+﻿  Future<bool> _checkUserLicence(String userId) async {
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .get();
+
+      if (!userDoc.exists) {
+        return false;
+      }
+
+      final userData = userDoc.data();
+      if (userData == null || userData['licence'] == null) {
+        return false;
+      }
+
+      if (userData['licenceExpiry'] != null || userData['licenceExpiryDate'] != null) {
+        Timestamp? expiryTimestamp = userData['licenceExpiry'] ?? userData['licenceExpiryDate'];
+        if (expiryTimestamp != null) {
+          DateTime expiryDate = expiryTimestamp.toDate();
+          if (expiryDate.isBefore(DateTime.now())) {
+            return false;
+          }
+        }
+      }
+
+      return true;
+    } catch (e) {
+      print('Erreur lors de la vérification de la licence: ');
+      return false;
+    }
+  }
+
+  Future<bool> _checkEmployeeOwnerLicense(String employeeId) async {
+    try {
+      final staffDoc = await FirebaseFirestore.instance
+          .collection('staff')
+          .doc(employeeId)
+          .get();
+
+      if (!staffDoc.exists) {
+        return false;
+      }
+
+      final staffData = staffDoc.data();
+      if (staffData == null || staffData['idadmin'] == null) {
+        return false;
+      }
+
+      String ownerId = staffData['idadmin'];
+      return await _checkUserLicence(ownerId);
+    } catch (e) {
+      print('Erreur lors de la vérification de la licence du propriétaire: ');
+      return false;
+    }
+  }
+}

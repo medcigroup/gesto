@@ -23,16 +23,13 @@ class PaymentService {
     }
 
     try {
+      // Récupérer toutes les transactions où l'hôtel est le customerId
+      // Cela inclut les paiements de réservation ET les achats d'options
       final QuerySnapshot snapshot = await _firestore
           .collection('transactions')
-      // Ajuster si vous filtrez par un champ différent pour l'utilisateur
-      // Si c'est l'utilisateur qui a créé la transaction et non pas le client
           .where('customerId', isEqualTo: currentUser.uid)
-      // Alternativement, vérifiez si le problème est que vous filtrez par customerId
-      // .where('customerId', isEqualTo: currentUser.uid)
           .orderBy('createdAt', descending: true)
-          .limit(
-          20) // Limitez le nombre de résultats pour des performances optimales
+          .limit(20)
           .get();
 
       return snapshot.docs.map((doc) {
@@ -61,15 +58,15 @@ class PaymentService {
 
       print('Recherche des revenus entre $startOfDay et $endOfDay');
 
-      // Récupérer toutes les transactions de type payment
+      // Récupérer toutes les transactions (paiements + achats d'options)
+      // Les types possibles : 'payment' et 'option_purchase'
       final QuerySnapshot snapshot = await _firestore
           .collection('transactions')
           .where('customerId', isEqualTo: currentUser.uid)
-          .where('type', isEqualTo: 'payment')
+          .where('type', whereIn: ['payment', 'option_purchase'])
           .get();
 
-      print('Nombre total de transactions de type payment: ${snapshot.docs
-          .length}');
+      print('Nombre total de transactions: ${snapshot.docs.length}');
 
       double totalRevenue = 0;
       int matchingTransactions = 0;
@@ -91,20 +88,73 @@ class PaymentService {
             if (data.containsKey('amount') && data['amount'] != null) {
               totalRevenue += (data['amount'] as num).toDouble();
               matchingTransactions++;
-              print(
-                  'Transaction trouvée: ${data['amount']} FCFA - ${data['description']} - ${transactionDate}');
+              final type = data['type'] == 'option_purchase' ? 'Option' : 'Paiement';
+              print('Transaction $type trouvée: ${data['amount']} FCFA - ${data['description']} - $transactionDate');
             }
           }
         }
       }
 
-      print(
-          'Nombre de transactions correspondant à la date: $matchingTransactions');
+      print('Nombre de transactions correspondant à la date: $matchingTransactions');
       print('Revenu total calculé: $totalRevenue');
       return totalRevenue;
     } catch (e) {
       print('Erreur lors du calcul du revenu: $e');
       return 0;
+    }
+  }
+
+  // Calculer les revenus par type (chambres vs options)
+  Future<Map<String, double>> getRevenueByType(DateTime date) async {
+    final User? currentUser = _auth.currentUser;
+    if (currentUser == null) {
+      throw Exception('Aucun utilisateur connecté');
+    }
+
+    try {
+      final DateTime startOfDay = DateTime(date.year, date.month, date.day);
+      final DateTime endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
+
+      final QuerySnapshot snapshot = await _firestore
+          .collection('transactions')
+          .where('customerId', isEqualTo: currentUser.uid)
+          .where('type', whereIn: ['payment', 'option_purchase'])
+          .get();
+
+      double roomRevenue = 0;
+      double optionRevenue = 0;
+
+      for (var doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+
+        if (data.containsKey('date') && data['date'] != null) {
+          final DateTime transactionDate = (data['date'] as Timestamp).toDate();
+
+          if (transactionDate.isAtSameMomentAs(startOfDay) ||
+              transactionDate.isAtSameMomentAs(endOfDay) ||
+              (transactionDate.isAfter(startOfDay) && transactionDate.isBefore(endOfDay))) {
+
+            if (data.containsKey('amount') && data['amount'] != null) {
+              final amount = (data['amount'] as num).toDouble();
+              final type = data['type'] as String;
+
+              if (type == 'option_purchase') {
+                optionRevenue += amount;
+              } else if (type == 'payment') {
+                roomRevenue += amount;
+              }
+            }
+          }
+        }
+      }
+
+      return {
+        'rooms': roomRevenue,
+        'options': optionRevenue,
+      };
+    } catch (e) {
+      print('Erreur lors du calcul des revenus par type: $e');
+      return {'rooms': 0, 'options': 0};
     }
   }
 
@@ -228,6 +278,10 @@ class _FinancePageState extends State<FinancePage> {
   double adr = 0;
   double paiementsEnAttente = 0;
 
+  // Variables pour les revenus par type
+  double roomRevenue = 0;
+  double optionRevenue = 0;
+
   // Variable pour stocker les transactions pour le rapport
   List<Map<String, dynamic>> reportTransactions = [];
 
@@ -251,7 +305,10 @@ class _FinancePageState extends State<FinancePage> {
         _calculerRevPAR(selectedDate),
         _calculerADR(selectedDate),
         _calculerPaiementsEnAttente(),
+        _paymentService.getRevenueByType(selectedDate),
       ]);
+
+      final revenueByType = results[6] as Map<String, double>;
 
       setState(() {
         totalDailyRevenue = results[0] as double;
@@ -260,6 +317,8 @@ class _FinancePageState extends State<FinancePage> {
         revPAR = results[3] as double;
         adr = results[4] as double;
         paiementsEnAttente = results[5] as double;
+        roomRevenue = revenueByType['rooms'] ?? 0;
+        optionRevenue = revenueByType['options'] ?? 0;
         isLoading = false;
       });
     } catch (e) {
@@ -271,6 +330,8 @@ class _FinancePageState extends State<FinancePage> {
         revPAR = 0;
         adr = 0;
         paiementsEnAttente = 0;
+        roomRevenue = 0;
+        optionRevenue = 0;
         isLoading = false;
       });
 
@@ -612,6 +673,11 @@ class _FinancePageState extends State<FinancePage> {
 
                     const SizedBox(height: 24),
 
+                    // Graphique de répartition des revenus
+                    _buildRevenueDistributionChart(),
+
+                    const SizedBox(height: 24),
+
                     // Nouvelles cartes statistiques
                     _buildAdditionalStatsCards(),
 
@@ -629,9 +695,303 @@ class _FinancePageState extends State<FinancePage> {
     );
   }
 
+  Widget _buildRevenueDistributionChart() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final totalRevenue = roomRevenue + optionRevenue;
+
+    // Calculer les pourcentages
+    final roomPercentage = totalRevenue > 0 ? (roomRevenue / totalRevenue * 100).toDouble() : 0.0;
+    final optionPercentage = totalRevenue > 0 ? (optionRevenue / totalRevenue * 100).toDouble() : 0.0;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isDark
+              ? [const Color(0xFF2C2C2C), const Color(0xFF1E1E1E)]
+              : [Colors.white, const Color(0xFFFAFAFA)],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF3F51B5).withValues(alpha: 0.15),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.1)
+              : Colors.black.withValues(alpha: 0.05),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // En-tête
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF3F51B5).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.pie_chart_rounded,
+                  color: Color(0xFF3F51B5),
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Répartition des revenus',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // Contenu responsive
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isWideScreen = constraints.maxWidth > 600;
+
+              if (isWideScreen) {
+                // Layout horizontal pour grands écrans
+                return Row(
+                  children: [
+                    // Graphique circulaire
+                    Expanded(
+                      flex: 2,
+                      child: _buildPieChart(totalRevenue),
+                    ),
+                    const SizedBox(width: 32),
+                    // Légende et détails
+                    Expanded(
+                      flex: 3,
+                      child: _buildRevenueLegend(roomPercentage, optionPercentage, isDark),
+                    ),
+                  ],
+                );
+              } else {
+                // Layout vertical pour petits écrans
+                return Column(
+                  children: [
+                    _buildPieChart(totalRevenue),
+                    const SizedBox(height: 24),
+                    _buildRevenueLegend(roomPercentage, optionPercentage, isDark),
+                  ],
+                );
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPieChart(double totalRevenue) {
+    if (totalRevenue == 0) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.pie_chart_outline_rounded,
+              size: 64,
+              color: Colors.grey.withValues(alpha: 0.3),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Aucune donnée',
+              style: TextStyle(
+                color: Colors.grey.withValues(alpha: 0.6),
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return AspectRatio(
+      aspectRatio: 1,
+      child: PieChart(
+        PieChartData(
+          sectionsSpace: 2,
+          centerSpaceRadius: 60,
+          sections: [
+            // Section Chambres
+            PieChartSectionData(
+              value: roomRevenue,
+              title: '${(roomRevenue / totalRevenue * 100).toStringAsFixed(0)}%',
+              color: const Color(0xFF4CAF50),
+              radius: 50,
+              titleStyle: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            // Section Options
+            PieChartSectionData(
+              value: optionRevenue,
+              title: '${(optionRevenue / totalRevenue * 100).toStringAsFixed(0)}%',
+              color: const Color(0xFFE91E63),
+              radius: 50,
+              titleStyle: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRevenueLegend(double roomPercentage, double optionPercentage, bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Revenus des chambres
+        _buildLegendItem(
+          'Revenus Chambres',
+          roomRevenue,
+          roomPercentage,
+          const Color(0xFF4CAF50),
+          Icons.hotel_rounded,
+          isDark,
+        ),
+        const SizedBox(height: 16),
+        // Revenus des options
+        _buildLegendItem(
+          'Revenus Options',
+          optionRevenue,
+          optionPercentage,
+          const Color(0xFFE91E63),
+          Icons.shopping_bag_rounded,
+          isDark,
+        ),
+        const SizedBox(height: 20),
+        const Divider(),
+        const SizedBox(height: 12),
+        // Total
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.monetization_on_rounded,
+                  color: const Color(0xFF3F51B5),
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Total',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                ),
+              ],
+            ),
+            Text(
+              NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(roomRevenue + optionRevenue),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: const Color(0xFF3F51B5),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLegendItem(
+    String label,
+    double amount,
+    double percentage,
+    Color color,
+    IconData icon,
+    bool isDark,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: color.withValues(alpha: 0.3),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(icon, color: color, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white70 : Colors.black87,
+                  ),
+                ),
+              ),
+              Text(
+                '${percentage.toStringAsFixed(1)}%',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            NumberFormat.currency(symbol: 'FCFA ', decimalDigits: 0).format(amount),
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildAdditionalStatsCards() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWideScreen = constraints.maxWidth > 900;
@@ -1076,30 +1436,39 @@ class _FinancePageState extends State<FinancePage> {
   ) {
     final paymentMethod = transaction['paymentMethod'] ?? 'N/A';
     final amount = transaction['amount'] ?? 0;
+    final transactionType = transaction['type'] ?? 'payment';
 
-    // Icône et couleur selon la méthode de paiement
+    // Icône et couleur selon le type de transaction
     IconData paymentIcon;
     Color iconColor;
 
-    switch (paymentMethod.toLowerCase()) {
-      case 'espèces':
-      case 'cash':
-        paymentIcon = Icons.money_rounded;
-        iconColor = const Color(0xFF4CAF50);
-        break;
-      case 'carte':
-      case 'card':
-        paymentIcon = Icons.credit_card_rounded;
-        iconColor = const Color(0xFF2196F3);
-        break;
-      case 'mobile':
-      case 'mobile money':
-        paymentIcon = Icons.phone_android_rounded;
-        iconColor = const Color(0xFFFF9800);
-        break;
-      default:
-        paymentIcon = Icons.payment_rounded;
-        iconColor = const Color(0xFF9C27B0);
+    // Si c'est un achat d'option, utiliser une icône spécifique
+    if (transactionType == 'option_purchase') {
+      paymentIcon = Icons.shopping_bag_rounded;
+      iconColor = const Color(0xFFE91E63); // Rose pour les achats d'options
+    } else {
+      // Sinon, utiliser l'icône selon la méthode de paiement
+      switch (paymentMethod.toLowerCase()) {
+        case 'espèces':
+        case 'cash':
+          paymentIcon = Icons.money_rounded;
+          iconColor = const Color(0xFF4CAF50);
+          break;
+        case 'carte':
+        case 'card':
+        case 'carte bancaire':
+          paymentIcon = Icons.credit_card_rounded;
+          iconColor = const Color(0xFF2196F3);
+          break;
+        case 'mobile':
+        case 'mobile money':
+          paymentIcon = Icons.phone_android_rounded;
+          iconColor = const Color(0xFFFF9800);
+          break;
+        default:
+          paymentIcon = Icons.payment_rounded;
+          iconColor = const Color(0xFF9C27B0);
+      }
     }
 
     return Container(
@@ -1242,30 +1611,39 @@ class _FinancePageState extends State<FinancePage> {
     final DateTime date = (transaction['date'] as Timestamp).toDate();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final paymentMethod = transaction['paymentMethod'] ?? 'N/A';
+    final transactionType = transaction['type'] ?? 'payment';
 
-    // Icône selon la méthode de paiement
+    // Icône selon le type de transaction
     IconData paymentIcon;
     Color iconColor;
 
-    switch (paymentMethod.toLowerCase()) {
-      case 'espèces':
-      case 'cash':
-        paymentIcon = Icons.money_rounded;
-        iconColor = const Color(0xFF4CAF50);
-        break;
-      case 'carte':
-      case 'card':
-        paymentIcon = Icons.credit_card_rounded;
-        iconColor = const Color(0xFF2196F3);
-        break;
-      case 'mobile':
-      case 'mobile money':
-        paymentIcon = Icons.phone_android_rounded;
-        iconColor = const Color(0xFFFF9800);
-        break;
-      default:
-        paymentIcon = Icons.payment_rounded;
-        iconColor = const Color(0xFF9C27B0);
+    // Si c'est un achat d'option, utiliser une icône spécifique
+    if (transactionType == 'option_purchase') {
+      paymentIcon = Icons.shopping_bag_rounded;
+      iconColor = const Color(0xFFE91E63); // Rose pour les achats d'options
+    } else {
+      // Sinon, utiliser l'icône selon la méthode de paiement
+      switch (paymentMethod.toLowerCase()) {
+        case 'espèces':
+        case 'cash':
+          paymentIcon = Icons.money_rounded;
+          iconColor = const Color(0xFF4CAF50);
+          break;
+        case 'carte':
+        case 'card':
+        case 'carte bancaire':
+          paymentIcon = Icons.credit_card_rounded;
+          iconColor = const Color(0xFF2196F3);
+          break;
+        case 'mobile':
+        case 'mobile money':
+          paymentIcon = Icons.phone_android_rounded;
+          iconColor = const Color(0xFFFF9800);
+          break;
+        default:
+          paymentIcon = Icons.payment_rounded;
+          iconColor = const Color(0xFF9C27B0);
+      }
     }
 
     showDialog(
@@ -1416,6 +1794,23 @@ class _FinancePageState extends State<FinancePage> {
                       Icons.hotel_rounded,
                       'ID Chambre',
                       transaction['roomId'] ?? 'N/A',
+                      isDark,
+                    ),
+                    // Afficher l'ID de l'achat d'option si c'est une transaction d'achat d'option
+                    if (transactionType == 'option_purchase')
+                      _buildModernDetailRow(
+                        Icons.receipt_long_rounded,
+                        'ID Achat Option',
+                        transaction['optionPurchaseId'] ?? 'N/A',
+                        isDark,
+                      ),
+                    // Afficher le type de transaction
+                    _buildModernDetailRow(
+                      Icons.category_rounded,
+                      'Type de transaction',
+                      transactionType == 'option_purchase' ? 'Achat d\'options' :
+                      transactionType == 'payment' ? 'Paiement de réservation' :
+                      transactionType == 'discount' ? 'Réduction' : transactionType,
                       isDark,
                     ),
                   ],

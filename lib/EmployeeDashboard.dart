@@ -16,6 +16,7 @@ import 'Screens/manager/OccupiedRoomsPage.dart';
 import 'Screens/manager/PaymentPage.dart';
 import 'Screens/manager/TaskManagementPage.dart';
 import 'Screens/employee/restaurant/RestaurantDashboardPage.dart';
+import 'Screens/client/HotelOptionsStorePage.dart';
 
 
 class EmployeeDashboard extends StatefulWidget {
@@ -37,7 +38,9 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     'firstName': '',
     'lastName': '',
     'role': 'employee',
-    'email': ''
+    'email': '',
+    'adminId': '',
+    'adminPlan': 'basic'
   };
 
   // ✅ Liste de tous les items possibles du menu AVEC la page Caisse Restaurant
@@ -52,6 +55,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     {'title': 'Passage', 'icon': Icons.bed, 'roles': ['Réceptionniste', 'manager', 'admin']},
     {'title': 'Départ', 'icon': Icons.exit_to_app, 'roles': ['Réceptionniste', 'manager', 'admin']},
     {'title': 'Paiement', 'icon': Icons.payment, 'roles': ['Réceptionniste', 'manager', 'admin', 'accountant']},
+    {'title': 'Boutique d\'options', 'icon': Icons.store, 'roles': ['Réceptionniste', 'manager', 'admin']},
     {'title': 'Caisse Restaurant', 'icon': Icons.point_of_sale, 'roles': ['Caissier', 'manager', 'admin']},
     {'title': 'Cuisine', 'icon': Icons.restaurant, 'roles': ['Chef', 'kitchen_staff', 'manager', 'admin']},
     {'title': 'Serveur', 'icon': Icons.room_service, 'roles': ['serveur', 'manager', 'admin']},
@@ -92,17 +96,23 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
             _userData['firstName'] = data['prenom'] ?? '';
             _userData['lastName'] = data['nom'] ?? '';
             _userData['role'] = data['poste'] ?? 'employee';
+            _userData['adminId'] = data['idadmin'] ?? '';
           });
+          
+          // Récupérer le plan de l'administrateur
+          if (_userData['adminId'].isNotEmpty) {
+            await _loadAdminPlan(_userData['adminId']);
+          }
         }
       }
 
       // Filtrer le menu après avoir chargé les données utilisateur
-      _filterMenuByRole();
+      _filterMenuByRoleAndPlan();
     } catch (e) {
       print('Erreur lors du chargement des données utilisateur: $e');
       setState(() {
         _userData['role'] = 'employee';
-        _filterMenuByRole();
+        _filterMenuByRoleAndPlan();
       });
     } finally {
       setState(() {
@@ -111,25 +121,76 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     }
   }
 
-  // Filtrer les éléments du menu en fonction du rôle
-  void _filterMenuByRole() {
+  // Charger le plan de l'administrateur
+  Future<void> _loadAdminPlan(String adminId) async {
+    try {
+      final adminDoc = await _firestore.collection('users').doc(adminId).get();
+      if (adminDoc.exists) {
+        final adminData = adminDoc.data() as Map<String, dynamic>;
+        setState(() {
+          _userData['adminPlan'] = adminData['licenceType'] ?? 'basic';
+        });
+        print('Plan de l\'administrateur: ${_userData['adminPlan']}');
+      }
+    } catch (e) {
+      print('Erreur lors de la récupération du plan admin: $e');
+      setState(() {
+        _userData['adminPlan'] = 'basic';
+      });
+    }
+  }
+
+  // Filtrer les éléments du menu en fonction du rôle ET du plan de l'admin
+  void _filterMenuByRoleAndPlan() {
     final String userRole = _userData['role'];
+    final String adminPlan = _userData['adminPlan'];
+
+    List<Map<String, dynamic>> filteredItems;
 
     if (userRole == 'admin' || userRole == 'manager') {
-      // Les admins et managers ont accès à tout
-      _menuItems = List.from(_allMenuItems);
+      // Les admins et managers ont accès à tout (selon le rôle)
+      filteredItems = List.from(_allMenuItems);
     } else {
       // Filtrer les éléments du menu en fonction du rôle
-      _menuItems = _allMenuItems.where((item) {
+      filteredItems = _allMenuItems.where((item) {
         List<String> roles = List<String>.from(item['roles']);
         return roles.contains('all') || roles.contains(userRole);
       }).toList();
     }
 
+    // Filtrer en fonction du plan de l'administrateur
+    _menuItems = filteredItems.where((item) {
+      final String title = item['title'];
+      
+      // Fonctionnalités bloquées pour le plan basic
+      if (adminPlan == 'basic') {
+        if (title == 'Réservation' || 
+            title == 'Restaurant Dashboard' || 
+            title == 'Caisse Restaurant' ||
+            title == 'Cuisine' ||
+            title == 'Serveur') {
+          return false;
+        }
+      }
+      // Fonctionnalités bloquées pour le plan starter
+      else if (adminPlan == 'starter') {
+        if (title == 'Restaurant Dashboard' || 
+            title == 'Caisse Restaurant' ||
+            title == 'Cuisine' ||
+            title == 'Serveur') {
+          return false;
+        }
+      }
+      
+      return true;
+    }).toList();
+
     // Si l'index actuel n'est plus valide après le filtrage
     if (_selectedIndex >= _menuItems.length) {
       _selectedIndex = 0;
     }
+    
+    print('Menu filtré: ${_menuItems.length} items pour le rôle $userRole et plan $adminPlan');
   }
 
   void _onItemTapped(int index) {
@@ -141,7 +202,37 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   void _logout() async {
     await _auth.signOut();
     if (!mounted) return;
-    Navigator.pushReplacementNamed(context, AppRoutes.login);
+    
+    // Rediriger vers la page d'accueil et supprimer tout l'historique
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      AppRoutes.home,
+      (route) => false,
+    );
+    
+    // Message de confirmation
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Vous avez été déconnecté avec succès'),
+        backgroundColor: Colors.green,
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  // Stream pour compter les réservations non confirmées (en attente)
+  Stream<int> _getPendingReservationsCount() {
+    final user = _auth.currentUser;
+    if (user == null || _userData['adminId'].isEmpty) {
+      return Stream.value(0);
+    }
+
+    return _firestore
+        .collection('reservations')
+        .where('userId', isEqualTo: _userData['adminId'])
+        .where('status', isEqualTo: 'en attente')
+        .snapshots()
+        .map((snapshot) => snapshot.docs.length);
   }
 
   void _confirmLogout() {
@@ -421,6 +512,28 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 8),
+                // Badge du plan de l'admin
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(15),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: Text(
+                    'Plan: ${_userData['adminPlan'].toUpperCase()}',
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -476,10 +589,51 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
                             ),
                             child: Row(
                               children: [
-                                Icon(
-                                  item['icon'],
-                                  color: isSelected ? Colors.white : GestoTheme.navyBlue,
-                                  size: 22,
+                                // Icône avec badge pour les réservations en attente
+                                Stack(
+                                  clipBehavior: Clip.none,
+                                  children: [
+                                    Icon(
+                                      item['icon'],
+                                      color: isSelected ? Colors.white : GestoTheme.navyBlue,
+                                      size: 22,
+                                    ),
+                                    // Badge pour les réservations non confirmées
+                                    if (item['title'] == 'Réservation')
+                                      StreamBuilder<int>(
+                                        stream: _getPendingReservationsCount(),
+                                        initialData: 0,
+                                        builder: (context, snapshot) {
+                                          final count = snapshot.data ?? 0;
+                                          if (count == 0) return const SizedBox.shrink();
+                                          
+                                          return Positioned(
+                                            right: -6,
+                                            top: -4,
+                                            child: Container(
+                                              padding: const EdgeInsets.all(4),
+                                              decoration: const BoxDecoration(
+                                                color: Colors.deepOrange,
+                                                shape: BoxShape.circle,
+                                              ),
+                                              constraints: const BoxConstraints(
+                                                minWidth: 16,
+                                                minHeight: 16,
+                                              ),
+                                              child: Text(
+                                                count > 99 ? '99+' : count.toString(),
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 8,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                                textAlign: TextAlign.center,
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                  ],
                                 ),
                                 const SizedBox(width: 16),
                                 Expanded(
@@ -757,16 +911,19 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
       case 8: // Paiement
         mainContent = PaymentPage();
         break;
-      case 9: // Caisse Restaurant
+      case 9: // Boutique d'options
+        mainContent = const HotelOptionsStorePage();
+        break;
+      case 10: // Caisse Restaurant
         mainContent = CashierRestaurantPage();
         break;
-      case 10: // Cuisine
+      case 11: // Cuisine
         mainContent = const KitchenScreen();
         break;
-      case 11: // Serveur
+      case 12: // Serveur
         mainContent = const ServerScreen();
         break;
-      case 12: // Service de Chambre
+      case 13: // Service de Chambre
         mainContent = const RoomServiceScreen();
         break;
       default:

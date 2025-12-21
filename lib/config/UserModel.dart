@@ -35,21 +35,37 @@ class UserModel {
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
-    return UserModel(
-      createdAt: json['createdAt'] as Timestamp?,
-      email: json['email'] as String,
-      employeeCount: json['employeeCount'] as String,
-      establishmentAddress: json['establishmentAddress'] as String,
-      establishmentName: json['establishmentName'] as String,
-      establishmentType: json['establishmentType'] as String,
-      fullName: json['fullName'] as String,
-      phone: json['phone'] as String,
-      plan: json['licenceType'] as String,
-      planExpiryDate: json['planExpiryDate'] as Timestamp?,
-      licenceGenerationDate: json['licenceGenerationDate'] as Timestamp?, // Remplacement de planStartDate
-      userRole: json['userRole'] as String,
-      licence: json['licence'] as String,
-      licenceExpiryDate: json['licenceExpiryDate'] as Timestamp?,
-    );
+    try {
+      print('🔄 UserModel.fromJson: Conversion des données...');
+      print('📊 Clés disponibles: ${json.keys.join(", ")}');
+
+      final userModel = UserModel(
+        createdAt: json['createdAt'] as Timestamp?,
+        email: json['email'] as String? ?? '',
+        employeeCount: json['employeeCount'] as String? ?? '0',
+        establishmentAddress: json['establishmentAddress'] as String? ?? '',
+        establishmentName: json['establishmentName'] as String? ?? '',
+        establishmentType: json['establishmentType'] as String? ?? '',
+        fullName: json['fullName'] as String? ?? '',
+        phone: json['phone'] as String? ?? '',
+        plan: json['licenceType'] as String? ?? 'basic',
+        planExpiryDate: json['planExpiryDate'] as Timestamp?,
+        licenceGenerationDate: json['licenceGenerationDate'] as Timestamp?,
+        userRole: json['userRole'] as String? ?? 'user',
+        licence: json['licence'] as String? ?? '',
+        licenceExpiryDate: json['licenceExpiryDate'] as Timestamp?,
+      );
+
+      print('✅ UserModel.fromJson: Conversion réussie');
+      print('👤 Utilisateur: ${userModel.fullName} (${userModel.email})');
+      print('📦 Plan: ${userModel.plan}, Rôle: ${userModel.userRole}');
+
+      return userModel;
+    } catch (e, stackTrace) {
+      print('❌ UserModel.fromJson: Erreur lors de la conversion: $e');
+      print('📍 Stack trace: $stackTrace');
+      print('📊 Données reçues: $json');
+      rethrow;
+    }
   }
 }

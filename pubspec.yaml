@@ -78,6 +78,7 @@ dependencies:
   animate_do: ^3.0.2
   parallax_cards: ^1.0.1
   fl_chart: ^0.70.2
+  timeline_tile: ^2.0.0
   flutter_launcher_icons: ^0.14.3
   lucide_icons_flutter: ^1.2.8
   flutter_stripe: ^11.4.0
@@ -98,6 +99,8 @@ dependencies:
   flutter_staggered_animations: ^1.1.1
   csv: ^6.0.0
   shared_preferences: ^2.5.3
+  qr_flutter: ^4.1.0
+  share_plus: ^10.1.4
 
 
 

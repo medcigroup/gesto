@@ -25,13 +25,33 @@ class _SideMenuState extends State<SideMenu> {
   }
 
   Future<void> _loadUserData() async {
-    UserModel? userModel = await _authService.getCurrentUser();
-    if (mounted) {
-      setState(() {
-        _userModel = userModel;
-        _isLoading = false;
-        _checkLicenseExpiration();
-      });
+    try {
+      print('🔄 SideMenu: Chargement des données utilisateur...');
+      final user = FirebaseAuth.instance.currentUser;
+      print('👤 SideMenu: Utilisateur Firebase: ${user?.email ?? "null"}');
+
+      UserModel? userModel = await _authService.getCurrentUser();
+
+      if (userModel == null) {
+        print('⚠️ SideMenu: userModel est null après getCurrentUser()');
+      } else {
+        print('✅ SideMenu: userModel chargé - ${userModel.fullName}, plan: ${userModel.plan}');
+      }
+
+      if (mounted) {
+        setState(() {
+          _userModel = userModel;
+          _isLoading = false;
+          _checkLicenseExpiration();
+        });
+      }
+    } catch (e) {
+      print('❌ SideMenu: Erreur lors du chargement des données utilisateur: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -100,7 +120,8 @@ class _SideMenuState extends State<SideMenu> {
           routeName == AppRoutes.clients ||
           routeName == AppRoutes.employees ||
           routeName == AppRoutes.statistiques ||
-          routeName == AppRoutes.services) {
+          routeName == AppRoutes.services ||
+          routeName == AppRoutes.reservationPage) {
         return false; // Masquer tous les éléments premium et statistiques
       }
       return true; // Afficher uniquement les éléments de base
@@ -190,8 +211,9 @@ class _SideMenuState extends State<SideMenu> {
           // Tableau de bord
           _buildMenuItem(Icons.home, 'Tableau de bord', AppRoutes.dashboard, enabled: !_licenseExpired),
 
-          // Réservation
-          _buildMenuItem(Icons.book_online, 'Réservation', AppRoutes.reservationPage, enabled: !_licenseExpired),
+          // Réservation (disponible à partir de Starter)
+          if (_shouldDisplayMenuItem(AppRoutes.reservationPage))
+            _buildMenuItem(Icons.book_online, 'Réservation', AppRoutes.reservationPage, enabled: !_licenseExpired),
 
           // Enregistrement
           _buildMenuItem(Icons.book_rounded, 'Enregistrement', AppRoutes.enregistrement, enabled: !_licenseExpired),

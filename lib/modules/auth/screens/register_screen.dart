@@ -93,21 +93,32 @@ class _RegisterScreenState extends State<RegisterScreen> {
       setState(() => _isLoading = true);
 
       try {
+        print('📝 Début de l\'inscription...');
+        
         // Création du compte
         final email = _emailController.text.trim();
         final password = _passwordController.text.trim();
+        
+        print('🔐 Création du compte Firebase Auth...');
         final userCredential = await FirebaseAuth.instance
             .createUserWithEmailAndPassword(email: email, password: password);
+        
+        print('✅ Compte Firebase Auth créé: ${userCredential.user!.uid}');
+        
         final fullPhoneNumber = _selectedCountryCode + _phoneController.text.trim();
 
         // Générer un code entreprise unique
+        print('🔢 Génération du code entreprise...');
         final entrepriseData = await CodeEntrepriseGenerator.generateUniqueCode(
           _establishmentNameController.text.trim(),
           email,
           _phoneController.text.trim(),
         );
+        
+        print('✅ Code entreprise généré: ${entrepriseData['code']}');
 
         // Sauvegarde des données utilisateur
+        print('💾 Sauvegarde des données utilisateur dans Firestore...');
         await FirebaseFirestore.instance
             .collection('users')
             .doc(userCredential.user!.uid)
@@ -123,8 +134,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
           'createdAt': FieldValue.serverTimestamp(),
           'entrepriseCode': entrepriseData['code'],
         });
+        
+        print('✅ Données utilisateur sauvegardées');
 
         // Utilisation du service pour définir les paramètres par défaut
+        print('⚙️ Configuration des paramètres de l\'hôtel...');
         final hotelSettingsService = HotelSettingsService();
         await hotelSettingsService.saveHotelSettings(
           hotelName : _establishmentNameController.text.trim(),
@@ -138,20 +152,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
           depositPercentage: 30,
           otherSettings: {},
         );
+        
+        print('✅ Paramètres de l\'hôtel configurés');
 
         // Mise à jour du nom d'affichage
         await userCredential.user!.updateDisplayName(
             _fullNameController.text.trim());
+        
+        print('✅ Nom d\'affichage mis à jour');
 
         if (!mounted) return;
 
+        print('🎯 Navigation vers choosePlan...');
+        // Navigation vers la page de choix de plan
+        // L'utilisateur reste connecté mais sera redirigé par AuthChecker
+        // qui détectera qu'il n'a pas encore de licence
         Navigator.pushReplacementNamed(context, AppRoutes.choosePlan);
+        
       } on FirebaseAuthException catch (e) {
+        print('❌ Erreur Firebase Auth: ${e.code}');
         _showErrorSnackbar(_getAuthErrorMessage(e));
+        setState(() => _isLoading = false);
       } catch (e) {
+        print('❌ Erreur inattendue: $e');
         _showErrorSnackbar('Une erreur inattendue s\'est produite');
-      } finally {
-        if (mounted) setState(() => _isLoading = false);
+        setState(() => _isLoading = false);
       }
     } else if (!_acceptTerms) {
       _showErrorSnackbar('Veuillez accepter les conditions');

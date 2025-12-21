@@ -1,5 +1,6 @@
 import 'package:animate_do/animate_do.dart';
 import 'package:flutter/material.dart';
+import 'package:gesto/config/routes.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'AppConstants.dart';
 
@@ -86,7 +87,7 @@ class _ContactPageState extends State<ContactPage> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded),
           color: AppConstants.darkColor,
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => Navigator.pushNamed(context, AppRoutes.home),
         ),
       ),
       body: SingleChildScrollView(

@@ -637,7 +637,7 @@ class _DashboardState extends State<Dashboard> {
                       label: "Départ",
                       color: dangerColor,
                       onTap: () {
-                        _navigateToDashboardPage(5); // Index de OccupiedRoomsPage
+                        _navigateToDashboardPage(4); // Index de OccupiedRoomsPage
                       },
                     ),
                     _buildActionButton(

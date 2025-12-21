@@ -1,8 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:gesto/config/user_model.dart';
+import 'package:provider/provider.dart';
 import '../../config/LicenseService.dart';
-import '../../widgets/side_menu.dart';
+import '../../LicenseFeatures.dart';
 
 
 class GestionPersonnelPage extends StatefulWidget {
@@ -27,8 +28,8 @@ class _GestionPersonnelPageState extends State<GestionPersonnelPage> {
   String _selectedPoste = 'Réceptionniste';
   String _nouveauDepartement = 'Accueil';
 
-  // Liste des postes disponibles
-  final List<String> _postes = [
+  // Liste complète des postes
+  final List<String> _tousLesPostes = [
     'Réceptionniste',
     'Chef',
     'Agent d\'entretien',
@@ -41,6 +42,28 @@ class _GestionPersonnelPageState extends State<GestionPersonnelPage> {
     'Caissier',
     'Barman'
   ];
+
+  // Postes nécessitant un plan Pro ou supérieur
+  final List<String> _postesProOnly = [
+    'Caissier',
+    'Barman',
+    'Serveur',
+    'Chef'
+  ];
+
+  // Liste filtrée des postes selon la licence
+  List<String> get _postes {
+    final licenseManager = Provider.of<LicenseManager>(context, listen: false);
+    final licenseType = licenseManager.currentLicenseType;
+    
+    // Si plan Pro ou Entreprise, tous les postes sont disponibles
+    if (licenseType == LicenseType.pro || licenseType == LicenseType.entreprise) {
+      return _tousLesPostes;
+    }
+    
+    // Sinon (Basic ou Starter), exclure les postes Pro
+    return _tousLesPostes.where((poste) => !_postesProOnly.contains(poste)).toList();
+  }
 
   @override
   void initState() {
@@ -421,6 +444,34 @@ class _GestionPersonnelPageState extends State<GestionPersonnelPage> {
                           }
                         },
                       ),
+                      // Message informatif si certains postes sont bloqués
+                      if (_postes.length < _tousLesPostes.length)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8.0),
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.orange.shade200),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.info_outline, size: 18, color: Colors.orange.shade700),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Les postes de restaurant (Chef, Serveur, Caissier, Barman) nécessitent un plan Pro ou supérieur.',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.orange.shade900,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       const SizedBox(height: 16),
                       DropdownButtonFormField<String>(
                         value: _nouveauDepartement,
@@ -1441,8 +1492,8 @@ class __EmployeeEditDialogState extends State<_EmployeeEditDialog> {
   late String _departement;
   bool _isSaving = false;
 
-  // Liste des postes disponibles
-  final List<String> _postes = [
+  // Liste complète des postes
+  final List<String> _tousLesPostes = [
     'Réceptionniste',
     'Chef',
     'Agent d\'entretien',
@@ -1455,6 +1506,28 @@ class __EmployeeEditDialogState extends State<_EmployeeEditDialog> {
     'Caissier',
     'Barman'
   ];
+
+  // Postes nécessitant un plan Pro ou supérieur
+  final List<String> _postesProOnly = [
+    'Caissier',
+    'Barman',
+    'Serveur',
+    'Chef'
+  ];
+
+  // Liste filtrée des postes selon la licence
+  List<String> get _postes {
+    final licenseManager = Provider.of<LicenseManager>(context, listen: false);
+    final licenseType = licenseManager.currentLicenseType;
+    
+    // Si plan Pro ou Entreprise, tous les postes sont disponibles
+    if (licenseType == LicenseType.pro || licenseType == LicenseType.entreprise) {
+      return _tousLesPostes;
+    }
+    
+    // Sinon (Basic ou Starter), exclure les postes Pro
+    return _tousLesPostes.where((poste) => !_postesProOnly.contains(poste)).toList();
+  }
 
   @override
   void initState() {
@@ -1562,6 +1635,34 @@ class __EmployeeEditDialogState extends State<_EmployeeEditDialog> {
                 }
               },
             ),
+            // Message informatif si certains postes sont bloqués
+            if (_postes.length < _tousLesPostes.length)
+              Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.orange.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, size: 18, color: Colors.orange.shade700),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Les postes de restaurant nécessitent un plan Pro ou supérieur.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.orange.shade900,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
               value: _departement,

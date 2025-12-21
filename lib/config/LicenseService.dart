@@ -5,9 +5,10 @@ import 'package:gesto/config/routes.dart';
 class LicenseService {
   // Constantes de limites par type de licence
   static const Map<String, int> _licenceLimits = {
-    'basic': 2,
+    'basic': 3,
     'starter': 5,
     'pro': 20,
+    'entreprise': 1000,
   };
 
   // Vérifie si l'utilisateur peut créer un nouvel employé
@@ -85,7 +86,7 @@ class LicenseService {
 
   // Récupère la limite d'employés selon le type de licence
   static int _getLicenceLimit(String licenceType) {
-    return _licenceLimits[licenceType.toLowerCase()] ?? 2; // Par défaut: basic
+    return _licenceLimits[licenceType.toLowerCase()] ?? 3; // Par défaut: basic
   }
 
   // Affiche un dialogue d'information sur la limite de licence
@@ -93,7 +94,7 @@ class LicenseService {
     final theme = Theme.of(context);
     final licenceType = licenceInfo['licenceType'] ?? 'basic';
     final currentCount = licenceInfo['currentCount'] ?? 0;
-    final limit = licenceInfo['limit'] ?? 2;
+    final limit = licenceInfo['limit'] ?? 3;
     final canCreate = licenceInfo['canCreate'] ?? false;
 
     showDialog(
@@ -178,7 +179,7 @@ class LicenseService {
     }
 
     // Texte du type de licence
-    String licenceText = 'Licence ${licenceType.toUpperCase()}';
+    String licenceText = 'Licence ${licenceType.toUpperCase()} : ';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

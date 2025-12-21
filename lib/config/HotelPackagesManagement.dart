@@ -413,6 +413,33 @@ class _HotelPackagesManagementState extends State<HotelPackagesManagement>
                   ),
                 ),
               ],
+              if (!package.isIncluded && package.pricing.hasAnyPrice()) ...[
+                SizedBox(height: 12),
+                Container(
+                  padding: EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.orange.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.payments, color: Colors.orange, size: 16),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          package.pricing.getPricingInfo(),
+                          style: TextStyle(
+                            color: Colors.orange.shade800,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -666,6 +693,10 @@ class _PackageFormDialogState extends State<PackageFormDialog> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameController;
   late TextEditingController _descriptionController;
+  late TextEditingController _pricePerHourController;
+  late TextEditingController _pricePerDayController;
+  late TextEditingController _pricePerWeekController;
+  late TextEditingController _pricePerMonthController;
   String _selectedCategory = 'amenities';
   String _selectedIcon = 'check_circle';
   bool _isIncluded = true;
@@ -703,6 +734,21 @@ class _PackageFormDialogState extends State<PackageFormDialog> {
     super.initState();
     _nameController = TextEditingController(text: widget.package?.name ?? '');
     _descriptionController = TextEditingController(text: widget.package?.description ?? '');
+
+    // Initialiser les contrôleurs de prix
+    _pricePerHourController = TextEditingController(
+      text: widget.package?.pricing.pricePerHour?.toString() ?? ''
+    );
+    _pricePerDayController = TextEditingController(
+      text: widget.package?.pricing.pricePerDay?.toString() ?? ''
+    );
+    _pricePerWeekController = TextEditingController(
+      text: widget.package?.pricing.pricePerWeek?.toString() ?? ''
+    );
+    _pricePerMonthController = TextEditingController(
+      text: widget.package?.pricing.pricePerMonth?.toString() ?? ''
+    );
+
     if (widget.package != null) {
       _selectedCategory = widget.package!.category;
       _selectedIcon = widget.package!.icon;
@@ -714,6 +760,10 @@ class _PackageFormDialogState extends State<PackageFormDialog> {
   void dispose() {
     _nameController.dispose();
     _descriptionController.dispose();
+    _pricePerHourController.dispose();
+    _pricePerDayController.dispose();
+    _pricePerWeekController.dispose();
+    _pricePerMonthController.dispose();
     super.dispose();
   }
 
@@ -723,6 +773,19 @@ class _PackageFormDialogState extends State<PackageFormDialog> {
     setState(() => _isLoading = true);
 
     try {
+      // Parser les prix
+      double? parsePrice(String value) {
+        if (value.isEmpty) return null;
+        return double.tryParse(value);
+      }
+
+      final pricing = PackagePricing(
+        pricePerHour: parsePrice(_pricePerHourController.text),
+        pricePerDay: parsePrice(_pricePerDayController.text),
+        pricePerWeek: parsePrice(_pricePerWeekController.text),
+        pricePerMonth: parsePrice(_pricePerMonthController.text),
+      );
+
       final package = HotelPackage(
         id: widget.package?.id ?? '',
         name: _nameController.text,
@@ -730,6 +793,7 @@ class _PackageFormDialogState extends State<PackageFormDialog> {
         icon: _selectedIcon,
         isIncluded: _isIncluded,
         category: _selectedCategory,
+        pricing: pricing,
       );
 
       if (widget.package != null) {
@@ -1007,6 +1071,130 @@ class _PackageFormDialogState extends State<PackageFormDialog> {
                           ),
                         ],
                       ),
+
+                      // Section de tarification (seulement si payant)
+                      if (!_isIncluded) ...[
+                        SizedBox(height: 24),
+                        Container(
+                          padding: EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.orange.shade200),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(Icons.payments, color: Colors.orange, size: 20),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'Tarification',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.orange.shade900,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                'Définissez le prix par période (au moins un prix requis)',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.orange.shade700,
+                                ),
+                              ),
+                              SizedBox(height: 16),
+
+                              // Prix par heure
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: _pricePerHourController,
+                                      decoration: InputDecoration(
+                                        labelText: 'Prix / Heure',
+                                        hintText: '0',
+                                        prefixIcon: Icon(Icons.schedule),
+                                        suffixText: 'FCFA',
+                                        filled: true,
+                                        fillColor: Colors.white,
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                      ),
+                                      keyboardType: TextInputType.number,
+                                    ),
+                                  ),
+                                  SizedBox(width: 12),
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: _pricePerDayController,
+                                      decoration: InputDecoration(
+                                        labelText: 'Prix / Jour',
+                                        hintText: '0',
+                                        prefixIcon: Icon(Icons.wb_sunny),
+                                        suffixText: 'FCFA',
+                                        filled: true,
+                                        fillColor: Colors.white,
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                      ),
+                                      keyboardType: TextInputType.number,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: 12),
+
+                              // Prix par semaine et mois
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: _pricePerWeekController,
+                                      decoration: InputDecoration(
+                                        labelText: 'Prix / Semaine',
+                                        hintText: '0',
+                                        prefixIcon: Icon(Icons.date_range),
+                                        suffixText: 'FCFA',
+                                        filled: true,
+                                        fillColor: Colors.white,
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                      ),
+                                      keyboardType: TextInputType.number,
+                                    ),
+                                  ),
+                                  SizedBox(width: 12),
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: _pricePerMonthController,
+                                      decoration: InputDecoration(
+                                        labelText: 'Prix / Mois',
+                                        hintText: '0',
+                                        prefixIcon: Icon(Icons.calendar_month),
+                                        suffixText: 'FCFA',
+                                        filled: true,
+                                        fillColor: Colors.white,
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                      ),
+                                      keyboardType: TextInputType.number,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),

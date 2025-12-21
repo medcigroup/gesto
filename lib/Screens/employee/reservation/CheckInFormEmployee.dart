@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../../components/checkin/options_package_section.dart';
 import '../../../config/generationcode.dart';
 import '../../../config/getConnectedUserAdminId.dart';
+import '../../../config/HotelSettingsService.dart';
 class CheckInFormEmployee extends StatefulWidget {
   final Reservation reservation;
 
@@ -34,6 +35,10 @@ class _CheckInFormEmployeeState extends State<CheckInFormEmployee> {
 
   // Variables pour les options
   Map<String, bool> _selectedOptions = {};
+
+  // Heures par défaut de l'hôtel
+  String? _defaultCheckInTime;
+  String? _defaultCheckOutTime;
 
   @override
   void initState() {
@@ -77,6 +82,9 @@ class _CheckInFormEmployeeState extends State<CheckInFormEmployee> {
       idadmin = await getConnectedUserAdminId();
       print('✅ UserId récupéré pour CheckInFormEmployee: $idadmin');
 
+      // Charger les heures par défaut de l'hôtel
+      await _loadDefaultHotelHours();
+
       setState(() {
         _isLoading = false;
       });
@@ -104,6 +112,28 @@ class _CheckInFormEmployeeState extends State<CheckInFormEmployee> {
     }
   }
 
+  // Charger les heures par défaut de l'hôtel
+  Future<void> _loadDefaultHotelHours() async {
+    try {
+      final settingsService = HotelSettingsService();
+      final settings = await settingsService.getHotelSettings();
+      
+      setState(() {
+        _defaultCheckInTime = settings['checkInTime'] ?? '12:00';
+        _defaultCheckOutTime = settings['checkOutTime'] ?? '10:00';
+      });
+      
+      print('⏰ Heures par défaut chargées: Check-in: $_defaultCheckInTime, Check-out: $_defaultCheckOutTime');
+    } catch (e) {
+      print('Erreur lors du chargement des heures par défaut: $e');
+      // Valeurs par défaut en cas d'erreur
+      setState(() {
+        _defaultCheckInTime = '12:00';
+        _defaultCheckOutTime = '10:00';
+      });
+    }
+  }
+
   // Sélection de la date d'arrivée
   Future<void> _selectCheckInDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
@@ -113,8 +143,17 @@ class _CheckInFormEmployeeState extends State<CheckInFormEmployee> {
       lastDate: DateTime(2030),
     );
     if (picked != null && picked != _checkInDate && mounted) {
+      // Appliquer automatiquement l'heure de check-in par défaut de l'hôtel
+      DateTime dateWithTime = picked;
+      if (_defaultCheckInTime != null) {
+        final timeParts = _defaultCheckInTime!.split(':');
+        final hour = int.parse(timeParts[0]);
+        final minute = int.parse(timeParts[1]);
+        dateWithTime = DateTime(picked.year, picked.month, picked.day, hour, minute);
+      }
+      
       setState(() {
-        _checkInDate = picked;
+        _checkInDate = dateWithTime;
       });
     }
   }
@@ -128,9 +167,79 @@ class _CheckInFormEmployeeState extends State<CheckInFormEmployee> {
       lastDate: DateTime(2030),
     );
     if (picked != null && picked != _checkOutDate && mounted) {
+      // Appliquer automatiquement l'heure de check-out par défaut de l'hôtel
+      DateTime dateWithTime = picked;
+      if (_defaultCheckOutTime != null) {
+        final timeParts = _defaultCheckOutTime!.split(':');
+        final hour = int.parse(timeParts[0]);
+        final minute = int.parse(timeParts[1]);
+        dateWithTime = DateTime(picked.year, picked.month, picked.day, hour, minute);
+      }
+      
       setState(() {
-        _checkOutDate = picked;
+        _checkOutDate = dateWithTime;
       });
+    }
+  }
+
+  // Vérifier la disponibilité de la chambre pour les nouvelles dates
+  // Supporte le cycle hôtelier standard (check-out 12h, check-in 12h)
+  // Une chambre est disponible si le départ <= arrivée suivante
+  Future<bool> _isRoomAvailable(String roomId, DateTime checkIn, DateTime checkOut, String currentReservationId) async {
+    try {
+      // Vérifier dans les réservations
+      final reservationsSnapshot = await FirebaseFirestore.instance
+          .collection('reservations')
+          .where('roomId', isEqualTo: roomId)
+          .where('status', whereIn: ['en attente', 'réservée', 'Confirmée', 'Enregistré']).get();
+
+      for (var doc in reservationsSnapshot.docs) {
+        // Ignorer la réservation actuelle
+        if (doc.id == currentReservationId) continue;
+        
+        final data = doc.data();
+        DateTime resCheckIn = (data['checkInDate'] as Timestamp).toDate();
+        DateTime resCheckOut = (data['checkOutDate'] as Timestamp).toDate();
+
+        // Vérifier le chevauchement des dates
+        // Pas de conflit si: notre départ <= leur arrivée OU notre arrivée >= leur départ
+        // Cela permet le cycle 12h-12h (départ 12h = arrivée 12h même jour)
+        bool noOverlap = checkOut.isBefore(resCheckIn) || 
+                         checkOut.isAtSameMomentAs(resCheckIn) ||
+                         checkIn.isAfter(resCheckOut) || 
+                         checkIn.isAtSameMomentAs(resCheckOut);
+        
+        if (!noOverlap) {
+          return false;
+        }
+      }
+
+      // Vérifier dans les enregistrements (bookings)
+      final bookingsSnapshot = await FirebaseFirestore.instance
+          .collection('bookings')
+          .where('roomId', isEqualTo: roomId)
+          .where('status', whereNotIn: ['Terminé', 'Annulé']).get();
+
+      for (var doc in bookingsSnapshot.docs) {
+        final data = doc.data();
+        DateTime resCheckIn = (data['checkInDate'] as Timestamp).toDate();
+        DateTime resCheckOut = (data['checkOutDate'] as Timestamp).toDate();
+
+        // Même logique pour les bookings
+        bool noOverlap = checkOut.isBefore(resCheckIn) || 
+                         checkOut.isAtSameMomentAs(resCheckIn) ||
+                         checkIn.isAfter(resCheckOut) || 
+                         checkIn.isAtSameMomentAs(resCheckOut);
+        
+        if (!noOverlap) {
+          return false;
+        }
+      }
+
+      return true;
+    } catch (e) {
+      print('Erreur lors de la vérification de disponibilité: $e');
+      return false;
     }
   }
 
@@ -147,9 +256,53 @@ class _CheckInFormEmployeeState extends State<CheckInFormEmployee> {
         return;
       }
 
-      // Calculer le nombre de nuits
+      // Vérifier si les dates ont changé par rapport à la réservation originale
+      final originalCheckIn = widget.reservation.checkInDate;
+      final originalCheckOut = widget.reservation.checkOutDate;
+      final datesChanged = !(_checkInDate!.isAtSameMomentAs(originalCheckIn) && 
+                             _checkOutDate!.isAtSameMomentAs(originalCheckOut));
+
+      // Si les dates ont changé, vérifier la disponibilité de la chambre
+      if (datesChanged) {
+        final isAvailable = await _isRoomAvailable(
+          widget.reservation.roomId,
+          _checkInDate!,
+          _checkOutDate!,
+          widget.reservation.id,
+        );
+
+        if (!isAvailable) {
+          if (mounted) {
+            showDialog(
+              context: context,
+              builder: (BuildContext context) {
+                return AlertDialog(
+                  title: Row(
+                    children: [
+                      Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
+                      const SizedBox(width: 12),
+                      const Text('Chambre non disponible'),
+                    ],
+                  ),
+                  content: const Text(
+                    'Cette chambre est déjà réservée ou occupée pour les dates sélectionnées. Veuillez choisir d\'autres dates ou contacter la réception.',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('OK'),
+                    ),
+                  ],
+                );
+              },
+            );
+          }
+          return;
+        }
+      }
+
+      // Calculer le nombre de nuits (différence en jours entre check-out et check-in)
       final numberOfNights = _checkOutDate!.difference(_checkInDate!).inDays;
-      final numberOfNightsCorrected = numberOfNights + (_checkOutDate!.isAfter(_checkInDate!) ? 1 : 0);
 
       // Préparer les données de réservation
       final bookingData = {
@@ -167,10 +320,10 @@ class _CheckInFormEmployeeState extends State<CheckInFormEmployee> {
         'customerPhone': widget.reservation.customerPhone,
         'numberOfGuests': widget.reservation.numberOfGuests,
         'specialRequests': widget.reservation.specialRequests,
-        'nights': numberOfNightsCorrected,
+        'nights': numberOfNights,
         'pricePerNight': widget.reservation.pricePerNight,
         'totalAmount': widget.reservation.pricePerNight != null
-            ? widget.reservation.pricePerNight! * numberOfNightsCorrected
+            ? widget.reservation.pricePerNight! * numberOfNights
             : null,
         'idEmploye': FirebaseAuth.instance.currentUser?.uid, // UID de l'utilisateur connecté
         'userId': idadmin, // ID admin récupéré
@@ -179,10 +332,8 @@ class _CheckInFormEmployeeState extends State<CheckInFormEmployee> {
 
       // Enregistrer les données
       await _saveBookingData(bookingData);
-
-      if (mounted) {
-        Navigator.pop(context); // Retour à l'écran précédent après enregistrement
-      }
+      
+      // Le retour à l'écran précédent est géré dans _saveBookingData()
     }
   }
 
@@ -334,220 +485,315 @@ class _CheckInFormEmployeeState extends State<CheckInFormEmployee> {
     }
 
     return Scaffold(
+      backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
         elevation: 0,
-        centerTitle: true,
-        title: const Text('Enregistrement du Client'),
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        foregroundColor: Theme.of(context).colorScheme.onPrimary,
-      ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Theme.of(context).colorScheme.primary.withOpacity(0.05),
-              Theme.of(context).colorScheme.background,
-            ],
+        centerTitle: false,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Enregistrement du Client',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            Text(
+              'Réservation #${widget.reservation.reservationCode}',
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.normal),
+            ),
+          ],
+        ),
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.deepPurple.shade400, Colors.deepPurple.shade600],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
           ),
         ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                // En-tête avec informations sur la réservation
-                Card(
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+        foregroundColor: Colors.white,
+      ),
+      body: SingleChildScrollView(
+        child: Column(
+          children: <Widget>[
+            // En-tête avec informations sur la réservation
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.deepPurple.shade400, Colors.blue.shade600],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.blue.shade200,
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
-                        Row(
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(Icons.hotel, color: Colors.white, size: 28),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Text(
+                            'Détails de la Réservation',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Divider(color: Colors.white.withOpacity(0.3)),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildInfoItemWhite(
+                            'Chambre',
+                            '${widget.reservation.roomNumber}',
+                            Icons.meeting_room,
+                          ),
+                        ),
+                        Container(
+                          width: 1,
+                          height: 40,
+                          color: Colors.white.withOpacity(0.3),
+                        ),
+                        Expanded(
+                          child: _buildInfoItemWhite(
+                            'Type',
+                            widget.reservation.roomType,
+                            Icons.home_work,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildInfoItemWhite(
+                            'Client',
+                            widget.reservation.customerName,
+                            Icons.person,
+                          ),
+                        ),
+                        Container(
+                          width: 1,
+                          height: 40,
+                          color: Colors.white.withOpacity(0.3),
+                        ),
+                        Expanded(
+                          child: _buildInfoItemWhite(
+                            'Invités',
+                            '${widget.reservation.numberOfGuests}',
+                            Icons.group,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (widget.reservation.pricePerNight != null) ...[
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Icon(Icons.info_outline, color: Theme.of(context).colorScheme.primary),
-                            SizedBox(width: 8),
-                            Text(
-                              'Détails de la Réservation',
+                            const Text(
+                              'Prix par nuit',
                               style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            Text(
+                              '${widget.reservation.pricePerNight!.toStringAsFixed(0)} FCFA',
+                              style: const TextStyle(
+                                color: Colors.white,
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
-                                color: Theme.of(context).colorScheme.primary,
                               ),
                             ),
                           ],
                         ),
-                        Divider(),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildInfoItem(
-                                'Chambre',
-                                '${widget.reservation.roomNumber} (${widget.reservation.roomType})',
-                                Icons.hotel,
-                              ),
-                            ),
-                            Expanded(
-                              child: _buildInfoItem(
-                                'Client',
-                                widget.reservation.customerName,
-                                Icons.person,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildInfoItem(
-                                'Téléphone',
-                                widget.reservation.customerPhone,
-                                Icons.phone,
-                              ),
-                            ),
-                            Expanded(
-                              child: _buildInfoItem(
-                                'Invités',
-                                '${widget.reservation.numberOfGuests} personne(s)',
-                                Icons.group,
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (widget.reservation.pricePerNight != null) ...[
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _buildInfoItem(
-                                  'Prix/nuit',
-                                  '${widget.reservation.pricePerNight!.toStringAsFixed(0)} FCFA',
-                                  Icons.monetization_on,
-                                ),
-                              ),
-                              Expanded(
-                                child: _buildInfoItem(
-                                  'Code Réservation',
-                                  widget.reservation.reservationCode,
-                                  Icons.confirmation_number,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
+                      ),
+                    ],
+                  ],
                 ),
+              ),
+            ),
 
-                const SizedBox(height: 20),
-
-                // Informations personnelles
-                Card(
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Informations Personnelles',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _fullNameController,
-                          decoration: InputDecoration(
-                            labelText: 'Nom Complet*',
-                            hintText: 'Entrez le nom complet',
-                            prefixIcon: const Icon(Icons.person),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
+            // Formulaire d'informations personnelles
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  children: [
+                    // Section Informations personnelles
+                    Card(
+                      elevation: 2,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(20.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.deepPurple.shade50,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Icon(Icons.person, color: Colors.deepPurple.shade600),
+                                ),
+                                const SizedBox(width: 12),
+                                const Text(
+                                  'Informations Personnelles',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.deepPurple,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Veuillez entrer le nom complet';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _idNumberController,
-                          decoration: InputDecoration(
-                            labelText: 'Numéro de pièce d\'identité*',
-                            hintText: 'Entrez le numéro d\'identité',
-                            prefixIcon: const Icon(Icons.badge),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
+                            const SizedBox(height: 20),
+                            TextFormField(
+                              controller: _fullNameController,
+                              decoration: InputDecoration(
+                                labelText: 'Nom Complet *',
+                                hintText: 'Entrez le nom complet',
+                                prefixIcon: Icon(Icons.person_outline, color: Colors.deepPurple.shade400),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(color: Colors.deepPurple.shade400, width: 2),
+                                ),
+                                filled: true,
+                                fillColor: Colors.grey.shade50,
+                              ),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Veuillez entrer le nom complet';
+                                }
+                                return null;
+                              },
                             ),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Veuillez entrer le numéro de pièce d\'identité';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _nationalityController,
-                          decoration: InputDecoration(
-                            labelText: 'Nationalité*',
-                            hintText: 'Entrez la nationalité',
-                            prefixIcon: const Icon(Icons.flag),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
+                            const SizedBox(height: 16),
+                            TextFormField(
+                              controller: _idNumberController,
+                              decoration: InputDecoration(
+                                labelText: 'Numéro de pièce d\'identité *',
+                                hintText: 'Entrez le numéro d\'identité',
+                                prefixIcon: Icon(Icons.badge_outlined, color: Colors.deepPurple.shade400),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(color: Colors.deepPurple.shade400, width: 2),
+                                ),
+                                filled: true,
+                                fillColor: Colors.grey.shade50,
+                              ),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Veuillez entrer le numéro de pièce d\'identité';
+                                }
+                                return null;
+                              },
                             ),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Veuillez entrer la nationalité';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _addressController,
-                          decoration: InputDecoration(
-                            labelText: 'Adresse*',
-                            hintText: 'Entrez l\'adresse complète',
-                            prefixIcon: const Icon(Icons.home),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
+                            const SizedBox(height: 16),
+                            TextFormField(
+                              controller: _nationalityController,
+                              decoration: InputDecoration(
+                                labelText: 'Nationalité *',
+                                hintText: 'Entrez la nationalité',
+                                prefixIcon: Icon(Icons.flag_outlined, color: Colors.deepPurple.shade400),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(color: Colors.deepPurple.shade400, width: 2),
+                                ),
+                                filled: true,
+                                fillColor: Colors.grey.shade50,
+                              ),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Veuillez entrer la nationalité';
+                                }
+                                return null;
+                              },
                             ),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Veuillez entrer l\'adresse';
-                            }
-                            return null;
-                          },
-                          maxLines: 2,
+                            const SizedBox(height: 16),
+                            TextFormField(
+                              controller: _addressController,
+                              decoration: InputDecoration(
+                                labelText: 'Adresse *',
+                                hintText: 'Entrez l\'adresse complète',
+                                prefixIcon: Icon(Icons.home_outlined, color: Colors.deepPurple.shade400),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(color: Colors.deepPurple.shade400, width: 2),
+                                ),
+                                filled: true,
+                                fillColor: Colors.grey.shade50,
+                              ),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Veuillez entrer l\'adresse';
+                                }
+                                return null;
+                              },
+                              maxLines: 2,
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
-                  ),
-                ),
 
-                const SizedBox(height: 20),
+                    const SizedBox(height: 16),
 
-                // Dates du séjour
-                Card(
+                    // Section Dates du séjour
+                    Card(
                   elevation: 2,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   child: Padding(
@@ -636,7 +882,7 @@ class _CheckInFormEmployeeState extends State<CheckInFormEmployee> {
                                     ),
                                   ),
                                   Text(
-                                    '${_checkOutDate!.difference(_checkInDate!).inDays + 1} nuit(s)',
+                                    '${_checkOutDate!.difference(_checkInDate!).inDays} nuit(s)',
                                     style: TextStyle(
                                       fontWeight: FontWeight.bold,
                                       fontSize: 16,
@@ -716,8 +962,8 @@ class _CheckInFormEmployeeState extends State<CheckInFormEmployee> {
             ),
           ),
         ),
-      ),
-    );
+      ]),
+    ));
   }
 
   // Widget pour afficher les éléments d'information
@@ -750,6 +996,38 @@ class _CheckInFormEmployeeState extends State<CheckInFormEmployee> {
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Widget pour afficher les informations sur fond coloré (blanc sur fond bleu)
+  Widget _buildInfoItemWhite(String label, String value, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
+      child: Column(
+        children: [
+          Icon(icon, size: 24, color: Colors.white),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.white.withOpacity(0.8),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 15,
+              color: Colors.white,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
           ),
         ],
       ),
